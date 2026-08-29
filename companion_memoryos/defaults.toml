@@ -1,0 +1,111 @@
+schema_version = "1.0"
+
+[server]
+host = "127.0.0.1"
+port = 8765
+
+[database]
+busy_timeout_ms = 5000
+
+[security]
+token_bytes = 32
+
+[retention]
+ephemeral_hours = 24
+short_term_days = 30
+long_term_days = 365
+sensitive_max_days = 30
+candidate_review_days = 14
+
+[retrieval]
+candidate_pool = 80
+default_limit = 8
+max_limit = 25
+default_max_characters = 6000
+max_characters = 20000
+recency_half_life_days = 60.0
+cjk_ngram_min = 2
+cjk_ngram_max = 3
+minimum_token_length = 2
+max_fts_terms = 32
+
+[ranking]
+lexical = 0.32
+salience = 0.20
+recency = 0.16
+emotion = 0.12
+need = 0.10
+continuity = 0.10
+
+[policy]
+sensitive_requires_explicit_consent = true
+highly_sensitive_requires_review = true
+unknown_sensitive_is_discarded = true
+wellbeing_signals_are_ephemeral = true
+exact_duplicate_detection = true
+
+[continuity.general]
+identity = 0.85
+preference = 0.85
+boundary = 1.00
+support_strategy = 0.95
+commitment = 0.75
+ritual = 0.70
+emotion_episode = 0.65
+shared_moment = 0.60
+wellbeing_signal = 0.55
+
+[continuity.comfort]
+identity = 0.65
+preference = 0.75
+boundary = 1.00
+support_strategy = 1.00
+commitment = 0.55
+ritual = 0.80
+emotion_episode = 0.90
+shared_moment = 0.70
+wellbeing_signal = 0.85
+
+[continuity.celebrate]
+identity = 0.70
+preference = 0.75
+boundary = 1.00
+support_strategy = 0.65
+commitment = 0.80
+ritual = 0.75
+emotion_episode = 0.70
+shared_moment = 1.00
+wellbeing_signal = 0.35
+
+[continuity.reflect]
+identity = 0.80
+preference = 0.70
+boundary = 1.00
+support_strategy = 0.80
+commitment = 0.70
+ritual = 0.70
+emotion_episode = 1.00
+shared_moment = 0.90
+wellbeing_signal = 0.65
+
+[continuity.plan]
+identity = 0.70
+preference = 0.75
+boundary = 1.00
+support_strategy = 0.60
+commitment = 1.00
+ritual = 0.85
+emotion_episode = 0.45
+shared_moment = 0.55
+wellbeing_signal = 0.45
+
+[continuity.check_in]
+identity = 0.65
+preference = 0.70
+boundary = 1.00
+support_strategy = 0.95
+commitment = 0.70
+ritual = 0.80
+emotion_episode = 0.95
+shared_moment = 0.65
+wellbeing_signal = 1.00
