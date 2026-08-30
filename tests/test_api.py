@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -51,3 +52,50 @@ def test_capture_recall_export_and_purge(tmp_path: Path) -> None:
     )
     assert purged.status_code == 200
     assert client.get("/api/v1/users/alice/export", headers=headers).json()["memories"] == []
+
+
+def test_event_fallback_and_proactivity_are_available_over_api(tmp_path: Path) -> None:
+    client, headers = authorized_client(tmp_path)
+    archived = client.post(
+        "/api/v1/events",
+        headers=headers,
+        json={
+            "user_id": "alice",
+            "session_id": "session-one",
+            "role": "user",
+            "content": "下班路上买了一枝白色郁金香",
+            "consent": "granted",
+        },
+    )
+    assert archived.status_code == 200
+    event_id = archived.json()["event"]["id"]
+
+    recall = client.post(
+        "/api/v1/recall",
+        headers=headers,
+        json={"user_id": "alice", "query": "白色郁金香"},
+    )
+    assert recall.status_code == 200
+    assert recall.json()["retrieval_outcome"] == "match"
+    assert recall.json()["event_fallback"][0]["event"]["id"] == event_id
+
+    now = datetime.now(UTC)
+    proactive = client.post(
+        "/api/v1/proactivity/evaluate",
+        headers=headers,
+        json={
+            "user_id": "alice",
+            "permission_granted": True,
+            "last_user_message_at": (now - timedelta(days=1)).isoformat(),
+            "has_relevant_reason": True,
+            "as_of": now.isoformat(),
+        },
+    )
+    assert proactive.status_code == 200
+    assert proactive.json()["should_reach_out"] is True
+
+    purged = client.delete(
+        f"/api/v1/events/{event_id}?user_id=alice&mode=purge",
+        headers=headers,
+    )
+    assert purged.status_code == 200

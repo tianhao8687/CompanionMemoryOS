@@ -7,13 +7,20 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, sta
 from fastapi.responses import JSONResponse
 
 from companion_memoryos.config import CompanionConfig, default_data_dir, load_config
+from companion_memoryos.constants import APPLICATION_VERSION
 from companion_memoryos.database import Database
 from companion_memoryos.schemas import (
     CompanionContext,
+    ConversationEventInput,
+    ConversationEventRecord,
+    EventStatus,
+    EventStorageResult,
     ExportBundle,
     MemoryInput,
     MemoryRecord,
     MemoryStatus,
+    ProactivityDecision,
+    ProactivityRequest,
     ProfileSnapshot,
     RecallRequest,
     ReviewRequest,
@@ -39,7 +46,7 @@ def create_app(
 
     app = FastAPI(
         title="CompanionMemoryOS",
-        version="0.1.0",
+        version=APPLICATION_VERSION,
         description="Local-first, consent-first memory API for emotional companions.",
     )
     app.state.service = service
@@ -84,6 +91,10 @@ def create_app(
     def remember(item: MemoryInput) -> StorageResult:
         return service.remember(item)
 
+    @app.post("/api/v1/events", response_model=EventStorageResult, dependencies=protected)
+    def archive_event(item: ConversationEventInput) -> EventStorageResult:
+        return service.archive_event(item)
+
     @app.post(
         "/api/v1/memories/{memory_id}/review",
         response_model=MemoryRecord,
@@ -107,6 +118,14 @@ def create_app(
     def recall(request: RecallRequest) -> CompanionContext:
         return service.recall(request)
 
+    @app.post(
+        "/api/v1/proactivity/evaluate",
+        response_model=ProactivityDecision,
+        dependencies=protected,
+    )
+    def evaluate_proactivity(request: ProactivityRequest) -> ProactivityDecision:
+        return service.proactivity(request)
+
     @app.get(
         "/api/v1/users/{user_id}/profile",
         response_model=ProfileSnapshot,
@@ -126,6 +145,29 @@ def create_app(
         limit: int | None = Query(default=None, gt=0),
     ) -> list[MemoryRecord]:
         return service.list_memories(user_id, memory_status, limit)
+
+    @app.get(
+        "/api/v1/users/{user_id}/events",
+        response_model=list[ConversationEventRecord],
+        dependencies=protected,
+    )
+    def list_events(
+        user_id: str,
+        event_status: set[EventStatus] | None = Query(default=None, alias="status"),
+        limit: int | None = Query(default=None, gt=0),
+    ) -> list[ConversationEventRecord]:
+        return service.list_events(user_id, event_status, limit)
+
+    @app.delete("/api/v1/events/{event_id}", dependencies=protected)
+    def delete_event(
+        event_id: str,
+        user_id: str = Query(min_length=1),
+        mode: Literal["forget", "purge"] = "purge",
+    ) -> ConversationEventRecord | dict[str, str]:
+        if mode == "forget":
+            return service.forget_event(event_id, user_id)
+        service.purge_event(event_id, user_id)
+        return {"status": "purged", "event_id": event_id}
 
     @app.get(
         "/api/v1/users/{user_id}/export",

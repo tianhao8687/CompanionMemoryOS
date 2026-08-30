@@ -7,6 +7,7 @@ from companion_memoryos.schemas import (
     MemoryInput,
     MemoryKind,
     MemoryStatus,
+    RecallRequest,
     ReviewDecision,
     StorageAction,
 )
@@ -37,6 +38,10 @@ def test_stable_memory_supersedes_previous_version(service: CompanionMemoryServi
     assert first is not None and second is not None
     assert second.supersedes_id == first.id
     assert service.store.get(first.id, "alice").status is MemoryStatus.SUPERSEDED
+    context = service.recall(RecallRequest(user_id="alice", query="叫我"))
+    recalled = [item.memory for values in context.sections.values() for item in values]
+    assert second.id in {memory.id for memory in recalled}
+    assert first.id not in {memory.id for memory in recalled}
 
 
 def test_candidate_can_be_confirmed(service: CompanionMemoryService) -> None:
@@ -50,8 +55,10 @@ def test_candidate_can_be_confirmed(service: CompanionMemoryService) -> None:
     )
     assert candidate.action is StorageAction.CANDIDATE
     assert candidate.memory is not None
+    assert candidate.memory.expires_at is not None
     confirmed = service.review(candidate.memory.id, "alice", ReviewDecision.CONFIRM)
     assert confirmed.status is MemoryStatus.ACTIVE
+    assert confirmed.expires_at is None
 
 
 def test_exact_duplicate_is_not_inserted_twice(service: CompanionMemoryService) -> None:

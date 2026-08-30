@@ -12,6 +12,9 @@ from companion_memoryos.config import CompanionConfig, default_data_dir, load_co
 from companion_memoryos.database import Database
 from companion_memoryos.schemas import (
     ConsentState,
+    ConversationEventInput,
+    ConversationRole,
+    EventStatus,
     MemoryInput,
     MemoryKind,
     MemoryStatus,
@@ -107,6 +110,53 @@ def review(
     _emit(result.model_dump(mode="json"))
 
 
+@app.command("archive-event")
+def archive_event(
+    ctx: typer.Context,
+    user_id: str,
+    session_id: str,
+    role: ConversationRole,
+    content: str,
+    consent: ConsentState = ConsentState.UNKNOWN,
+    sensitivity: Sensitivity = Sensitivity.NORMAL,
+) -> None:
+    result = _runtime(ctx).service.archive_event(
+        ConversationEventInput(
+            user_id=user_id,
+            session_id=session_id,
+            role=role,
+            content=content,
+            consent=consent,
+            sensitivity=sensitivity,
+        )
+    )
+    _emit(result.model_dump(mode="json"))
+
+
+@app.command("list-events")
+def list_events(
+    ctx: typer.Context,
+    user_id: str,
+    event_status: list[EventStatus] | None = typer.Option(None, "--status"),
+    limit: int | None = None,
+) -> None:
+    statuses = set(event_status) if event_status else None
+    result = _runtime(ctx).service.list_events(user_id, statuses, limit)
+    _emit([event.model_dump(mode="json") for event in result])
+
+
+@app.command("forget-event")
+def forget_event(ctx: typer.Context, event_id: str, user_id: str) -> None:
+    result = _runtime(ctx).service.forget_event(event_id, user_id)
+    _emit(result.model_dump(mode="json"))
+
+
+@app.command("purge-event")
+def purge_event(ctx: typer.Context, event_id: str, user_id: str) -> None:
+    _runtime(ctx).service.purge_event(event_id, user_id)
+    _emit({"status": "purged", "event_id": event_id})
+
+
 @app.command()
 def recall(
     ctx: typer.Context,
@@ -114,7 +164,9 @@ def recall(
     query: str = typer.Argument(""),
     intent: RecallIntent = RecallIntent.GENERAL,
     limit: int | None = None,
+    event_limit: int | None = None,
     max_characters: int | None = None,
+    max_tokens: int | None = None,
 ) -> None:
     result = _runtime(ctx).service.recall(
         RecallRequest(
@@ -122,7 +174,9 @@ def recall(
             query=query,
             intent=intent,
             limit=limit,
+            event_limit=event_limit,
             max_characters=max_characters,
+            max_tokens=max_tokens,
         )
     )
     _emit(result.model_dump(mode="json"))

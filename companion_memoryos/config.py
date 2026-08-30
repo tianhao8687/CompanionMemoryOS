@@ -65,29 +65,55 @@ class RetentionConfig(FrozenConfig):
 
 class RetrievalConfig(FrozenConfig):
     candidate_pool: int = Field(gt=0)
+    semantic_candidate_pool: int = Field(gt=0)
+    event_candidate_pool: int = Field(gt=0)
     default_limit: int = Field(gt=0)
     max_limit: int = Field(gt=0)
+    default_event_limit: int = Field(ge=0)
+    max_event_limit: int = Field(ge=0)
     default_max_characters: int = Field(gt=0)
     max_characters: int = Field(gt=0)
+    default_max_tokens: int = Field(gt=0)
+    max_tokens: int = Field(gt=0)
     recency_half_life_days: float = Field(gt=0)
     cjk_ngram_min: int = Field(gt=0)
     cjk_ngram_max: int = Field(gt=0)
     minimum_token_length: int = Field(gt=0)
     max_fts_terms: int = Field(gt=0)
+    max_index_terms: int = Field(gt=0)
+    minimum_natural_query_characters: int = Field(gt=0)
+    minimum_query_match: float = Field(ge=UNIT_INTERVAL_MIN, le=UNIT_INTERVAL_MAX)
+    minimum_semantic_similarity: float = Field(ge=UNIT_INTERVAL_MIN, le=UNIT_INTERVAL_MAX)
+    ambiguity_score_gap: float = Field(ge=UNIT_INTERVAL_MIN, le=UNIT_INTERVAL_MAX)
+    confidence_hedge_threshold: float = Field(ge=UNIT_INTERVAL_MIN, le=UNIT_INTERVAL_MAX)
+    confidence_natural_threshold: float = Field(ge=UNIT_INTERVAL_MIN, le=UNIT_INTERVAL_MAX)
 
     @model_validator(mode="after")
     def consistent_bounds(self) -> RetrievalConfig:
         if self.default_limit > self.max_limit:
             raise ValueError("default_limit cannot exceed max_limit")
+        if self.default_event_limit > self.max_event_limit:
+            raise ValueError("default_event_limit cannot exceed max_event_limit")
         if self.default_max_characters > self.max_characters:
             raise ValueError("default_max_characters cannot exceed max_characters")
+        if self.default_max_tokens > self.max_tokens:
+            raise ValueError("default_max_tokens cannot exceed max_tokens")
         if self.cjk_ngram_min > self.cjk_ngram_max:
             raise ValueError("cjk_ngram_min cannot exceed cjk_ngram_max")
+        if self.minimum_query_match > self.confidence_hedge_threshold:
+            raise ValueError("minimum_query_match cannot exceed confidence_hedge_threshold")
+        if self.confidence_hedge_threshold > self.confidence_natural_threshold:
+            raise ValueError(
+                "confidence_hedge_threshold cannot exceed confidence_natural_threshold"
+            )
         return self
 
 
 class RankingConfig(FrozenConfig):
     lexical: float = Field(ge=UNIT_INTERVAL_MIN, le=UNIT_INTERVAL_MAX)
+    semantic: float = Field(ge=UNIT_INTERVAL_MIN, le=UNIT_INTERVAL_MAX)
+    entity: float = Field(ge=UNIT_INTERVAL_MIN, le=UNIT_INTERVAL_MAX)
+    temporal: float = Field(ge=UNIT_INTERVAL_MIN, le=UNIT_INTERVAL_MAX)
     salience: float = Field(ge=UNIT_INTERVAL_MIN, le=UNIT_INTERVAL_MAX)
     recency: float = Field(ge=UNIT_INTERVAL_MIN, le=UNIT_INTERVAL_MAX)
     emotion: float = Field(ge=UNIT_INTERVAL_MIN, le=UNIT_INTERVAL_MAX)
@@ -110,6 +136,34 @@ class PolicyConfig(FrozenConfig):
     exact_duplicate_detection: bool
 
 
+class TokenizationConfig(FrozenConfig):
+    encoding: str = Field(min_length=1)
+
+
+class EventArchiveConfig(FrozenConfig):
+    enabled: bool
+    require_granted_consent: bool
+    allow_assistant_events: bool
+    allow_highly_sensitive: bool
+    retention_days: int = Field(gt=0)
+    sensitive_retention_days: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def sensitive_window_is_not_longer(self) -> EventArchiveConfig:
+        if self.sensitive_retention_days > self.retention_days:
+            raise ValueError("sensitive_retention_days cannot exceed retention_days")
+        return self
+
+
+class ProactivityConfig(FrozenConfig):
+    enabled_by_default: bool
+    minimum_idle_minutes: int = Field(gt=0)
+    cooldown_minutes: int = Field(gt=0)
+    maximum_outreaches_per_day: int = Field(gt=0)
+    negative_signal_quiet_hours: int = Field(gt=0)
+    require_relevant_reason: bool
+
+
 class CompanionConfig(FrozenConfig):
     schema_version: str
     server: ServerConfig
@@ -119,6 +173,9 @@ class CompanionConfig(FrozenConfig):
     retrieval: RetrievalConfig
     ranking: RankingConfig
     policy: PolicyConfig
+    tokenization: TokenizationConfig
+    event_archive: EventArchiveConfig
+    proactivity: ProactivityConfig
     continuity: dict[RecallIntent, dict[MemoryKind, float]]
 
     @field_validator("schema_version")

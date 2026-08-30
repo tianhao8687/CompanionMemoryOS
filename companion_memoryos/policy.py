@@ -23,6 +23,7 @@ DEFAULT_RETENTION_BY_KIND: dict[MemoryKind, RetentionClass] = {
     MemoryKind.EMOTION_EPISODE: RetentionClass.SHORT_TERM,
     MemoryKind.SHARED_MOMENT: RetentionClass.LONG_TERM,
     MemoryKind.WELLBEING_SIGNAL: RetentionClass.EPHEMERAL,
+    MemoryKind.RELATIONSHIP: RetentionClass.DURABLE,
 }
 
 
@@ -77,10 +78,8 @@ def decide_storage(item: MemoryInput, config: CompanionConfig) -> StoragePolicyD
         action = StorageAction.CANDIDATE
         reasons.append("highly_sensitive_requires_review")
 
-    expires_at = _retention_expiry(item.event_at, retention, config)
+    expires_at = retention_expiry(item.event_at, retention, item.sensitivity, config)
     if is_sensitive:
-        sensitive_cap = item.event_at + timedelta(days=config.retention.sensitive_max_days)
-        expires_at = _earlier(expires_at, sensitive_cap)
         reasons.append("sensitive_retention_capped")
     if action is StorageAction.CANDIDATE:
         review_cap = item.event_at + timedelta(days=config.retention.candidate_review_days)
@@ -94,18 +93,25 @@ def decide_storage(item: MemoryInput, config: CompanionConfig) -> StoragePolicyD
     )
 
 
-def _retention_expiry(
+def retention_expiry(
     event_at: datetime,
     retention: RetentionClass,
+    sensitivity: Sensitivity,
     config: CompanionConfig,
 ) -> datetime | None:
+    expires_at: datetime | None
     if retention is RetentionClass.DURABLE:
-        return None
-    if retention is RetentionClass.EPHEMERAL:
-        return event_at + timedelta(hours=config.retention.ephemeral_hours)
-    if retention is RetentionClass.SHORT_TERM:
-        return event_at + timedelta(days=config.retention.short_term_days)
-    return event_at + timedelta(days=config.retention.long_term_days)
+        expires_at = None
+    elif retention is RetentionClass.EPHEMERAL:
+        expires_at = event_at + timedelta(hours=config.retention.ephemeral_hours)
+    elif retention is RetentionClass.SHORT_TERM:
+        expires_at = event_at + timedelta(days=config.retention.short_term_days)
+    else:
+        expires_at = event_at + timedelta(days=config.retention.long_term_days)
+    if sensitivity is not Sensitivity.NORMAL:
+        sensitive_cap = event_at + timedelta(days=config.retention.sensitive_max_days)
+        expires_at = _earlier(expires_at, sensitive_cap)
+    return expires_at
 
 
 def _earlier(current: datetime | None, cap: datetime) -> datetime:

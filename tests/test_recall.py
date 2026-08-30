@@ -69,3 +69,13 @@ def test_recall_never_crosses_user_scope(service: CompanionMemoryService) -> Non
     activate(service, MemoryKind.IDENTITY, "城市", "我住在杭州")
     context = service.recall(RecallRequest(user_id="bob", query="杭州"))
     assert context.sections == {}
+
+
+def test_old_boundary_survives_a_current_time_phrase(
+    service: CompanionMemoryService,
+) -> None:
+    activate(service, MemoryKind.BOUNDARY, "安慰边界", "难过时不要立刻给建议")
+
+    context = service.recall(RecallRequest(user_id="alice", query="今天有点难过"))
+
+    assert context.sections["boundaries"][0].memory.content == "难过时不要立刻给建议"
