@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from companion_memoryos.config import CompanionConfig
 from companion_memoryos.database import Database
 from companion_memoryos.schemas import (
@@ -11,6 +13,7 @@ from companion_memoryos.schemas import (
     EntityRef,
     MemoryInput,
     MemoryKind,
+    MemoryStatus,
     RecallRequest,
     RecallUseMode,
     RetrievalOutcome,
@@ -174,6 +177,37 @@ def test_last_time_prefers_the_newest_matching_episode(
     assert context.ambiguity_detected is False
 
 
+def test_explicit_date_filters_the_candidate_pool_before_ranking(
+    tmp_path: Path,
+    config: CompanionConfig,
+) -> None:
+    service = configured_service(tmp_path, config)
+    target_id = remember(
+        service,
+        "河边散步",
+        "在河边散步时捡到一片叶子",
+        event_at=datetime(2026, 3, 15, 12, tzinfo=UTC),
+    )
+    remember(
+        service,
+        "河边散步",
+        "在河边散步时聊了工作",
+        event_at=datetime(2026, 5, 15, 12, tzinfo=UTC),
+    )
+    remember(
+        service,
+        "河边散步",
+        "在河边散步时聊了旅行",
+        event_at=datetime(2026, 6, 15, 12, tzinfo=UTC),
+    )
+
+    context = service.recall(
+        RecallRequest(user_id="alice", query="2026年3月15日河边散步发生了什么")
+    )
+
+    assert [item.memory.id for item in flattened(context)] == [target_id]
+
+
 def test_natural_directive_is_active_without_a_review_modal(
     tmp_path: Path,
     config: CompanionConfig,
@@ -222,8 +256,40 @@ def test_explicit_repeat_promotes_an_existing_candidate_without_a_modal(
 
     assert explicit.action is StorageAction.ACTIVATE
     assert explicit.memory is not None
-    assert explicit.memory.id == inferred.memory.id
-    assert "candidate_promoted_by_explicit_directive" in explicit.reasons
+    assert explicit.memory.id != inferred.memory.id
+    assert explicit.memory.consent is ConsentState.GRANTED
+    assert service.store.get(inferred.memory.id, "alice").status is MemoryStatus.REJECTED
+    assert "candidate_replaced_by_direct_evidence" in explicit.reasons
+
+
+def test_failed_direct_repeat_does_not_destroy_the_existing_candidate(
+    tmp_path: Path,
+    config: CompanionConfig,
+) -> None:
+    service = configured_service(tmp_path, config)
+    inferred = service.remember(
+        MemoryInput(
+            user_id="alice",
+            kind=MemoryKind.PREFERENCE,
+            title="称呼偏好",
+            content="以后叫我小禾",
+        )
+    )
+    assert inferred.memory is not None
+
+    with pytest.raises(ValueError, match="evidence turns"):
+        service.remember(
+            MemoryInput(
+                user_id="alice",
+                kind=MemoryKind.PREFERENCE,
+                title="称呼偏好",
+                content="以后叫我小禾",
+                consent=ConsentState.GRANTED,
+                evidence_turn_ids=["missing-turn"],
+            )
+        )
+
+    assert service.store.get(inferred.memory.id, "alice").status is MemoryStatus.CANDIDATE
 
 
 def test_unrelated_query_returns_an_explicit_no_match(

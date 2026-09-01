@@ -10,10 +10,13 @@ from companion_memoryos.schemas import (
     ConversationRole,
     MemoryInput,
     MemoryKind,
+    MemoryScope,
     RecallRequest,
     Sensitivity,
 )
 from companion_memoryos.service import CompanionMemoryService
+
+SESSION_SCOPE = MemoryScope(conversation_id="session-one")
 
 
 def event(
@@ -69,11 +72,23 @@ def test_unpromoted_small_event_can_be_recalled_without_user_review(
     stored = service.archive_event(event(ConsentState.GRANTED))
     assert stored.event is not None
 
-    context = service.recall(RecallRequest(user_id="alice", query="上次买的白色郁金香"))
+    context = service.recall(
+        RecallRequest(user_id="alice", scope=SESSION_SCOPE, query="上次买的白色郁金香")
+    )
 
     assert context.sections == {}
     assert context.event_fallback[0].event.id == stored.event.id
     assert "raw_event_fallback" in context.event_fallback[0].reasons
+
+
+def test_raw_event_recall_requires_conversation_scope(
+    service: CompanionMemoryService,
+) -> None:
+    service.archive_event(event(ConsentState.GRANTED))
+
+    context = service.recall(RecallRequest(user_id="alice", query="白色郁金香"))
+
+    assert context.event_fallback == []
 
 
 def test_raw_event_is_not_injected_when_structured_memory_can_answer(
@@ -91,7 +106,9 @@ def test_raw_event_is_not_injected_when_structured_memory_can_answer(
         )
     )
 
-    context = service.recall(RecallRequest(user_id="alice", query="白色郁金香"))
+    context = service.recall(
+        RecallRequest(user_id="alice", scope=SESSION_SCOPE, query="白色郁金香")
+    )
 
     assert context.sections["shared_history"]
     assert context.event_fallback == []
@@ -120,9 +137,9 @@ def test_expired_raw_event_is_physically_removed_but_minimally_audited(
         service.store.get_event(record.id, "alice")
 
     with service.store.database.connection() as connection:
-        audit = connection.execute(
-            "SELECT payload_json FROM audit_events WHERE memory_id = ? AND event_type = ?",
-            (record.id, "event.expired_and_purged"),
-        ).fetchone()
-    assert audit is not None
-    assert "一件到期后不应留下原文的小事" not in audit["payload_json"]
+        audits = connection.execute(
+            "SELECT event_type, payload_json FROM audit_events WHERE memory_id = ?",
+            (record.id,),
+        ).fetchall()
+    assert [row["event_type"] for row in audits] == ["event.expired_and_purged"]
+    assert audits[0]["payload_json"] == "{}"

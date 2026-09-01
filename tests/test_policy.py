@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from companion_memoryos.config import CompanionConfig
 from companion_memoryos.policy import decide_storage
 from companion_memoryos.schemas import (
@@ -59,3 +61,32 @@ def test_wellbeing_signal_is_ephemeral(config: CompanionConfig) -> None:
     )
     assert decision.retention is RetentionClass.EPHEMERAL
     assert decision.expires_at is not None
+
+
+def test_candidate_review_window_uses_storage_time(config: CompanionConfig) -> None:
+    stored_at = datetime(2026, 8, 31, tzinfo=UTC)
+    decision = decide_storage(
+        item(event_at=datetime(2020, 1, 1, tzinfo=UTC)),
+        config,
+        stored_at=stored_at,
+    )
+
+    assert decision.expires_at == stored_at + timedelta(days=config.retention.candidate_review_days)
+
+
+def test_future_event_cannot_extend_sensitive_storage_cap(
+    config: CompanionConfig,
+) -> None:
+    stored_at = datetime(2026, 8, 31, tzinfo=UTC)
+    decision = decide_storage(
+        item(
+            event_at=datetime(2100, 1, 1, tzinfo=UTC),
+            consent=ConsentState.GRANTED,
+            explicit_user_request=True,
+            sensitivity=Sensitivity.SENSITIVE,
+        ),
+        config,
+        stored_at=stored_at,
+    )
+
+    assert decision.expires_at == stored_at + timedelta(days=config.retention.sensitive_max_days)

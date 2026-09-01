@@ -9,6 +9,8 @@ RUNTIME_POLICY_FILES = [
     Path("companion_memoryos/service.py"),
     Path("companion_memoryos/temporal.py"),
     Path("companion_memoryos/proactivity.py"),
+    Path("companion_memoryos/experience.py"),
+    Path("companion_memoryos/discourse.py"),
 ]
 ALLOWED_LITERALS = {-1, 0, 1}
 
