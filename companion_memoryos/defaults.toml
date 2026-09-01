@@ -25,6 +25,9 @@ default_limit = 8
 max_limit = 25
 default_event_limit = 3
 max_event_limit = 8
+turn_candidate_pool = 80
+default_turn_limit = 4
+max_turn_limit = 12
 default_max_characters = 6000
 max_characters = 20000
 default_max_tokens = 1200
@@ -68,8 +71,62 @@ enabled = true
 require_granted_consent = true
 allow_assistant_events = false
 allow_highly_sensitive = false
+require_scoped_recall = true
 retention_days = 180
 sensitive_retention_days = 30
+
+[temporal_anchors]
+enabled = true
+minimum_match_characters = 2
+max_matches = 4
+allow_sensitive = false
+
+[conversation_ledger]
+enabled = true
+require_granted_consent = true
+allow_assistant_turns = true
+allow_highly_sensitive = false
+require_scoped_recall = true
+
+[epistemic]
+weak_confirmation_requires_review = true
+ineligible_self_report_becomes_observation = true
+
+[memory_use_ledger]
+enabled = true
+
+[open_loops]
+enabled = true
+require_granted_consent = true
+allow_highly_sensitive = false
+
+[experience]
+enabled = true
+default_cancel_on_new_user_turn = true
+avoid_repeat_within_conversation = true
+semantic_beats_enabled_by_default = true
+afterthought_enabled_by_default = false
+
+[discourse]
+listen_only_phrases = ["先听我说", "听我说完", "别给建议", "不用分析", "先别分析"]
+advice_request_phrases = ["给我建议", "你觉得怎么办", "我该怎么办", "帮我想办法"]
+memory_question_phrases = ["你还记得", "你记得吗", "我以前说过", "上次那个", "之前那件事"]
+wrong_reference_phrases = ["不是那个", "不是这件", "你记错了", "你串了", "不是我说的"]
+stop_referencing_phrases = ["以后别提", "别再提", "不要再提", "别再拿这件事说"]
+topic_switch_phrases = ["换个话题", "先不说这个", "算了不说了", "这个先放一放"]
+outcome_reported_phrases = ["已经结束了", "已经考完了", "考完了", "已经通过了", "最后没去", "后来没去"]
+
+[policy_engine]
+enabled = true
+default_allow = true
+
+[policy_bundle]
+profile_id = "relationship-memory-zh-prototype"
+profile_version = "0.6.0-alpha"
+operating_point = "false-attribution-averse"
+calibrated = false
+production_eligible = false
+model_fingerprints = []
 
 [proactivity]
 enabled_by_default = false

@@ -17,6 +17,7 @@ from companion_memoryos.constants import (
     DATA_HOME_ENV_NAME,
     DEFAULT_CONFIG_RESOURCE,
     DEFAULT_ENCODING,
+    SHA256_HEX_LENGTH,
     UNIT_INTERVAL_MAX,
     UNIT_INTERVAL_MIN,
     WEIGHT_TARGET,
@@ -71,6 +72,9 @@ class RetrievalConfig(FrozenConfig):
     max_limit: int = Field(gt=0)
     default_event_limit: int = Field(ge=0)
     max_event_limit: int = Field(ge=0)
+    turn_candidate_pool: int = Field(gt=0)
+    default_turn_limit: int = Field(ge=0)
+    max_turn_limit: int = Field(ge=0)
     default_max_characters: int = Field(gt=0)
     max_characters: int = Field(gt=0)
     default_max_tokens: int = Field(gt=0)
@@ -94,6 +98,8 @@ class RetrievalConfig(FrozenConfig):
             raise ValueError("default_limit cannot exceed max_limit")
         if self.default_event_limit > self.max_event_limit:
             raise ValueError("default_event_limit cannot exceed max_event_limit")
+        if self.default_turn_limit > self.max_turn_limit:
+            raise ValueError("default_turn_limit cannot exceed max_turn_limit")
         if self.default_max_characters > self.max_characters:
             raise ValueError("default_max_characters cannot exceed max_characters")
         if self.default_max_tokens > self.max_tokens:
@@ -145,6 +151,7 @@ class EventArchiveConfig(FrozenConfig):
     require_granted_consent: bool
     allow_assistant_events: bool
     allow_highly_sensitive: bool
+    require_scoped_recall: bool
     retention_days: int = Field(gt=0)
     sensitive_retention_days: int = Field(gt=0)
 
@@ -152,6 +159,133 @@ class EventArchiveConfig(FrozenConfig):
     def sensitive_window_is_not_longer(self) -> EventArchiveConfig:
         if self.sensitive_retention_days > self.retention_days:
             raise ValueError("sensitive_retention_days cannot exceed retention_days")
+        return self
+
+
+class TemporalAnchorConfig(FrozenConfig):
+    enabled: bool
+    minimum_match_characters: int = Field(gt=0)
+    max_matches: int = Field(gt=0)
+    allow_sensitive: bool
+
+
+class ConversationLedgerConfig(FrozenConfig):
+    enabled: bool
+    require_granted_consent: bool
+    allow_assistant_turns: bool
+    allow_highly_sensitive: bool
+    require_scoped_recall: bool
+
+
+class EpistemicConfig(FrozenConfig):
+    weak_confirmation_requires_review: bool
+    ineligible_self_report_becomes_observation: bool
+
+
+class MemoryUseLedgerConfig(FrozenConfig):
+    enabled: bool
+
+
+class OpenLoopConfig(FrozenConfig):
+    enabled: bool
+    require_granted_consent: bool
+    allow_highly_sensitive: bool
+
+
+class ExperienceConfig(FrozenConfig):
+    enabled: bool
+    default_cancel_on_new_user_turn: bool
+    avoid_repeat_within_conversation: bool
+    semantic_beats_enabled_by_default: bool
+    afterthought_enabled_by_default: bool
+
+
+class DiscourseConfig(FrozenConfig):
+    listen_only_phrases: list[str]
+    advice_request_phrases: list[str]
+    memory_question_phrases: list[str]
+    wrong_reference_phrases: list[str]
+    stop_referencing_phrases: list[str]
+    topic_switch_phrases: list[str]
+    outcome_reported_phrases: list[str]
+
+    @field_validator(
+        "listen_only_phrases",
+        "advice_request_phrases",
+        "memory_question_phrases",
+        "wrong_reference_phrases",
+        "stop_referencing_phrases",
+        "topic_switch_phrases",
+        "outcome_reported_phrases",
+    )
+    @classmethod
+    def normalized_phrases(cls, values: list[str]) -> list[str]:
+        normalized = list(
+            dict.fromkeys(value.strip().casefold() for value in values if value.strip())
+        )
+        if not normalized:
+            raise ValueError("each discourse phrase family requires at least one phrase")
+        return normalized
+
+
+class PolicyEngineConfig(FrozenConfig):
+    enabled: bool
+    default_allow: bool
+
+
+class PolicyBundleConfig(FrozenConfig):
+    profile_id: str = Field(min_length=1, max_length=240)
+    profile_version: str = Field(min_length=1, max_length=128)
+    operating_point: str = Field(min_length=1, max_length=240)
+    calibrated: bool
+    production_eligible: bool
+    feature_schema_sha256: str | None = None
+    training_dataset_sha256: str | None = None
+    validation_dataset_sha256: str | None = None
+    promotion_report_sha256: str | None = None
+    model_fingerprints: list[str] = Field(default_factory=list, max_length=32)
+
+    @field_validator(
+        "feature_schema_sha256",
+        "training_dataset_sha256",
+        "validation_dataset_sha256",
+        "promotion_report_sha256",
+    )
+    @classmethod
+    def validate_digest(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.casefold()
+        if len(normalized) != SHA256_HEX_LENGTH or any(
+            character not in "0123456789abcdef" for character in normalized
+        ):
+            raise ValueError("policy bundle digests must be SHA-256 hex values")
+        return normalized
+
+    @field_validator("model_fingerprints")
+    @classmethod
+    def validate_model_fingerprints(cls, values: list[str]) -> list[str]:
+        normalized = list(dict.fromkeys(value.strip() for value in values if value.strip()))
+        if len(normalized) != len(values):
+            raise ValueError("model_fingerprints cannot contain blanks or duplicates")
+        return normalized
+
+    @model_validator(mode="after")
+    def production_requires_evidence(self) -> PolicyBundleConfig:
+        if not self.production_eligible:
+            return self
+        if not self.calibrated:
+            raise ValueError("production-eligible policy bundles must be calibrated")
+        if not all(
+            (
+                self.feature_schema_sha256,
+                self.training_dataset_sha256,
+                self.validation_dataset_sha256,
+                self.promotion_report_sha256,
+                self.model_fingerprints,
+            )
+        ):
+            raise ValueError("production-eligible policy bundles require evidence hashes")
         return self
 
 
@@ -175,6 +309,15 @@ class CompanionConfig(FrozenConfig):
     policy: PolicyConfig
     tokenization: TokenizationConfig
     event_archive: EventArchiveConfig
+    temporal_anchors: TemporalAnchorConfig
+    conversation_ledger: ConversationLedgerConfig
+    epistemic: EpistemicConfig
+    memory_use_ledger: MemoryUseLedgerConfig
+    open_loops: OpenLoopConfig
+    experience: ExperienceConfig
+    discourse: DiscourseConfig
+    policy_engine: PolicyEngineConfig
+    policy_bundle: PolicyBundleConfig
     proactivity: ProactivityConfig
     continuity: dict[RecallIntent, dict[MemoryKind, float]]
 
