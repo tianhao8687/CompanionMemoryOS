@@ -56,7 +56,7 @@
 
 ## ADR-010：原始事件到期物理清除
 
-**决定**：到达保留期时删除事件正文、FTS 条目和 embedding，只保留内容哈希等最小审计数据。
+**决定**：到达保留期时删除事件正文、FTS 条目和 embedding，只保留由随机对象 ID 关联的最小删除回执；不保存可字典猜测的内容哈希或会话标识。
 
 **原因**：原始对话比结构化记忆更宽泛、更敏感。“过期但仍在磁盘”不符合用户对短期保存的合理理解。
 
@@ -77,3 +77,101 @@
 **决定**：项目提供采集、策略、召回、预算、导出和删除 API，不绑定某个 LLM、embedding 模型、角色提示词或语音形象。
 
 **原因**：让模型与角色保持可替换；代入感需要宿主产品把当前对话、声音、形象和记忆正确组合，不能由数据库单独制造。
+
+## ADR-014：用户纠正继承原授权但不自动猜目标
+
+**决定**：宿主识别到自然纠正后，以后台 memory ID 调用 `correct`。核心要求原记录 active 且有 `stable_key`，继承原授权并写入证据化新版本；高度敏感更正仍需复核。
+
+**原因**：再次弹窗会破坏代入感，而仅凭一句短纠正自动选择目标可能改错边界、人物或偏好。目标解析留给拥有当前会话语境的宿主，版本和安全语义由核心强制执行。
+
+## ADR-015：私人时间锚点显式授权、最长优先、同强度不猜
+
+**决定**：用户可保存名称、别名与时间窗。标准日期解析优先；私人名称按最长命中筛选，唯一结果限定召回，多个同强度结果进入自然消歧。敏感锚点默认禁用。
+
+**原因**：私人时间语言是陪伴代入感的重要组成，但“备考期”可能出现多次。最长优先降低泛化别名误伤，同强度不猜保护共同经历的可信度。
+
+## ADR-016：原始回合先于抽取结果持久化
+
+**决定**：新增关系作用域内的 Conversation Ledger。授权回合同步写入，抽取、embedding 和状态解析异步执行并通过 watermark 报告进度。
+
+**原因**：抽取失败不能让小事永久消失；但 FTS 只提供词法降级，所以索引不完整时不能把未命中当作否定事实。
+
+## ADR-017：用户状态必须携带认识论与现实层
+
+**决定**：区分直接自述、观察、解释假设、关系契约、世界设定和 AI 内部状态，并记录 source actor、quote depth、elicitation lineage、reality layer、有效时间和系统知晓时间。
+
+**原因**：`role=user` 不等于命题 speaker，“恋人设定”“我不喜欢你了”和“可能是气话”也不能压成一个 love score。
+
+## ADR-018：回答动作与检索分数分离
+
+**决定**：在兼容的 match/ambiguous/no_match 之外返回 answer-single、answer-multi、clarify 或 abstain。状态问题先选择 AnswerSemantics，再检索对应证据。
+
+**原因**：相似度最高不代表问题只有一个答案，也不能决定 Current Truth。无证据和多种解释时，正确动作分别是 abstain 和 clarify。
+
+## ADR-019：边界执行与 prompt 记忆分离
+
+**决定**：PolicyConstraint 是 LLM 外安全平面，按动作、渠道、作用域和版本解析；最新适用 deny/freeze 阻断。当前仅主动触达路径接入，宿主 transport 必须二次 Gate。
+
+**原因**：把边界放进 prompt 不能撤销旧缓存、定时任务或已生成的出站消息。真正的授权检查必须发生在最终动作之外。
+
+## ADR-020：记忆使用先记录，未经校准不自动惩罚
+
+**决定**：Memory Use Ledger 记录真实使用、用途、作用域和输出哈希，召回只暴露次数与最近时间，不内置固定表达冷却或亲密度分数。
+
+**原因**：重复梗和翻旧账影响代入感，但“几天不能再说”仍是未经数据支持的魔法数字，应由未来版本化 Policy Bundle 校准。
+
+## ADR-021：配置哈希不等于校准证据
+
+**决定**：每次召回同时返回 Policy Bundle 清单。默认 bundle 明确 `calibrated=false`、`production_eligible=false`；生产资格必须同时具备 feature schema、训练/验证数据、晋升报告的 SHA-256 和模型指纹。当前只实现身份与晋升阻断，不宣称已经完成整包原子切换。
+
+**原因**：把阈值移入 TOML 并计算哈希只能证明“这次用了哪组数字”，不能证明数字适合中文方言、争执、角色扮演或模型升级后的分布。显式生产门可阻止团队把合法但未经验证的配置误当作已消除魔法数字。
+
+## ADR-022：删除来源证据必须推进独立策略版本
+
+**决定**：PolicyConstraint 的 user 级版本由独立单调计数器签发，不从仍存在的约束行重新计算。删除仍支撑 active 来源约束的 turn 时默认拒绝；只有可信宿主确认用户同时决定解除动作边界并传入 `revoke_source_policies=true`，才撤销/清除来源约束并推进版本。回合幂等、引用与来源策略验证均使用完整关系 scope。来源策略还必须引用 user-authored turn，并由可信宿主提供 direct-user instruction attestation。
+
+**原因**：若删除最高版本后重新使用同一个版本号，旧缓存或定时任务可能被误认为仍是最新策略；但若把普通内容删除自动等同于解除“不联系”等边界，又会重新允许用户未撤销的行为。显式双决定与独立计数器同时避免边界误解除、版本复用和不可见删除残留。
+
+独立 PolicyConstraint 另提供显式 revoke 与 current-store purge。它们是边界管理操作，不依赖伪造一条相反策略；active 行退出时同样推进计数器，purge 用不含 action 的最小回执替换旧审计。
+
+## ADR-023：原始召回精确匹配作用域，派生记忆继承父同意域
+
+**决定**：ConversationEvent 与 ConversationTurn 召回对 companion/relationship/conversation/group 做完整 `IS` 精确匹配，未提供的维度只匹配 `NULL`。结构化记忆引用 turn 时不得丢失其非空 companion/relationship/group；在保留这些父同意域时可以去掉 conversation 形成跨会话关系记忆。用户自述和关系契约的直接证据必须来自 user-authored turn。
+
+**原因**：conversation ID 不应被默认视为全用户唯一 capability，否则同一 ID 在不同角色或关系中复用会串线。另一方面，长期陪伴需要把一段会话中的稳定信息用于同一关系的后续会话，因此应允许受父同意域约束的 conversation→relationship 提升，而不是允许无证据的全局化。
+
+## ADR-024：主库清除替换对象级生命周期审计
+
+**决定**：对 memory、event、turn、temporal anchor 及由 turn 直接派生且随之清除的对象执行主库 purge 时，先删除该对象旧的生命周期审计，再留下单条最小删除回执；除审计行自身关联的随机对象 ID 和策略必须保留的单调版本外，不保留 actor、session、时间范围、内容哈希或策略动作。
+
+**原因**：仅删除事实表但保留 `conversation_turn.appended` 或 `policy_constraint.created` 的明文元数据，会让 `primary_store_purged` 名不副实。最小回执支持本地主库操作审计，但不冒充对 WAL、备份、provider 或磁盘空闲页的法证擦除。
+
+## ADR-025：显式投递幂等与说话者约束
+
+**决定**：ConversationTurn 不再用“同 scope、同时间、同正文”猜测重复。只有可信宿主提供的 `idempotency_key` 才能合并重投；同键只有精确载荷一致才算重投，大小写或任一字段变化均拒绝，没有键的相同短句分别保存。数据库 schema v5 在完整 scope 上建立部分唯一索引，并在查询键之前取得 SQLite writer slot。`UTTERANCE_HISTORY` 必须提供 `utterance_actor_id`，对已标注的引用、虚构或其他 speaker 区间先做遮蔽再匹配，最终 prompt 也只编译遮蔽后的 evidence text。状态兜底采取同样的 actor 约束；缺少 claim-level anchor 时，混合 speaker turn 不得直接晋升状态或策略。
+
+**原因**：用户可能连续发送两个完全相同的“嗯”，猜重会丢失真实互动；相反，网络重试若没有稳定消息 ID，也无法可靠证明是同一次投递。outer actor 只能证明谁提交了回合，不能把转发信件里的句子算作该用户自述。显式键与 actor/span 双重过滤让系统在两类不确定性上都保守失败。
+
+## ADR-026：重复判断不得跨现实层或洗白候选证据
+
+**决定**：结构化记忆的 exact duplicate 除完整 scope 与正文外，还必须匹配 stable identity、subject、predicate 与 reality layer；active 记录还必须匹配认识论和来源属性。用户用合格直接表达重复弱候选时，不修改候选原行，而是在同一事务中创建带本次 consent/provenance 的 active 记录，再将旧候选标记为 rejected。人工 `confirm` 明确代表授权，会写入 `consent=granted`；过期候选不能确认。
+
+**原因**：字面相同不代表命题相同。“设定上我们是恋人”在 roleplay 和现实关系中不能合并，不同 stable key 也可能表示不同对象。原地把 unknown-consent observation 改成 active 会伪造证据来源；创建新版本才能保留用户究竟在何时、以什么资格确认了它。
+
+## ADR-027：事实时间不控制隐私保留上限
+
+**决定**：结构化记忆的 retention、敏感数据 cap 和 candidate review window 以实际 `stored_at/created_at` 为基点；`event_at` 和 valid time 仅参与事实历史与检索。确认候选时仍沿用最初 created time，不因晚确认重新延长敏感保存期。
+
+**原因**：长期陪伴会迟到导入旧对话，也会遇到设备时钟错误和未来承诺。用 event time 计算存储生命周期会让旧证据刚写入就过期，或让一个未来日期绕过敏感数据上限；这混淆了业务时间与数据治理时间。
+
+## ADR-028：首拍与历史检索分阶段提交
+
+**决定**：支持多拍的渠道可先持久化只依赖当前用户回合的首拍，再由宿主 worker 调用 resolve 执行历史检索并追加后续拍。计划保存完整请求快照、policy version、revision 和 resolution key。首拍已发送但 resolution 仍 pending 时，计划保持 active；新用户回合、取消、策略版本或 revision 变化会拒绝迟到结果。同一 resolution key 的重放直接返回已有结果。单消息渠道继续使用同步合并计划。
+
+**原因**：情感陪伴首先需要及时接住当前表达，不能让长尾检索阻塞所有回应；但“先发一句再固定 sleep”会制造假思考并增加通知。分阶段提交把真实依赖变成状态机，同时防止迟到检索在用户已经换话题后继续发送。
+
+## ADR-029：只自动执行明确、低风险且目标唯一的话语动作
+
+**决定**：内置解释器只匹配版本化配置中的明确控制语，不推断反话、内心状态或长期偏好。倾听与建议冲突时返回 `conflicting`。话题切换可取消待发送计划；“不是那个/别再提”仅在最近一次实际发送的合格证据唯一时自动记录反馈；事项结果仅在当前 topic keys 唯一对应一条 OpenLoop 时自动关闭，否则返回 `needs_target`。所有自动动作绑定原始 user turn。
+
+**原因**：让宿主为每句明确指令手工拼字段会降低实用性，但用分类器自动修改关系事实又会破坏代入感和信任。低风险、可逆、证据唯一是自动化与不擅自替用户决定之间的边界。
