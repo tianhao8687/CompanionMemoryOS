@@ -4,14 +4,12 @@ import hashlib
 import json
 import math
 import sqlite3
-import sys
-from array import array
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import uuid4
 
-from companion_memoryos.constants import DEFAULT_ENCODING, FLOAT32_BYTES
+from companion_memoryos.constants import DEFAULT_ENCODING
 from companion_memoryos.database import Database
 from companion_memoryos.schemas import (
     AnswerSemantics,
@@ -40,6 +38,7 @@ from companion_memoryos.schemas import (
     MemoryUsePlan,
     MemoryUseRecord,
     MemoryUseSummary,
+    MemoryUseType,
     OpenLoopInput,
     OpenLoopRecord,
     OpenLoopStatus,
@@ -72,6 +71,16 @@ from companion_memoryos.schemas import (
     TemporalAnchorRecord,
     TemporalAnchorStatus,
     TurnDeletionState,
+)
+from companion_memoryos.semantic_index import (
+    TABLES as SEMANTIC_TABLES,
+)
+from companion_memoryos.semantic_index import (
+    SemanticDocument,
+    SemanticIndex,
+    SemanticKind,
+    SemanticQuery,
+    SQLiteSemanticIndex,
 )
 
 
@@ -144,8 +153,9 @@ def scope_from_row(row: sqlite3.Row) -> MemoryScope:
 
 
 class MemoryStore:
-    def __init__(self, database: Database) -> None:
+    def __init__(self, database: Database, *, semantic_index: SemanticIndex | None = None) -> None:
         self.database = database
+        self.semantic_index = semantic_index or SQLiteSemanticIndex(database)
 
     def find_duplicate(
         self,
@@ -242,7 +252,8 @@ class MemoryStore:
             if replace_candidate_id is not None:
                 # Keep the lower-trust candidate until the replacement and
                 # all of its evidence checks can commit atomically.
-                connection.execute("BEGIN IMMEDIATE")
+                if not connection.in_transaction:
+                    connection.execute("BEGIN IMMEDIATE")
                 replacement = self._select_one(
                     connection,
                     replace_candidate_id,
@@ -305,6 +316,9 @@ class MemoryStore:
                     item.kind.value,
                     stable_key,
                     now,
+                    subject_actor_id=item.subject_actor_id,
+                    predicate=item.predicate,
+                    reality_layer=item.reality_layer,
                 )
             connection.execute(
                 """
@@ -453,6 +467,9 @@ class MemoryStore:
                     str(current["stable_key"]),
                     now,
                     exclude_id=memory_id,
+                    subject_actor_id=current["subject_actor_id"],
+                    predicate=current["predicate"],
+                    reality_layer=RealityLayer(current["reality_layer"]),
                 )
             connection.execute(
                 """
@@ -489,6 +506,7 @@ class MemoryStore:
             row = self._select_one(connection, memory_id, user_id)
             if row is None:
                 raise KeyError(memory_id)
+            self.semantic_index.delete(SemanticKind.MEMORY, memory_id, user_id)
             connection.execute(
                 """
                 UPDATE memories
@@ -513,6 +531,7 @@ class MemoryStore:
             row = self._select_one(connection, memory_id, user_id)
             if row is None:
                 raise KeyError(memory_id)
+            self.semantic_index.delete(SemanticKind.MEMORY, memory_id, user_id)
             self._clear_audit_history(connection, memory_id, user_id)
             self._audit(
                 connection,
@@ -790,6 +809,7 @@ class MemoryStore:
         embedding_space: str | None = None,
         event_after: datetime | None = None,
         event_before: datetime | None = None,
+        reality_layer: RealityLayer | None = None,
     ) -> list[MemorySearchCandidate]:
         self.expire_due(utc_now())
         where, parameters = self._memory_validity_filter(
@@ -799,6 +819,9 @@ class MemoryStore:
             event_after,
             event_before,
         )
+        realm_sql, realm_parameters = self._realm_filter("memories", reality_layer)
+        where += realm_sql
+        parameters.extend(realm_parameters)
         with self.database.connection() as connection:
             candidates: dict[str, MemorySearchCandidate] = {}
             if fts_query:
@@ -875,6 +898,8 @@ class MemoryStore:
                 None,
                 None,
             )
+            boundary_where += realm_sql
+            boundary_parameters.extend(realm_parameters)
             boundary_rows = connection.execute(
                 f"""
                 SELECT memories.* FROM memories
@@ -888,23 +913,22 @@ class MemoryStore:
                 candidates.setdefault(memory.id, MemorySearchCandidate(memory=memory))
 
             if query_embedding is not None and embedding_space is not None:
-                semantic_rows = connection.execute(
-                    f"""
-                    SELECT memories.*, memory_embeddings.vector, memory_embeddings.dimensions
-                    FROM memories
-                    JOIN memory_embeddings ON memory_embeddings.memory_id = memories.id
-                    WHERE {where} AND memory_embeddings.space = ?
-                      AND memory_embeddings.dimensions = ?
-                    """,
-                    (*parameters, embedding_space, len(query_embedding)),
-                ).fetchall()
-                ranked: list[tuple[float, sqlite3.Row]] = []
-                for row in semantic_rows:
-                    similarity = _cosine(query_embedding, _unpack_vector(row["vector"]))
-                    if similarity >= minimum_semantic_similarity:
-                        ranked.append((similarity, row))
-                ranked.sort(key=lambda value: (-value[0], str(value[1]["id"])))
-                for similarity, row in ranked[:semantic_pool_size]:
+                semantic_query = SemanticQuery(
+                    kind=SemanticKind.MEMORY,
+                    reality_layer=reality_layer,
+                    user_id=user_id,
+                    scope=scope,
+                    vector=query_embedding,
+                    space=embedding_space,
+                    as_of=as_of,
+                    limit=semantic_pool_size,
+                    minimum_similarity=minimum_semantic_similarity,
+                    event_after=event_after,
+                    event_before=event_before,
+                )
+                for similarity, row in self._semantic_candidates(
+                    connection, semantic_query, where, parameters
+                ):
                     memory = self._row_to_memory(row)
                     candidate = candidates.setdefault(
                         memory.id,
@@ -1022,6 +1046,7 @@ class MemoryStore:
             ).fetchone()
             if row is None:
                 raise KeyError(event_id)
+            self.semantic_index.delete(SemanticKind.EVENT, event_id, user_id)
             connection.execute(
                 "UPDATE conversation_events SET status = ? WHERE id = ? AND user_id = ?",
                 (EventStatus.FORGOTTEN.value, event_id, user_id),
@@ -1042,6 +1067,7 @@ class MemoryStore:
             ).fetchone()
             if row is None:
                 raise KeyError(event_id)
+            self.semantic_index.delete(SemanticKind.EVENT, event_id, user_id)
             self._clear_audit_history(connection, event_id, user_id)
             self._audit(
                 connection,
@@ -1070,6 +1096,7 @@ class MemoryStore:
         embedding_space: str | None = None,
         event_after: datetime | None = None,
         event_before: datetime | None = None,
+        reality_layer: RealityLayer | None = None,
     ) -> list[EventSearchCandidate]:
         self.expire_events(utc_now())
         where, parameters = self._event_validity_filter(
@@ -1079,6 +1106,9 @@ class MemoryStore:
             event_after,
             event_before,
         )
+        realm_sql, realm_parameters = self._realm_filter("conversation_events", reality_layer)
+        where += realm_sql
+        parameters.extend(realm_parameters)
         with self.database.connection() as connection:
             candidates: dict[str, EventSearchCandidate] = {}
             if fts_query:
@@ -1125,24 +1155,22 @@ class MemoryStore:
                     candidates.setdefault(event.id, EventSearchCandidate(event=event))
 
             if query_embedding is not None and embedding_space is not None:
-                rows = connection.execute(
-                    f"""
-                    SELECT conversation_events.*, event_embeddings.vector,
-                           event_embeddings.dimensions
-                    FROM conversation_events
-                    JOIN event_embeddings ON event_embeddings.event_id = conversation_events.id
-                    WHERE {where} AND event_embeddings.space = ?
-                      AND event_embeddings.dimensions = ?
-                    """,
-                    (*parameters, embedding_space, len(query_embedding)),
-                ).fetchall()
-                ranked: list[tuple[float, sqlite3.Row]] = []
-                for row in rows:
-                    similarity = _cosine(query_embedding, _unpack_vector(row["vector"]))
-                    if similarity >= minimum_semantic_similarity:
-                        ranked.append((similarity, row))
-                ranked.sort(key=lambda value: (-value[0], str(value[1]["id"])))
-                for similarity, row in ranked[:pool_size]:
+                semantic_query = SemanticQuery(
+                    kind=SemanticKind.EVENT,
+                    reality_layer=reality_layer,
+                    user_id=user_id,
+                    scope=scope,
+                    vector=query_embedding,
+                    space=embedding_space,
+                    as_of=as_of,
+                    limit=pool_size,
+                    minimum_similarity=minimum_semantic_similarity,
+                    event_after=event_after,
+                    event_before=event_before,
+                )
+                for similarity, row in self._semantic_candidates(
+                    connection, semantic_query, where, parameters
+                ):
                     event = self._row_to_event(row)
                     candidate = candidates.setdefault(
                         event.id,
@@ -1203,7 +1231,8 @@ class MemoryStore:
         with self.database.connection() as connection:
             # Acquire the writer slot before the idempotency lookup so two
             # concurrent deliveries cannot both observe a missing key.
-            connection.execute("BEGIN IMMEDIATE")
+            if not connection.in_transaction:
+                connection.execute("BEGIN IMMEDIATE")
             if item.idempotency_key is not None:
                 duplicate = connection.execute(
                     """
@@ -1466,6 +1495,7 @@ class MemoryStore:
         exclude_turn_ids: list[str] | None = None,
         event_after: datetime | None = None,
         event_before: datetime | None = None,
+        reality_layer: RealityLayer | None = None,
     ) -> list[TurnSearchCandidate]:
         clauses = [
             "conversation_turns.user_id = ?",
@@ -1494,6 +1524,9 @@ class MemoryStore:
             clauses.append("conversation_turns.occurred_at < ?")
             parameters.append(datetime_to_text(event_before))
         where = " AND ".join(clauses)
+        realm_sql, realm_parameters = self._realm_filter("conversation_turns", reality_layer)
+        where += realm_sql
+        parameters.extend(realm_parameters)
         with self.database.connection() as connection:
             candidates: dict[str, TurnSearchCandidate] = {}
             if fts_query:
@@ -1521,24 +1554,24 @@ class MemoryStore:
                 candidate = candidates.setdefault(turn.id, TurnSearchCandidate(turn=turn))
                 candidate.recent_hit = True
             if query_embedding is not None and embedding_space is not None:
-                semantic_rows = connection.execute(
-                    f"""
-                    SELECT conversation_turns.*, turn_embeddings.vector,
-                           turn_embeddings.dimensions
-                    FROM conversation_turns
-                    JOIN turn_embeddings ON turn_embeddings.turn_id = conversation_turns.id
-                    WHERE {where} AND turn_embeddings.space = ?
-                      AND turn_embeddings.dimensions = ?
-                    """,
-                    (*parameters, embedding_space, len(query_embedding)),
-                ).fetchall()
-                ranked: list[tuple[float, sqlite3.Row]] = []
-                for row in semantic_rows:
-                    similarity = _cosine(query_embedding, _unpack_vector(row["vector"]))
-                    if similarity >= minimum_semantic_similarity:
-                        ranked.append((similarity, row))
-                ranked.sort(key=lambda value: (-value[0], str(value[1]["id"])))
-                for similarity, row in ranked[:semantic_pool_size]:
+                semantic_query = SemanticQuery(
+                    kind=SemanticKind.TURN,
+                    reality_layer=reality_layer,
+                    user_id=user_id,
+                    scope=scope,
+                    vector=query_embedding,
+                    space=embedding_space,
+                    as_of=as_of,
+                    limit=semantic_pool_size,
+                    minimum_similarity=minimum_semantic_similarity,
+                    event_after=event_after,
+                    event_before=event_before,
+                    actor_id=actor_id,
+                    exclude_ids=exclude_turn_ids or [],
+                )
+                for similarity, row in self._semantic_candidates(
+                    connection, semantic_query, where, parameters
+                ):
                     turn = self._row_to_turn(row)
                     candidate = candidates.setdefault(turn.id, TurnSearchCandidate(turn=turn))
                     candidate.semantic_similarity = similarity
@@ -1549,12 +1582,14 @@ class MemoryStore:
         clauses = [
             "memories.user_id = ?",
             "memories.predicate = ?",
+            "COALESCE(memories.subject_actor_id, memories.user_id) = ?",
             "memories.reality_layer = ?",
             "memories.status IN (?, ?)",
         ]
         parameters: list[Any] = [
             query.user_id,
             query.predicate,
+            query.subject_actor_id or query.user_id,
             query.reality_layer.value,
             MemoryStatus.ACTIVE.value,
             MemoryStatus.SUPERSEDED.value,
@@ -1748,9 +1783,9 @@ class MemoryStore:
                 """
                 INSERT INTO memory_use_events (
                     id, user_id, companion_id, relationship_id, conversation_id, group_id,
-                    memory_id, response_group_id, use_mode, purpose, output_hash,
+                    memory_id, response_group_id, use_mode, use_type, purpose, output_hash,
                     used_at, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     use_id,
@@ -1759,6 +1794,9 @@ class MemoryStore:
                     item.memory_id,
                     item.response_group_id,
                     item.use_mode.value,
+                    item.use_type.value
+                    if item.use_type is not None
+                    else MemoryUseType.EXPLICIT_REFERENCE.value,
                     item.purpose,
                     output_hash,
                     datetime_to_text(item.used_at),
@@ -1839,6 +1877,7 @@ class MemoryStore:
                 f"""
                 SELECT DISTINCT memory_id FROM memory_use_events
                 WHERE user_id = ? AND {" AND ".join(scope_clauses)}
+                  AND use_type != 'silent_influence'
                   AND used_at <= ? {time_clause} AND memory_id IN ({placeholders})
                 """,
                 (
@@ -1954,7 +1993,8 @@ class MemoryStore:
 
     def update_open_loop(self, open_loop_id: str, request: OpenLoopUpdateRequest) -> OpenLoopRecord:
         with self.database.connection() as connection:
-            connection.execute("BEGIN IMMEDIATE")
+            if not connection.in_transaction:
+                connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 "SELECT * FROM open_loops WHERE id = ? AND user_id = ?",
                 (open_loop_id, request.user_id),
@@ -2257,7 +2297,8 @@ class MemoryStore:
         resolution_request: ResponsePlanRequest | None = None,
     ) -> ResponsePlanRecord:
         with self.database.connection() as connection:
-            connection.execute("BEGIN IMMEDIATE")
+            if not connection.in_transaction:
+                connection.execute("BEGIN IMMEDIATE")
             trigger = connection.execute(
                 "SELECT * FROM conversation_turns WHERE id = ? AND user_id = ?",
                 (plan.trigger_turn_id, plan.user_id),
@@ -2398,7 +2439,8 @@ class MemoryStore:
         as_of: datetime,
     ) -> ResponsePlanRecord:
         with self.database.connection() as connection:
-            connection.execute("BEGIN IMMEDIATE")
+            if not connection.in_transaction:
+                connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 "SELECT * FROM response_plans WHERE id = ? AND user_id = ?",
                 (plan_id, user_id),
@@ -2554,7 +2596,8 @@ class MemoryStore:
 
     def interrupt_response_plans(self, request: ResponsePlanInterruptRequest) -> list[str]:
         with self.database.connection() as connection:
-            connection.execute("BEGIN IMMEDIATE")
+            if not connection.in_transaction:
+                connection.execute("BEGIN IMMEDIATE")
             return self._cancel_active_response_plans(
                 connection,
                 request.user_id,
@@ -2626,7 +2669,8 @@ class MemoryStore:
         if plan.status is not ResponsePlanStatus.ACTIVE:
             return plan
         with self.database.connection() as connection:
-            connection.execute("BEGIN IMMEDIATE")
+            if not connection.in_transaction:
+                connection.execute("BEGIN IMMEDIATE")
             connection.execute(
                 """
                 UPDATE response_plans
@@ -2668,9 +2712,11 @@ class MemoryStore:
         task_policy_version: int,
         sent_at: datetime,
         host_release_signal: bool = False,
+        silently_used_memory_ids: list[str] | None = None,
     ) -> ResponsePlanRecord:
         with self.database.connection() as connection:
-            connection.execute("BEGIN IMMEDIATE")
+            if not connection.in_transaction:
+                connection.execute("BEGIN IMMEDIATE")
             plan_row = connection.execute(
                 "SELECT * FROM response_plans WHERE id = ? AND user_id = ?",
                 (plan_id, user_id),
@@ -2800,6 +2846,11 @@ class MemoryStore:
                 MemoryReferenceMode.SOFT_REFERENCE: RecallUseMode.HEDGE,
                 MemoryReferenceMode.CLARIFY: RecallUseMode.DO_NOT_ASSERT,
             }
+            type_map = {
+                MemoryReferenceMode.EXPLICIT_RECALL: MemoryUseType.EXPLICIT_REFERENCE,
+                MemoryReferenceMode.SOFT_REFERENCE: MemoryUseType.SOFT_REFERENCE,
+                MemoryReferenceMode.CLARIFY: MemoryUseType.CLARIFICATION,
+            }
             plan_scope = scope_from_row(plan_row)
             for item in evidence:
                 if not self.database.config.memory_use_ledger.enabled:
@@ -2823,9 +2874,9 @@ class MemoryStore:
                     """
                     INSERT INTO memory_use_events (
                         id, user_id, companion_id, relationship_id, conversation_id,
-                        group_id, memory_id, response_group_id, use_mode, purpose,
+                        group_id, memory_id, response_group_id, use_mode, use_type, purpose,
                         output_hash, used_at, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         str(uuid4()),
@@ -2834,12 +2885,41 @@ class MemoryStore:
                         memory_id,
                         plan_row["response_group_id"],
                         use_mode.value,
+                        type_map[reference_mode].value,
                         f"response_beat:{beat['kind']}",
                         output_hash,
                         datetime_to_text(sent_at),
                         datetime_to_text(sent_at),
                     ),
                 )
+            for memory_id in dict.fromkeys(silently_used_memory_ids or []):
+                if reference_modes.get(memory_id) is not MemoryReferenceMode.SILENT_INFLUENCE:
+                    raise ValueError("silent use must refer to a planned silent memory")
+                if not self.database.config.memory_use_ledger.enabled:
+                    continue
+                previous_use = connection.execute(
+                    "SELECT 1 FROM memory_use_events WHERE user_id = ? AND memory_id = ? "
+                    "AND response_group_id = ? AND use_type = ?",
+                    (
+                        user_id,
+                        memory_id,
+                        plan_row["response_group_id"],
+                        MemoryUseType.SILENT_INFLUENCE.value,
+                    ),
+                ).fetchone()
+                if previous_use is None:
+                    self.record_memory_use(
+                        MemoryUseInput(
+                            user_id=user_id,
+                            scope=plan_scope,
+                            memory_id=memory_id,
+                            response_group_id=plan_row["response_group_id"],
+                            use_mode=RecallUseMode.DO_NOT_ASSERT,
+                            use_type=MemoryUseType.SILENT_INFLUENCE,
+                            purpose="host_confirmed_response_influence",
+                            used_at=sent_at,
+                        )
+                    )
             connection.execute(
                 """
                 UPDATE response_beats SET status = ?
@@ -3223,6 +3303,19 @@ class MemoryStore:
         *,
         purge_descendants: bool,
     ) -> None:
+        self.semantic_index.delete(SemanticKind.TURN, turn_id, user_id)
+        connection.execute(
+            "DELETE FROM turn_interpretations WHERE turn_id = ? AND user_id = ?",
+            (turn_id, user_id),
+        )
+        # Discard derived labels as well as memberships when their evidence is removed.
+        connection.execute(
+            "UPDATE episodes SET title = '来源已移除的事件', summary = '', topic_keys_json = '[]', "
+            "participant_actor_ids_json = '[]', revision = revision + 1, updated_at = ? "
+            "WHERE user_id = ? AND id IN "
+            "(SELECT episode_id FROM conversation_turns WHERE id = ? AND user_id = ?)",
+            (datetime_to_text(now), user_id, turn_id, user_id),
+        )
         rows = connection.execute(
             """
             SELECT DISTINCT memories.id FROM memories
@@ -3233,6 +3326,7 @@ class MemoryStore:
         ).fetchall()
         for row in rows:
             memory_id = str(row["id"])
+            self.semantic_index.delete(SemanticKind.MEMORY, memory_id, user_id)
             if purge_descendants:
                 self._clear_audit_history(connection, memory_id, user_id)
             self._audit(
@@ -3541,6 +3635,26 @@ class MemoryStore:
         )
 
     @staticmethod
+    def _realm_filter(table: str, layer: RealityLayer | None) -> tuple[str, list[Any]]:
+        if layer is None:
+            return "", []
+        if table == "memories":
+            return " AND memories.reality_layer = ?", [layer.value]
+        if table == "conversation_turns":
+            return (
+                " AND companion_turn_reality(conversation_turns.content, "
+                "conversation_turns.metadata_json, conversation_turns.speech_spans_json) = ?",
+                [layer.value],
+            )
+        if table == "conversation_events":
+            return (
+                " AND COALESCE(json_extract(conversation_events.metadata_json, "
+                "'$.reality_layer'), 'real_world') = ?",
+                [layer.value],
+            )
+        raise ValueError("unknown evidence table")
+
+    @staticmethod
     def _exact_turn_scope_filter(scope: MemoryScope) -> tuple[list[str], list[Any]]:
         clauses: list[str] = []
         parameters: list[Any] = []
@@ -3618,8 +3732,28 @@ class MemoryStore:
             parameters.append(datetime_to_text(event_before))
         return " AND ".join(clauses), parameters
 
-    @staticmethod
+    def _semantic_candidates(
+        self,
+        connection: sqlite3.Connection,
+        query: SemanticQuery,
+        where: str,
+        parameters: list[Any],
+    ) -> list[tuple[float, sqlite3.Row]]:
+        parent = SEMANTIC_TABLES[query.kind][2]
+        result: list[tuple[float, sqlite3.Row]] = []
+        for hit in self.semantic_index.search(query)[: query.limit]:
+            if not math.isfinite(hit.similarity) or hit.similarity < query.minimum_similarity:
+                continue
+            row = connection.execute(
+                f"SELECT {parent}.* FROM {parent} WHERE {where} AND {parent}.id = ?",
+                (*parameters, hit.id),
+            ).fetchone()
+            if row is not None:
+                result.append((min(1.0, max(0.0, hit.similarity)), row))
+        return result
+
     def _insert_embedding(
+        self,
         connection: sqlite3.Connection,
         table: str,
         id_column: str,
@@ -3628,25 +3762,25 @@ class MemoryStore:
         embedding: list[float],
         now: datetime,
     ) -> None:
-        allowed_targets = {
-            ("event_embeddings", "event_id"),
-            ("memory_embeddings", "memory_id"),
-            ("turn_embeddings", "turn_id"),
-        }
-        if (table, id_column) not in allowed_targets:
+        kind = next(
+            (kind for kind, target in SEMANTIC_TABLES.items() if target[:2] == (table, id_column)),
+            None,
+        )
+        if kind is None:
             raise ValueError("unsupported embedding target")
-        connection.execute(
-            f"""
-            INSERT INTO {table} ({id_column}, space, dimensions, vector, created_at)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                record_id,
-                space,
-                len(embedding),
-                _pack_vector(embedding),
-                datetime_to_text(now),
-            ),
+        parent = SEMANTIC_TABLES[kind][2]
+        row = connection.execute(f"SELECT * FROM {parent} WHERE id = ?", (record_id,)).fetchone()
+        if row is None:
+            raise ValueError("embedding source is unavailable")
+        self.semantic_index.upsert(
+            SemanticDocument(
+                kind=kind,
+                id=record_id,
+                user_id=row["user_id"],
+                scope=scope_from_row(row),
+                space=space,
+                vector=embedding,
+            )
         )
 
     def _supersede_current(
@@ -3658,6 +3792,10 @@ class MemoryStore:
         stable_key: str,
         now: datetime,
         exclude_id: str | None = None,
+        *,
+        subject_actor_id: str | None = None,
+        predicate: str | None = None,
+        reality_layer: RealityLayer = RealityLayer.REAL_WORLD,
     ) -> str | None:
         query = """
             SELECT id FROM memories
@@ -3665,6 +3803,8 @@ class MemoryStore:
               AND companion_id IS ? AND relationship_id IS ?
               AND conversation_id IS ? AND group_id IS ?
               AND kind = ? AND stable_key = ? AND status = ?
+              AND COALESCE(subject_actor_id, user_id) = ?
+              AND predicate IS ? AND reality_layer = ?
         """
         parameters: list[Any] = [
             user_id,
@@ -3672,6 +3812,9 @@ class MemoryStore:
             kind,
             stable_key,
             MemoryStatus.ACTIVE.value,
+            subject_actor_id or user_id,
+            predicate,
+            reality_layer.value,
         ]
         if exclude_id is not None:
             query += " AND id != ?"
@@ -3884,6 +4027,7 @@ class MemoryStore:
                 "memory_id": row["memory_id"],
                 "response_group_id": row["response_group_id"],
                 "use_mode": row["use_mode"],
+                "use_type": row["use_type"],
                 "purpose": row["purpose"],
                 "output_hash": row["output_hash"],
                 "used_at": datetime_from_text(row["used_at"]),
@@ -4010,31 +4154,3 @@ class MemoryStore:
                 "cancellation_reason": row["cancellation_reason"],
             }
         )
-
-
-def _pack_vector(values: list[float]) -> bytes:
-    vector = array("f", values)
-    if sys.byteorder != "little":
-        vector.byteswap()
-    return vector.tobytes()
-
-
-def _unpack_vector(blob: bytes) -> list[float]:
-    if len(blob) % FLOAT32_BYTES:
-        raise ValueError("corrupt embedding vector")
-    vector = array("f")
-    vector.frombytes(blob)
-    if sys.byteorder != "little":
-        vector.byteswap()
-    return vector.tolist()
-
-
-def _cosine(left: list[float], right: list[float]) -> float:
-    if len(left) != len(right) or not left:
-        return 0.0
-    dot = sum(left_value * right_value for left_value, right_value in zip(left, right, strict=True))
-    left_norm = math.sqrt(sum(value * value for value in left))
-    right_norm = math.sqrt(sum(value * value for value in right))
-    if not left_norm or not right_norm:
-        return 0.0
-    return dot / (left_norm * right_norm)

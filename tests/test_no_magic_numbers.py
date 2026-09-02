@@ -11,6 +11,16 @@ RUNTIME_POLICY_FILES = [
     Path("companion_memoryos/proactivity.py"),
     Path("companion_memoryos/experience.py"),
     Path("companion_memoryos/discourse.py"),
+    Path("companion_memoryos/recall_service.py"),
+    Path("companion_memoryos/state_service.py"),
+    Path("companion_memoryos/experience_service.py"),
+    Path("companion_memoryos/interpretation_service.py"),
+    Path("companion_memoryos/episode_store.py"),
+    Path("companion_memoryos/semantic_index.py"),
+    Path("companion_memoryos/interpreter.py"),
+    Path("companion_memoryos/process_service.py"),
+    Path("companion_memoryos/entity_resolution.py"),
+    Path("companion_memoryos/turn_layers.py"),
 ]
 ALLOWED_LITERALS = {-1, 0, 1}
 

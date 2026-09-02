@@ -4,11 +4,13 @@ import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
+from contextvars import ContextVar
 from pathlib import Path
 
 from companion_memoryos.config import CompanionConfig
 from companion_memoryos.constants import DATABASE_SCHEMA_VERSION, SQLITE_INTEGRITY_OK
 from companion_memoryos.scoring import build_search_document
+from companion_memoryos.turn_layers import turn_reality_layer
 
 
 class Database:
@@ -17,9 +19,16 @@ class Database:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.path = self.data_dir / "companion-memoryos.db"
         self.config = config
+        self._active_connection: ContextVar[sqlite3.Connection | None] = ContextVar(
+            f"companion_connection_{id(self)}", default=None
+        )
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
+        active = self._active_connection.get()
+        if active is not None:
+            yield active
+            return
         connection = sqlite3.connect(self.path)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
@@ -32,6 +41,13 @@ class Database:
             self._search_terms,
             deterministic=True,
         )
+        connection.create_function(
+            "companion_turn_reality",
+            3,
+            turn_reality_layer,
+            deterministic=True,
+        )
+        token = self._active_connection.set(connection)
         try:
             yield connection
             connection.commit()
@@ -39,7 +55,16 @@ class Database:
             connection.rollback()
             raise
         finally:
+            self._active_connection.reset(token)
             connection.close()
+
+    @contextmanager
+    def atomic(self) -> Iterator[sqlite3.Connection]:
+        """Reuse one local transaction across a group of existing core operations."""
+        with self.connection() as connection:
+            if not connection.in_transaction:
+                connection.execute("BEGIN IMMEDIATE")
+            yield connection
 
     def initialize(self) -> None:
         with self.connection() as connection:
@@ -105,6 +130,9 @@ class Database:
                 "resolution_key": "TEXT",
                 "resolved_at": "TEXT",
             },
+            "memory_use_events": {
+                "use_type": "TEXT NOT NULL DEFAULT 'explicit_reference'",
+            },
         }
         for table, columns in migrations.items():
             exists = connection.execute(
@@ -119,6 +147,13 @@ class Database:
             for column, definition in columns.items():
                 if column not in existing:
                     connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+                    if table == "memory_use_events" and column == "use_type":
+                        connection.execute(
+                            "UPDATE memory_use_events SET use_type = CASE use_mode "
+                            "WHEN 'hedge' THEN 'soft_reference' "
+                            "WHEN 'do_not_assert' THEN 'clarification' "
+                            "ELSE 'explicit_reference' END"
+                        )
         memory_exists = connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'memories'"
         ).fetchone()
@@ -348,6 +383,43 @@ CREATE TABLE IF NOT EXISTS processing_watermarks (
     PRIMARY KEY (user_id, scope_key, channel)
 );
 
+CREATE TABLE IF NOT EXISTS episodes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    companion_id TEXT,
+    relationship_id TEXT NOT NULL,
+    conversation_id TEXT,
+    group_id TEXT,
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    topic_keys_json TEXT NOT NULL,
+    participant_actor_ids_json TEXT NOT NULL,
+    reality_layer TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    last_event_at TEXT NOT NULL,
+    status TEXT NOT NULL,
+    merged_into_id TEXT,
+    revision INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (merged_into_id) REFERENCES episodes(id)
+);
+CREATE INDEX IF NOT EXISTS idx_episodes_scope
+    ON episodes(user_id, companion_id, relationship_id, group_id, last_event_at);
+CREATE INDEX IF NOT EXISTS idx_turns_episode ON conversation_turns(user_id, episode_id);
+
+CREATE TABLE IF NOT EXISTS turn_interpretations (
+    id TEXT PRIMARY KEY,
+    turn_id TEXT NOT NULL UNIQUE,
+    user_id TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    record_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (turn_id) REFERENCES conversation_turns(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_interpretations_user ON turn_interpretations(user_id, created_at);
+
 CREATE TABLE IF NOT EXISTS memory_use_events (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -358,6 +430,7 @@ CREATE TABLE IF NOT EXISTS memory_use_events (
     memory_id TEXT NOT NULL,
     response_group_id TEXT NOT NULL,
     use_mode TEXT NOT NULL,
+    use_type TEXT NOT NULL DEFAULT 'explicit_reference',
     purpose TEXT NOT NULL,
     output_hash TEXT,
     used_at TEXT NOT NULL,

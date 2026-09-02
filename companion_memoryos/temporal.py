@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from companion_memoryos.constants import (
     CALENDAR_FIRST_DAY,
@@ -27,7 +28,21 @@ class TemporalHint:
         return self.start is not None or self.end is not None
 
 
-def extract_temporal_hint(query: str, as_of: datetime) -> TemporalHint:
+def extract_temporal_hint(
+    query: str, as_of: datetime, calendar_timezone: str = "UTC"
+) -> TemporalHint:
+    if as_of.tzinfo is None:
+        raise ValueError("as_of must include a timezone")
+    local = as_of.astimezone(ZoneInfo(calendar_timezone))
+    hint = _extract_local_temporal_hint(query, local)
+    return TemporalHint(
+        start=hint.start.astimezone(UTC) if hint.start is not None else None,
+        end=hint.end.astimezone(UTC) if hint.end is not None else None,
+        prefer_recent=hint.prefer_recent,
+    )
+
+
+def _extract_local_temporal_hint(query: str, as_of: datetime) -> TemporalHint:
     explicit = _explicit_date(query, as_of)
     if explicit is not None:
         return explicit

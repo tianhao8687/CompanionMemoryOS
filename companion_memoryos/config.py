@@ -6,7 +6,8 @@ import os
 import tomllib
 from importlib.resources import files
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from platformdirs import user_data_path
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -144,6 +145,57 @@ class PolicyConfig(FrozenConfig):
 
 class TokenizationConfig(FrozenConfig):
     encoding: str = Field(min_length=1)
+
+
+class InterpreterConfig(FrozenConfig):
+    """Opt-in transport and explicit prototype resource budgets, not confidence gates."""
+
+    enabled: bool = False
+    base_url: str | None = None
+    model: str | None = None
+    api_key_env: str = "COMPANION_INTERPRETER_API_KEY"
+    require_api_key: bool = True
+    timeout_seconds: float = Field(default=30.0, gt=0, allow_inf_nan=False)
+    max_input_tokens: int = Field(default=4096, gt=0)
+    max_output_tokens: int = Field(default=1536, gt=0)
+    max_response_bytes: int = Field(default=262144, gt=0)
+    recent_turn_limit: int = Field(default=6, ge=0)
+    entity_candidate_limit: int = Field(default=24, gt=0)
+    episode_candidate_limit: int = Field(default=6, ge=0)
+    instruction_role: Literal["system", "developer"] = "system"
+    output_token_parameter: Literal["max_tokens", "max_completion_tokens"] = "max_completion_tokens"
+    json_mode: bool = True
+    skip_exact_directives: bool = True
+
+    @field_validator("base_url")
+    @classmethod
+    def valid_endpoint(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parts = urlsplit(value)
+        if (
+            parts.scheme not in {"https", "http"}
+            or not parts.hostname
+            or parts.username
+            or parts.password
+            or parts.query
+            or parts.fragment
+        ):
+            raise ValueError("interpreter.base_url must be an HTTP(S) URL without credentials")
+        return value.rstrip("/")
+
+    @field_validator("api_key_env", "model")
+    @classmethod
+    def nonblank_option(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("interpreter options cannot be blank")
+        return value.strip() if value is not None else None
+
+    @model_validator(mode="after")
+    def enabled_configuration(self) -> InterpreterConfig:
+        if self.enabled and (self.base_url is None or self.model is None):
+            raise ValueError("enabled interpreter requires base_url and model")
+        return self
 
 
 class EventArchiveConfig(FrozenConfig):
@@ -308,6 +360,7 @@ class CompanionConfig(FrozenConfig):
     ranking: RankingConfig
     policy: PolicyConfig
     tokenization: TokenizationConfig
+    interpreter: InterpreterConfig = Field(default_factory=InterpreterConfig)
     event_archive: EventArchiveConfig
     temporal_anchors: TemporalAnchorConfig
     conversation_ledger: ConversationLedgerConfig

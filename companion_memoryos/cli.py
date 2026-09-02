@@ -43,6 +43,7 @@ from companion_memoryos.schemas import (
     PolicyEffect,
     PolicyGateRequest,
     ProcessingWatermarkInput,
+    ProcessTurnRequest,
     RealityLayer,
     RecallIntent,
     RecallRequest,
@@ -60,6 +61,7 @@ from companion_memoryos.schemas import (
     StateQuery,
     TemporalAnchorInput,
     TemporalAnchorStatus,
+    TurnInterpretationRequest,
     TurnModality,
 )
 from companion_memoryos.security import TokenManager
@@ -225,6 +227,48 @@ def archive_event(
             content=content,
             consent=consent,
             sensitivity=sensitivity,
+        )
+    )
+    _emit(result.model_dump(mode="json"))
+
+
+@app.command("process-turn")
+def process_turn(
+    ctx: typer.Context,
+    user_id: str,
+    relationship_id: str,
+    conversation_id: str,
+    content: str,
+    idempotency_key: str = typer.Option(..., "--idempotency-key", help="Stable host delivery ID"),
+    companion_id: str | None = None,
+    actor_id: str | None = None,
+    group_id: str | None = None,
+    role: ConversationRole = ConversationRole.USER,
+    consent: ConsentState = ConsentState.UNKNOWN,
+    model_consent: ConsentState = ConsentState.UNKNOWN,
+    sensitivity: Sensitivity = Sensitivity.NORMAL,
+    allow_sensitive_model_input: bool = False,
+    calendar_timezone: str = "UTC",
+    reality_layer: RealityLayer = RealityLayer.REAL_WORLD,
+    occurred_at: str | None = None,
+    enable_recall: bool = typer.Option(True, "--recall/--no-recall"),
+) -> None:
+    result = _runtime(ctx).service.process_turn(
+        ProcessTurnRequest(
+            user_id=user_id,
+            scope=_scope(companion_id, relationship_id, conversation_id, group_id),
+            actor_id=actor_id,
+            role=role,
+            content=content,
+            idempotency_key=idempotency_key,
+            consent=consent,
+            model_consent=model_consent,
+            sensitivity=sensitivity,
+            allow_sensitive_model_input=allow_sensitive_model_input,
+            calendar_timezone=calendar_timezone,
+            reality_layer=reality_layer,
+            occurred_at=_parse_aware_datetime(occurred_at) if occurred_at is not None else None,
+            enable_recall=enable_recall,
         )
     )
     _emit(result.model_dump(mode="json"))
@@ -397,6 +441,16 @@ def interpret_turn(
     _emit(result.model_dump(mode="json"))
 
 
+@app.command("apply-interpretation")
+def apply_turn_interpretation(ctx: typer.Context, turn_id: str, request_file: Path) -> None:
+    """Apply host-generated JSON proposals to an already persisted turn."""
+    request = TurnInterpretationRequest.model_validate_json(
+        request_file.read_text(encoding="utf-8")
+    )
+    result = _runtime(ctx).service.apply_turn_interpretation(turn_id, request)
+    _emit(result.model_dump(mode="json"))
+
+
 @app.command("plan-response")
 def plan_response(
     ctx: typer.Context,
@@ -406,6 +460,7 @@ def plan_response(
     goal: ResponseGoal,
     query: str | None = None,
     intent: RecallIntent = RecallIntent.GENERAL,
+    calendar_timezone: str = "UTC",
     topic_key: list[str] | None = typer.Option(None, "--topic-key"),
     user_asked_memory_question: bool = False,
     user_reopened_topic: bool = False,
@@ -423,7 +478,13 @@ def plan_response(
 ) -> None:
     scope = _scope(companion_id, relationship_id, conversation_id, group_id)
     recall_request = (
-        RecallRequest(user_id=user_id, scope=scope, query=query, intent=intent)
+        RecallRequest(
+            user_id=user_id,
+            scope=scope,
+            query=query,
+            intent=intent,
+            calendar_timezone=calendar_timezone,
+        )
         if query is not None
         else None
     )
@@ -557,6 +618,7 @@ def query_state(
     ctx: typer.Context,
     user_id: str,
     predicate: str,
+    subject_actor_id: str | None = None,
     semantics: AnswerSemantics = AnswerSemantics.STATE_AT_VALID_TIME,
     reality_layer: RealityLayer = RealityLayer.REAL_WORLD,
     valid_at: str | None = None,
@@ -572,6 +634,7 @@ def query_state(
             user_id=user_id,
             scope=_scope(companion_id, relationship_id, conversation_id, group_id),
             predicate=predicate,
+            subject_actor_id=subject_actor_id,
             semantics=semantics,
             reality_layer=reality_layer,
             valid_at=_parse_aware_datetime(valid_at) if valid_at is not None else now,
@@ -903,7 +966,9 @@ def recall(
     answer_cardinality: AnswerCardinality = AnswerCardinality.AUTO,
     utterance_actor_id: str | None = None,
     state_predicate: str | None = None,
+    state_subject_actor_id: str | None = None,
     state_reality_layer: RealityLayer = RealityLayer.REAL_WORLD,
+    calendar_timezone: str = "UTC",
     valid_at: str | None = None,
     known_at: str | None = None,
     companion_id: str | None = None,
@@ -926,7 +991,9 @@ def recall(
             answer_cardinality=answer_cardinality,
             utterance_actor_id=utterance_actor_id,
             state_predicate=state_predicate,
+            state_subject_actor_id=state_subject_actor_id,
             state_reality_layer=state_reality_layer,
+            calendar_timezone=calendar_timezone,
             valid_at=_parse_aware_datetime(valid_at) if valid_at is not None else None,
             known_at=_parse_aware_datetime(known_at) if known_at is not None else None,
         )

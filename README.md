@@ -2,9 +2,9 @@
 
 一个面向情感陪伴应用的、本地优先、同意优先的记忆基础设施。
 
-当前为 **0.6 聊天运行时桥接 alpha，集中工程验证已通过，尚未生产发布**。在 0.5 体验层上，新增明确自然话语识别、低风险自动修复，以及“当前话语首拍先就绪、历史检索随后回填”的可恢复分阶段计划。
+当前为 **0.7.5 实用接入 alpha（早期版本），整批实现与集中验证完成，真实聊天验收与生产发布尚未完成**。在 0.7.4 上新增普通消息统一入口、可选单次模型解释、轻量人物/别名解析及事件移出操作；默认仍只需要 SQLite，不启用模型也能工作。242 项测试通过，源码包/wheel 独立安装与实际命令行服务检查通过。
 
-本轮实现与未完成边界见 [0.6 实现报告](docs/IMPLEMENTATION_REPORT_0.6.md)，集中结果见 [0.6 验证报告](docs/VALIDATION_REPORT_0.6.md)，接入协议见 [Companion Experience Layer](docs/COMPANION_EXPERIENCE_LAYER.md)。
+新接入请先看 [0.7.5 接入指南](docs/INTEGRATION_0.7.5.md) 和 [本批完成与验证报告](docs/RELEASE_REPORT_0.7.5.md)。0.7.4 基线保留在 [0.7 实现报告](docs/IMPLEMENTATION_REPORT_0.7.md)、[0.7 验证报告](docs/VALIDATION_REPORT_0.7.md) 和 [0.7 接入指南](docs/INTEGRATION_0.7.md)。既有分阶段回复协议仍见 [陪伴体验层](docs/COMPANION_EXPERIENCE_LAYER.md)。
 
 它从 [`tianhao8687/MemoryOS`](https://github.com/tianhao8687/MemoryOS) 的可靠机制演化而来：SQLite 是唯一事实源、证据与审计可追踪、稳定事实形成版本链、用户可以遗忘或清除当前主库对象。这个独立项目重新设计了陪伴场景最在意的部分：小事找回、中文连续文本、人物与时间消歧、真实 token 预算、自然带入、关系演化和克制的主动关怀。
 
@@ -24,10 +24,12 @@
 
 ## 核心能力
 
+- `process_turn()` / `POST /api/v1/turns/process`：保存原文 → 本地规则 → 可选单次模型解释 → 既有候选规则 → 回答上下文。失败不丢原话，重投可复用解释，无后台 worker。
+- 轻量实体提案按有证据的名称和别名解析；同名不硬合并，未知主体不默认写成用户状态。跨天 Episode 继续支持 attach/merge/split/reassign，并补齐 detach。
 - 中文 CJK 1–3 gram、英文 token、可选 embedding、实体、时间、情绪和需要组成混合召回；单个汉字也能进入候选，但只能谨慎使用。
 - “今天 / 昨天 / 上周 / 上个月 / 去年 / 上次 / 最近”及明确日期参与时间排序；“上次”优先最近一条而不是随机命中同关键词。
 - 人物 `id + name + aliases` 用于区分“小王的咖啡店”和“小李的咖啡店”。
-- `tiktoken` 对最终实际注入文本计数，字符与 token 双预算；返回完整 `prompt_text`、是否耗尽预算及省略条数，接入方无需再次猜测成本。
+- 默认 `tiktoken` 对最终实际注入文本计数，也可注入自己的 `TokenCounter`（词元计数器）；字符与词元双预算，返回完整注入文本、预算耗尽与省略条数。
 - 普通推断记忆仍进入内部 `candidate`，不参与个性化；用户稍后用自然指令重复同一内容时，系统会在一个事务中写入带本次授权与证据的新 active 记录，再拒绝旧候选，避免把旧的未知授权或弱来源“洗白”。批量复核中的 `confirm` 本身代表明确授权，并把记录的 consent 更新为 `granted`。
 - 稳定事实更正使用显式 `stable_key`，或由 subject + predicate + reality layer 派生稳定身份：新版本生效，旧版本成为 `superseded`。泛化标题“偏好/关系”不再自动生成 identity，避免不相关小事互相覆盖。
 - 宿主识别到“不是小禾，是禾禾”后可调用一句话更正接口；它沿用原记忆授权，并可绑定本次纠正的新 `evidence_turn_ids`，不会把新内容伪挂到旧消息上，也不要求用户进入管理页确认。
@@ -35,7 +37,7 @@
 - 原始事件按普通/敏感保留期自动从当前主库物理删除，只留下不含正文、会话标识、内容哈希或时间范围的最小对象回执；助手旧回复和高度敏感原始事件默认不保存，避免模型自我污染。
 - 结构化记忆的复核窗口和保留期从实际写入时间起算，`event_at` 只表示事情何时发生；迟到导入不会刚写入就过期，未来事件时间也不能绕过敏感数据上限。
 - SQLite WAL + FTS5 是唯一事实源；embedding 是可选、可重建的召回信号，不成为第二套真相。
-- 所有期限、阈值、候选池、预算、权重和主动触达限制集中在 `defaults.toml`，并由 AST 测试防止散落魔法数字。
+- 可调期限、阈值、候选池、预算、权重和主动触达限制集中在 `defaults.toml`；协议字段边界在强类型 schema 中登记。AST 检查防止新增裸数值，但不等于已完成参数校准。
 - 关系作用域隔离 user/companion/relationship/conversation/group；原始事件与回合只接受完整 scope 精确召回，复用同一 conversation ID 也不会跨关系串线。
 - ConversationTurn 只使用宿主提供的显式 `idempotency_key` 合并重投；没有键的相同短句会作为两次真实表达保存，键复用但精确载荷（包括大小写、scope、speaker、时间、模态和 SpeechSpan）变化会拒绝写入。
 - 由原始回合生成的长期记忆必须继承其 companion/relationship/group 同意域；只有保留父同意域时才允许从单次 conversation 提升为关系级记忆。
@@ -280,4 +282,4 @@ mypy companion_memoryos
 pytest
 ```
 
-`0.6.0-alpha` 已在 2026-09-02 完成集中工程验证：151 tests、84% overall coverage、Ruff、format、strict mypy、依赖检查、sdist/wheel、CLI 全新目录初始化和 SQLite schema v7 完整性均通过。尚未执行 100M 压测、真实性能测试或真实用户研究。详见 [`docs/IMPLEMENTATION_REPORT_0.6.md`](docs/IMPLEMENTATION_REPORT_0.6.md)、[`docs/VALIDATION_REPORT_0.6.md`](docs/VALIDATION_REPORT_0.6.md) 与 [`PROJECT_STATUS.md`](PROJECT_STATUS.md)。
+0.7.5 集中验证：242 项测试通过，整体语句覆盖率 89.27%；Ruff、格式检查、strict mypy、依赖检查、源码包/wheel 独立安装与实际 CLI/HTTP 接入通过，详见 [本批报告](docs/RELEASE_REPORT_0.7.5.md)。保留的 0.7.4 基线为 199 项测试，包含 20 个合成聊天场景共 640 条消息，检查最终注入证据而非仅检查候选召回。尚未执行一亿词元压力测试、真实性能测试或真实用户研究；固定模型输出和本地 HTTP stub 不能代替这些证据。

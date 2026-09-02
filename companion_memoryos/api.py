@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from companion_memoryos.config import CompanionConfig, default_data_dir, load_config
 from companion_memoryos.constants import APPLICATION_VERSION
 from companion_memoryos.database import Database
+from companion_memoryos.interpreter import TurnInterpreter
 from companion_memoryos.schemas import (
     ChannelWatermark,
     CompanionContext,
@@ -21,6 +22,12 @@ from companion_memoryos.schemas import (
     ConversationTurnStorageResult,
     DiscourseInterpretation,
     DiscourseInterpretRequest,
+    EpisodeAttachRequest,
+    EpisodeDetachRequest,
+    EpisodeInput,
+    EpisodeMergeRequest,
+    EpisodeRecord,
+    EpisodeSplitRequest,
     EventStatus,
     EventStorageResult,
     ExportBundle,
@@ -50,6 +57,8 @@ from companion_memoryos.schemas import (
     ProactivityDecision,
     ProactivityRequest,
     ProcessingWatermarkInput,
+    ProcessTurnRequest,
+    ProcessTurnResult,
     ProfileSnapshot,
     RecallRequest,
     ResponseBeatSentRequest,
@@ -66,6 +75,8 @@ from companion_memoryos.schemas import (
     TemporalAnchorRecord,
     TemporalAnchorStatus,
     TemporalAnchorStorageResult,
+    TurnInterpretationRecord,
+    TurnInterpretationRequest,
 )
 from companion_memoryos.security import TokenManager
 from companion_memoryos.service import CompanionMemoryService
@@ -75,13 +86,19 @@ from companion_memoryos.store import MemoryStore
 def create_app(
     data_dir: Path | None = None,
     config: CompanionConfig | None = None,
+    *,
+    turn_interpreter: TurnInterpreter | None = None,
 ) -> FastAPI:
     selected_config = config or load_config()
     selected_data_dir = (data_dir or default_data_dir()).expanduser().resolve()
     database = Database(selected_data_dir, selected_config)
     database.initialize()
     database.integrity_check()
-    service = CompanionMemoryService(MemoryStore(database), selected_config)
+    service = CompanionMemoryService(
+        MemoryStore(database),
+        selected_config,
+        turn_interpreter=turn_interpreter,
+    )
     tokens = TokenManager(selected_data_dir, selected_config)
     tokens.get_or_create()
 
@@ -153,12 +170,112 @@ def create_app(
         return service.append_turn(item)
 
     @app.post(
+        "/api/v1/turns/process",
+        response_model=ProcessTurnResult,
+        dependencies=protected,
+    )
+    def process_turn(request: ProcessTurnRequest) -> ProcessTurnResult:
+        return service.process_turn(request)
+
+    @app.post(
         "/api/v1/turns/interpret",
         response_model=DiscourseInterpretation,
         dependencies=protected,
     )
     def interpret_turn(request: DiscourseInterpretRequest) -> DiscourseInterpretation:
         return service.interpret_turn(request)
+
+    @app.post(
+        "/api/v1/turns/{turn_id}/interpretation",
+        response_model=TurnInterpretationRecord,
+        dependencies=protected,
+    )
+    def apply_turn_interpretation(
+        turn_id: str, request: TurnInterpretationRequest
+    ) -> TurnInterpretationRecord:
+        return service.apply_turn_interpretation(turn_id, request)
+
+    @app.get(
+        "/api/v1/turns/{turn_id}/interpretation",
+        response_model=TurnInterpretationRecord | None,
+        dependencies=protected,
+    )
+    def get_turn_interpretation(
+        turn_id: str, user_id: str = Query(min_length=1)
+    ) -> TurnInterpretationRecord | None:
+        return service.get_turn_interpretation(turn_id, user_id)
+
+    @app.post("/api/v1/episodes", response_model=EpisodeRecord, dependencies=protected)
+    def create_episode(item: EpisodeInput) -> EpisodeRecord:
+        return service.create_episode(item)
+
+    @app.get("/api/v1/episodes", response_model=list[EpisodeRecord], dependencies=protected)
+    def list_episodes(
+        user_id: str = Query(min_length=1),
+        companion_id: str | None = None,
+        relationship_id: str | None = None,
+        conversation_id: str | None = None,
+        group_id: str | None = None,
+    ) -> list[EpisodeRecord]:
+        return service.list_episodes(
+            user_id,
+            MemoryScope(
+                companion_id=companion_id,
+                relationship_id=relationship_id,
+                conversation_id=conversation_id,
+                group_id=group_id,
+            ),
+        )
+
+    @app.get(
+        "/api/v1/episodes/{episode_id}/turns",
+        response_model=list[ConversationTurnRecord],
+        dependencies=protected,
+    )
+    def episode_turns(
+        episode_id: str,
+        user_id: str = Query(min_length=1),
+        companion_id: str | None = None,
+        relationship_id: str | None = None,
+        conversation_id: str | None = None,
+        group_id: str | None = None,
+    ) -> list[ConversationTurnRecord]:
+        return service.episode_turns(
+            episode_id,
+            user_id,
+            MemoryScope(
+                companion_id=companion_id,
+                relationship_id=relationship_id,
+                conversation_id=conversation_id,
+                group_id=group_id,
+            ),
+        )
+
+    @app.post(
+        "/api/v1/episodes/{episode_id}/attach", response_model=EpisodeRecord, dependencies=protected
+    )
+    def attach_episode_turn(episode_id: str, request: EpisodeAttachRequest) -> EpisodeRecord:
+        return service.attach_episode_turn(episode_id, request)
+
+    @app.post(
+        "/api/v1/episodes/{episode_id}/detach",
+        response_model=EpisodeRecord,
+        dependencies=protected,
+    )
+    def detach_episode_turn(episode_id: str, request: EpisodeDetachRequest) -> EpisodeRecord:
+        return service.detach_episode_turn(episode_id, request)
+
+    @app.post(
+        "/api/v1/episodes/{episode_id}/merge", response_model=EpisodeRecord, dependencies=protected
+    )
+    def merge_episodes(episode_id: str, request: EpisodeMergeRequest) -> EpisodeRecord:
+        return service.merge_episodes(episode_id, request)
+
+    @app.post(
+        "/api/v1/episodes/{episode_id}/split", response_model=EpisodeRecord, dependencies=protected
+    )
+    def split_episode(episode_id: str, request: EpisodeSplitRequest) -> EpisodeRecord:
+        return service.split_episode(episode_id, request)
 
     @app.post(
         "/api/v1/open-loops",

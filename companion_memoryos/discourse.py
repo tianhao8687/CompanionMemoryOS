@@ -34,7 +34,21 @@ def interpret_explicit_discourse(
         for signal, phrases in phrase_families.items()
     }
     matched = {signal: phrases for signal, phrases in matched.items() if phrases}
-    signals = list(matched)
+    return interpret_discourse_signals(
+        user_id=user_id, scope=scope, turn_id=turn_id, signals=list(matched), matched=matched
+    )
+
+
+def interpret_discourse_signals(
+    *,
+    user_id: str,
+    scope: MemoryScope,
+    turn_id: str,
+    signals: list[DiscourseSignal],
+    matched: dict[DiscourseSignal, list[str]] | None = None,
+) -> DiscourseInterpretation:
+    """Shared current-turn decisions; model proposals cannot change permanent policy."""
+    signals = list(dict.fromkeys(signals))
     conflicting = {
         DiscourseSignal.LISTEN_ONLY,
         DiscourseSignal.ADVICE_REQUESTED,
@@ -78,7 +92,7 @@ def interpret_explicit_discourse(
         turn_id=turn_id,
         status=status,
         signals=signals,
-        matched_phrases=matched,
+        matched_phrases=matched or {},
         suggested_goal=goal,
         user_asked_memory_question=memory_question,
         current_turn_requires_full_attention=full_attention,
