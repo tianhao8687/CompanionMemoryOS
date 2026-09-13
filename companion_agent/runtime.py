@@ -13,6 +13,10 @@ from companion_agent.context import ComposedContext, compose_context
 from companion_agent.llm import MainLLM
 from companion_agent.persona import PersonaDefinition, RelationshipStage, compile_persona_context
 from companion_agent.persona.models import PersonaModel
+from companion_agent.relationship import RelationshipConfig, RelationshipKey, RelationshipService
+from companion_agent.relationship.evaluator import LocalRelationshipEvaluator, RelationshipEvaluator
+from companion_agent.relationship.models import RelationshipUpdateCandidate
+from companion_agent.relationship.transitions import STAGES
 from companion_memoryos.schemas import (
     ConsentState,
     ConversationRole,
@@ -39,6 +43,9 @@ class PreparedResponse(PersonaModel):
     context: ComposedContext
     plan: ResponsePlanRecord
     user_turn: ConversationTurnRecord
+    relationship_key: RelationshipKey
+    relationship_revision: int
+    relationship_candidates: list[RelationshipUpdateCandidate]
 
 
 class AgentResponse(PersonaModel):
@@ -57,6 +64,8 @@ class CompanionAgent:
         max_context_tokens: int = 16000,
         recent_turn_limit: int = 20,
         application_rules: str = "",
+        relationship_config: RelationshipConfig | None = None,
+        relationship_evaluator: RelationshipEvaluator | None = None,
     ) -> None:
         if min(max_persona_tokens, max_context_tokens, recent_turn_limit) < 1:
             raise ValueError("agent budgets and history limit must be positive")
@@ -68,12 +77,14 @@ class CompanionAgent:
         self.recent_turn_limit = recent_turn_limit
         self.application_rules = application_rules
         self.characters = CharacterMemoryStore(memory.store.database)
+        self.relationships = RelationshipService(memory, relationship_config)
+        self.relationship_evaluator = relationship_evaluator or LocalRelationshipEvaluator()
         self._lock = RLock()
 
     def prepare(
         self,
         request: ProcessTurnRequest,
-        relationship_stage: RelationshipStage,
+        relationship_stage: RelationshipStage | None = None,
         *,
         response_goal: ResponseGoal | None = None,
     ) -> PreparedResponse:
@@ -82,6 +93,7 @@ class CompanionAgent:
             or request.actor_id != request.user_id
             or not request.scope.companion_id
             or request.scope.companion_id == request.user_id
+            or request.scope.group_id is not None
         ):
             raise ValueError("agent requires distinct user and companion actors")
         if request.consent is not ConsentState.GRANTED:
@@ -97,13 +109,6 @@ class CompanionAgent:
             with suppress(ValueError):
                 goal = ResponseGoal(result.response_context.intent.value)
         goal = goal or ResponseGoal.DIRECT_ANSWER
-        compiled = compile_persona_context(
-            self.persona,
-            goal,
-            relationship_stage,
-            max_persona_tokens=self.max_persona_tokens,
-            token_counter=self.memory.token_counter,
-        )
         plan = self.memory.plan_response(
             ResponsePlanRequest(
                 user_id=request.user_id,
@@ -153,6 +158,44 @@ class CompanionAgent:
             )
         )
         try:
+            relationship_key = RelationshipKey(
+                user_id=request.user_id,
+                companion_id=request.scope.companion_id,
+                relationship_id=request.scope.relationship_id or "",
+            )
+            relationship = self.relationships.get_relationship(
+                relationship_key, as_of=turn.occurred_at
+            )
+            candidates = self.relationship_evaluator.evaluate(
+                result, relationship, self.relationships
+            )
+            self.relationships.stage_candidates(relationship_key, candidates)
+            preview = self.relationships.preview(
+                relationship_key, candidates, as_of=turn.occurred_at
+            )
+            effective_stage = relationship_stage or preview.stage
+            if preview.distance_ceiling is not None:
+                effective_stage = STAGES[
+                    min(STAGES.index(effective_stage), STAGES.index(preview.distance_ceiling))
+                ]
+            preview.stage = effective_stage
+            preview.stage_state.stage = effective_stage
+            compiled_relationship = self.relationships.get_relationship_context(
+                relationship_key,
+                goal,
+                request.content,
+                model=preview,
+                memory_use_plan=plan.memory_use_plan,
+                as_of=turn.occurred_at,
+                allow_sensitive=request.allow_sensitive_model_input,
+            )
+            compiled = compile_persona_context(
+                self.persona,
+                goal,
+                effective_stage,
+                max_persona_tokens=self.max_persona_tokens,
+                token_counter=self.memory.token_counter,
+            )
             while True:
                 context = compose_context(
                     persona=compiled,
@@ -164,6 +207,7 @@ class CompanionAgent:
                     recent_conversation=recent,
                     character_memories=characters,
                     application_rules=self.application_rules,
+                    relationship_context=compiled_relationship,
                 )
                 serialized = json.dumps(
                     [m.model_dump() for m in context.messages], ensure_ascii=False
@@ -181,12 +225,19 @@ class CompanionAgent:
         except Exception:
             self.memory.cancel_response_plan(plan.id, request.user_id, "composition_failed")
             raise
-        return PreparedResponse(context=context, plan=plan, user_turn=turn)
+        return PreparedResponse(
+            context=context,
+            plan=plan,
+            user_turn=turn,
+            relationship_key=relationship_key,
+            relationship_revision=relationship.revision,
+            relationship_candidates=candidates,
+        )
 
     def chat(
         self,
         request: ProcessTurnRequest,
-        relationship_stage: RelationshipStage,
+        relationship_stage: RelationshipStage | None = None,
         *,
         response_goal: ResponseGoal | None = None,
     ) -> AgentResponse:
@@ -233,6 +284,12 @@ class CompanionAgent:
                     "response_goal": compiled.response_goal.value,
                     "relationship_stage": compiled.relationship_stage.value,
                     "compiled_persona_tokens": compiled.estimated_tokens,
+                    "agent_version": "0.2.0",
+                    "relationship_revision": prepared.relationship_revision,
+                    "relationship_stage_source": "host_override" if relationship_stage else "model",
+                    "compiled_relationship_tokens": prepared.context.relationship.estimated_tokens
+                    if prepared.context.relationship
+                    else 0,
                     "process_reality_layer": request.reality_layer.value,
                     "usage": output.usage.model_dump() if output.usage else None,
                 }
@@ -286,6 +343,23 @@ class CompanionAgent:
                     )
                     if stored.turn is None:
                         raise ValueError("assistant response storage failed")
+                    relationship_after = self.relationships.commit_candidates(
+                        prepared.relationship_key,
+                        prepared.relationship_candidates,
+                        expected_revision=prepared.relationship_revision,
+                    )
+                    metadata["relationship_revision_after"] = relationship_after.revision
+                    with self.memory.store.database.connection() as connection:
+                        connection.execute(
+                            "UPDATE conversation_turns SET metadata_json = ? "
+                            "WHERE id = ? AND user_id = ?",
+                            (
+                                json.dumps(metadata, ensure_ascii=False),
+                                stored.turn.id,
+                                request.user_id,
+                            ),
+                        )
+                    stored.turn.metadata = dict(metadata)
                 logger.info("companion_agent.response %s", json.dumps(metadata, ensure_ascii=False))
                 return AgentResponse(turn=stored.turn)
             except Exception:
