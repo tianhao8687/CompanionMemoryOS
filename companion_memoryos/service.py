@@ -622,8 +622,13 @@ class CompanionMemoryService:
     ) -> list[MemoryReferenceFeedbackRecord]:
         return experience_service.list_reference_feedback(self, user_id, scope, memory_ids, limit)
 
-    def plan_response(self, request: ResponsePlanRequest) -> ResponsePlanRecord:
-        return experience_service.plan_response(self, request)
+    def plan_response(
+        self,
+        request: ResponsePlanRequest,
+        *,
+        prepared_context: CompanionContext | None = None,
+    ) -> ResponsePlanRecord:
+        return experience_service.plan_response(self, request, prepared_context=prepared_context)
 
     def stage_response_plan(self, request: ResponsePlanRequest) -> ResponsePlanRecord:
         return experience_service.stage_response_plan(self, request)

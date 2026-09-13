@@ -20,6 +20,7 @@ dependencies = [
   "fastapi>=0.115,<1",
   "platformdirs>=4.3,<5",
   "pydantic>=2.10,<3",
+  "PyYAML>=6,<7",
   "tiktoken>=0.9,<1",
   "typer>=0.15,<1",
   "tzdata>=2025.1; sys_platform == 'win32'",
@@ -33,16 +34,18 @@ dev = [
   "pytest>=8.3,<9",
   "pytest-cov>=6,<7",
   "ruff>=0.11,<1",
+  "types-PyYAML>=6,<7",
 ]
 
 [project.scripts]
 companion-memoryos = "companion_memoryos.cli:main"
+companion-agent = "companion_agent.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["companion_memoryos"]
+packages = ["companion_memoryos", "companion_agent"]
 
 [tool.hatch.build.targets.sdist]
-include = ["companion_memoryos", "tests", "docs", "examples", "README.md", "LICENSE"]
+include = ["companion_memoryos", "companion_agent", "tests", "docs", "examples", "README.md", "LICENSE"]
 
 [tool.ruff]
 line-length = 100
@@ -55,7 +58,7 @@ ignore = ["B008", "RUF001"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-packages = ["companion_memoryos"]
+packages = ["companion_memoryos", "companion_agent"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

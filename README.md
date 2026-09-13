@@ -2,6 +2,10 @@
 
 一个面向情感陪伴应用的、本地优先、同意优先的记忆基础设施。
 
+新增 **CompanionAgent v0.1 稳定人格层**：可配置人格、角色背景记忆、1200-token
+人格编译、上下文组合和连续对话入口。功能与原系统共 279 项测试通过，
+真实模型人格实验按计划留待后续。参见 [接入与运行说明](docs/COMPANION_AGENT_0.1.md)。
+
 当前为 **0.7.5 实用接入 alpha（早期版本），整批实现与集中验证完成，真实聊天验收与生产发布尚未完成**。在 0.7.4 上新增普通消息统一入口、可选单次模型解释、轻量人物/别名解析及事件移出操作；默认仍只需要 SQLite，不启用模型也能工作。242 项测试通过，源码包/wheel 独立安装与实际命令行服务检查通过。
 
 新接入请先看 [0.7.5 接入指南](docs/INTEGRATION_0.7.5.md) 和 [本批完成与验证报告](docs/RELEASE_REPORT_0.7.5.md)。0.7.4 基线保留在 [0.7 实现报告](docs/IMPLEMENTATION_REPORT_0.7.md)、[0.7 验证报告](docs/VALIDATION_REPORT_0.7.md) 和 [0.7 接入指南](docs/INTEGRATION_0.7.md)。既有分阶段回复协议仍见 [陪伴体验层](docs/COMPANION_EXPERIENCE_LAYER.md)。

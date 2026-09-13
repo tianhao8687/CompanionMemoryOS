@@ -15,6 +15,7 @@ from companion_memoryos.experience import (
 )
 from companion_memoryos.schemas import (
     AutomaticActionStatus,
+    CompanionContext,
     ConsentState,
     ConversationRepairRequest,
     ConversationRepairResult,
@@ -131,14 +132,23 @@ def list_reference_feedback(
     return self.store.list_reference_feedback(user_id, scope, memory_ids, limit)
 
 
-def plan_response(self: CompanionMemoryService, request: ResponsePlanRequest) -> ResponsePlanRecord:
+def plan_response(
+    self: CompanionMemoryService,
+    request: ResponsePlanRequest,
+    *,
+    prepared_context: CompanionContext | None = None,
+) -> ResponsePlanRecord:
     if not self.config.experience.enabled:
         raise ValueError("companion experience layer is disabled")
     trigger = self.store.get_turn(request.trigger_turn_id, request.user_id)
     if trigger.scope != request.scope or trigger.role is not ConversationRole.USER:
         raise ValueError("response plans require a user-authored trigger in the exact scope")
-    context = None
-    if request.recall_request is not None:
+    context = prepared_context
+    if context is not None and (
+        context.user_id != request.user_id or context.scope != request.scope
+    ):
+        raise ValueError("prepared context must use the response plan user and exact scope")
+    if context is None and request.recall_request is not None:
         recall_request = request.recall_request.model_copy(
             update={
                 "exclude_turn_ids": list(
