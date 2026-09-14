@@ -34,7 +34,8 @@ from companion_agent.relationship.models import (
 )
 from companion_agent.relationship.service import candidate_for
 from companion_agent.relationship.store import RelationshipConflictError, RelationshipStore
-from companion_agent.relationship.transitions import evaluate_transition
+from companion_agent.relationship.transitions import evaluate_distance, evaluate_transition
+from companion_agent.semantics import RelationshipDistance
 from companion_memoryos.schemas import (
     ConsentState,
     ConversationRole,
@@ -156,7 +157,7 @@ def test_additive_migration_is_idempotent_and_preserves_memoryos(
             connection.execute(
                 "SELECT version FROM agent_schema_versions WHERE component='relationship'"
             ).fetchone()[0]
-            == 1
+            == 2
         )
     assert service.store.get_turn(identifier, "alice").content == "迁移前的原始消息"
 
@@ -331,7 +332,7 @@ def test_user_boundary_is_in_current_reply_preview_but_only_commits_after_succes
     reply = agent.chat(chat_request("我不喜欢你这么叫我。"))
     assert "不要再使用" in model.inputs[0][0].content
     assert agent.relationships.get_relationship(KEY).boundaries
-    assert reply.turn.metadata["agent_version"] == "0.2.0"
+    assert reply.turn.metadata["agent_version"] == "0.3.0"
     assert (
         reply.turn.metadata["relationship_revision_after"]
         > reply.turn.metadata["relationship_revision"]
@@ -378,7 +379,7 @@ def stage_fixture() -> RelationshipModel:
     )
 
 
-def test_stage_multi_dimension_upgrade_and_inactivity_downgrade() -> None:
+def test_stage_multi_dimension_upgrade_and_inactivity_preserves_history() -> None:
     model = stage_fixture()
     at = datetime.now(UTC) + timedelta(days=2)
     state = evaluate_transition(model, RelationshipConfig(), at)
@@ -388,11 +389,11 @@ def test_stage_multi_dimension_upgrade_and_inactivity_downgrade() -> None:
     assert state.stage is RelationshipStage.CLOSE
     model.stage, model.stage_state = state.stage, state
     state = evaluate_transition(model, RelationshipConfig(), at + timedelta(days=50))
-    assert state.stage is RelationshipStage.FAMILIAR and "长期未互动" in state.reasons[0]
+    assert state.stage is RelationshipStage.ESTABLISHED
     model.stage, model.stage_state = state.stage, state
     assert (
         evaluate_transition(model, RelationshipConfig(), at + timedelta(days=51)).stage
-        is RelationshipStage.FAMILIAR
+        is RelationshipStage.ESTABLISHED
     )
 
 
@@ -416,11 +417,15 @@ def test_conflict_and_user_distance_override_stage() -> None:
     model.recent_dynamics = RelationshipDynamics(
         updated_at=at, recent_conflict_level=0.95, evidence_ids=["turn:1"]
     )
-    assert evaluate_transition(model, RelationshipConfig(), at).stage is RelationshipStage.FAMILIAR
+    assert (
+        evaluate_transition(model, RelationshipConfig(), at).stage is RelationshipStage.ESTABLISHED
+    )
+    assert evaluate_distance(model, RelationshipConfig(), at) is RelationshipDistance.RESERVED
     model.distance_ceiling = RelationshipStage.NEW
     model.distance_evidence_ids = ["turn:2"]
     state = evaluate_transition(model, RelationshipConfig(), at)
-    assert state.stage is RelationshipStage.NEW and state.evidence_ids == ["turn:2"]
+    assert state.stage is RelationshipStage.ESTABLISHED
+    assert evaluate_distance(model, RelationshipConfig(), at) is RelationshipDistance.RESERVED
 
 
 def test_temporary_host_stage_never_overrides_explicit_user_distance(
@@ -444,7 +449,7 @@ def test_milestone_importance_filter_and_revision_history(service: CompanionMemo
     )
     assert not relations.commit_candidates(KEY, [low]).milestones
     model = evaluate_and_commit(service, "这次和你的深夜聊天对我很重要。")
-    assert len(model.milestones) == 1
+    assert not model.milestones  # a single importance statement is no longer a milestone
     history = relations.get_history(KEY)
     assert [revision.revision for revision in history] == list(range(1, model.revision + 1))
     assert all(revision.before is not None and revision.after is not None for revision in history)
@@ -489,6 +494,15 @@ def test_compiler_selects_topic_relevance_and_prioritizes_boundaries(
     model = evaluate_and_commit(service, "讨论技术时我更喜欢直接回答。")
     model = evaluate_and_commit(service, "我不喜欢空泛安慰。")
     model = evaluate_and_commit(service, "这次和你的深夜聊天对我很重要。")
+    model.milestones.append(
+        RelationshipMilestone(
+            id="reviewed-history",
+            title="深夜聊天",
+            summary="一段已审阅的共同交流",
+            importance=0.9,
+            evidence_ids=list(model.interactions)[-1:],
+        )
+    )
     technical = compile_relationship_context(model, ResponseGoal.DIRECT_ANSWER, "RTX 5070哪个好？")
     assert technical.relevant_patterns and technical.active_boundaries
     assert not technical.relevant_milestones
@@ -693,7 +707,9 @@ def test_matching_pattern_with_different_candidate_id_merges(
     assert model.patterns[0].id == "host-id-0" and model.patterns[0].observation_count == 3
 
 
-def test_returning_turn_preserves_inactivity_downgrade(service: CompanionMemoryService) -> None:
+def test_returning_turn_preserves_history_and_contracts_distance(
+    service: CompanionMemoryService,
+) -> None:
     start = datetime.now(UTC) - timedelta(days=150)
     refs = [f"turn:{turn(service, at=start + timedelta(days=i * 7))}" for i in range(14)]
     model = stage_fixture()
@@ -714,10 +730,11 @@ def test_returning_turn_preserves_inactivity_downgrade(service: CompanionMemoryS
     agent = CompanionAgent(service, load_persona(), StubLLM())
     agent.relationships.store.create(model)
     reply = agent.chat(chat_request("好久不见。"))
-    assert reply.turn.metadata["relationship_stage"] == "familiar"
-    assert agent.relationships.get_relationship(KEY).stage is RelationshipStage.FAMILIAR
+    assert reply.turn.metadata["familiarity_stage"] == "established"
+    assert reply.turn.metadata["relationship_distance"] == "cautious"
+    assert agent.relationships.get_relationship(KEY).stage is RelationshipStage.ESTABLISHED
     agent.chat(chat_request("今天过得怎么样？", "return-2"))
-    assert agent.relationships.get_relationship(KEY).stage is RelationshipStage.FAMILIAR
+    assert agent.relationships.get_relationship(KEY).stage is RelationshipStage.ESTABLISHED
 
 
 def test_pure_compiler_does_not_upgrade_suppress_or_clarify() -> None:

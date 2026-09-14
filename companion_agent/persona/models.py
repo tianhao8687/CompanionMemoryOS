@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import StrEnum
 from typing import Annotated, Any, Literal
 
 from pydantic import (
@@ -15,6 +14,11 @@ from pydantic import (
     model_validator,
 )
 
+from companion_agent.semantics import (
+    FamiliarityStage,
+    RelationshipDistance,
+    RelationshipIdentityType,
+)
 from companion_memoryos.schemas import ResponseGoal
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
@@ -24,10 +28,7 @@ class PersonaModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class RelationshipStage(StrEnum):
-    NEW = "new"
-    FAMILIAR = "familiar"
-    CLOSE = "close"
+RelationshipStage = FamiliarityStage
 
 
 class PersonaIdentity(PersonaModel):
@@ -93,6 +94,7 @@ class PersonaDefinition(PersonaModel):
     kernel: CharacterKernel
     response_styles: dict[ResponseGoal, GoalPersonaStyle]
     relationship_styles: RelationshipStyles
+    identity_styles: dict[RelationshipIdentityType, RelationshipStyle] = Field(default_factory=dict)
     invariants: list[BehaviorInvariant] = Field(min_length=1)
     examples: list[PersonaExample] = Field(default_factory=list, max_length=100)
     character_memories: list[CharacterMemorySeed] = Field(default_factory=list, max_length=1000)
@@ -102,7 +104,10 @@ class PersonaDefinition(PersonaModel):
     def normalize_keys(cls, value: Any) -> Any:
         if not isinstance(value, dict):
             return value
-        normalized = {str(key).lower(): item for key, item in value.items()}
+        normalized = {
+            ("established" if str(key).lower() == "close" else str(key).lower()): item
+            for key, item in value.items()
+        }
         if len(normalized) != len(value):
             raise ValueError("duplicate style keys after case normalization")
         return normalized
@@ -126,5 +131,7 @@ class CompiledPersonaContext(PersonaModel):
     estimated_tokens: int = Field(ge=0)
     response_goal: ResponseGoal
     relationship_stage: RelationshipStage
+    relationship_identity: RelationshipIdentityType = RelationshipIdentityType.UNDEFINED
+    relationship_distance: RelationshipDistance = RelationshipDistance.OPEN
     omitted_items: list[str] = Field(default_factory=list)
     selected_example_indices: list[int] = Field(default_factory=list)

@@ -10,12 +10,14 @@ from companion_agent.persona.tokens import default_token_counter
 from companion_agent.relationship.models import (
     CompiledRelationshipContext,
     RelationshipConfig,
+    RelationshipIdentity,
     RelationshipModel,
     RelationshipPatternCategory,
     RelationshipPatternStatus,
     RelationshipThreadStatus,
     now_utc,
 )
+from companion_agent.relationship.transitions import evaluate_distance
 from companion_memoryos.schemas import MemoryReferenceMode, ResponseGoal
 from companion_memoryos.tokens import TokenCounter
 
@@ -59,7 +61,8 @@ def compile_relationship_context(
     selected_evidence: list[str] = []
     omitted: list[str] = []
     fields: dict[str, Any] = {
-        "stage": model.stage.value,
+        "familiarity_stage": model.stage.value,
+        "relationship_distance": evaluate_distance(model, settings, at).value,
         "relationship_revision": model.revision,
         "active_boundaries": [],
         "recent_dynamic_summary": None,
@@ -83,6 +86,19 @@ def compile_relationship_context(
 
     def render() -> str:
         return json.dumps(fields, ensure_ascii=False, separators=(",", ":"))
+
+    identity = (
+        model.identity
+        if model.identity.confirmed_by_user and allowed(model.identity.evidence_ids)
+        else RelationshipIdentity()
+    )
+    fields["relationship_identity"] = {
+        "type": identity.type.value,
+        "labels": identity.labels,
+        "romantic": identity.romantic,
+        "confirmed_by_user": identity.confirmed_by_user,
+    }
+    selected_evidence.extend(identity.evidence_ids)
 
     for boundary in model.boundaries:
         if boundary.active and allowed(boundary.evidence_ids):
@@ -180,16 +196,17 @@ def compile_relationship_context(
             milestone.evidence_ids,
             f"milestone:{milestone.id}",
         )
-    if relational:
-        identity = model.identity
-        if identity.confirmed_by_user and allowed(identity.evidence_ids):
-            summary = identity.description or "用户明确确认：" + "、".join(identity.labels)
-            add("identity_summary", summary, identity.evidence_ids, "identity_summary")
+    if relational and identity.confirmed_by_user:
+        summary = identity.description or "用户明确确认：" + "、".join(identity.labels)
+        add("identity_summary", summary, identity.evidence_ids, "identity_summary")
     text = render()
     return CompiledRelationshipContext(
         **model.key.model_dump(),
         stage=model.stage,
         revision=model.revision,
+        identity=identity,
+        familiarity_stage=model.stage,
+        relationship_distance=evaluate_distance(model, settings, at),
         identity_summary=fields["identity_summary"],
         relevant_patterns=fields["relevant_patterns"],
         relevant_milestones=fields["relevant_milestones"],

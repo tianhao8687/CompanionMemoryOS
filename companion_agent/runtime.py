@@ -7,16 +7,21 @@ import json
 import logging
 from contextlib import suppress
 from threading import RLock
+from typing import Any
 
 from companion_agent.character_memory import CharacterMemoryStore
 from companion_agent.context import ComposedContext, compose_context
+from companion_agent.experience import ExperienceConfig
+from companion_agent.experience.compiler import compile_experience_context
+from companion_agent.experience.evaluator import is_recall_question
 from companion_agent.llm import MainLLM
 from companion_agent.persona import PersonaDefinition, RelationshipStage, compile_persona_context
 from companion_agent.persona.models import PersonaModel
 from companion_agent.relationship import RelationshipConfig, RelationshipKey, RelationshipService
 from companion_agent.relationship.evaluator import LocalRelationshipEvaluator, RelationshipEvaluator
 from companion_agent.relationship.models import RelationshipUpdateCandidate
-from companion_agent.relationship.transitions import STAGES
+from companion_agent.relationship.transitions import evaluate_distance
+from companion_agent.semantics import RelationshipDistance, RelationshipIdentityType
 from companion_memoryos.schemas import (
     ConsentState,
     ConversationRole,
@@ -66,6 +71,8 @@ class CompanionAgent:
         application_rules: str = "",
         relationship_config: RelationshipConfig | None = None,
         relationship_evaluator: RelationshipEvaluator | None = None,
+        experience_config: ExperienceConfig | None = None,
+        initial_relationship_identity: RelationshipIdentityType | None = None,
     ) -> None:
         if min(max_persona_tokens, max_context_tokens, recent_turn_limit) < 1:
             raise ValueError("agent budgets and history limit must be positive")
@@ -79,6 +86,10 @@ class CompanionAgent:
         self.characters = CharacterMemoryStore(memory.store.database)
         self.relationships = RelationshipService(memory, relationship_config)
         self.relationship_evaluator = relationship_evaluator or LocalRelationshipEvaluator()
+        self.experiences = self.relationships.experiences
+        if experience_config is not None:
+            self.experiences.config = experience_config
+        self.initial_relationship_identity = initial_relationship_identity
         self._lock = RLock()
 
     def prepare(
@@ -98,6 +109,16 @@ class CompanionAgent:
             raise ValueError("agent requires distinct user and companion actors")
         if request.consent is not ConsentState.GRANTED:
             raise ValueError("agent conversation storage requires consent")
+        if self.initial_relationship_identity is not None:
+            initial_key = RelationshipKey(
+                user_id=request.user_id,
+                companion_id=request.scope.companion_id,
+                relationship_id=request.scope.relationship_id or "",
+            )
+            if not self.relationships.get_relationship(initial_key).identity.confirmed_by_user:
+                self.relationships.initialize_identity(
+                    initial_key, self.initial_relationship_identity
+                )
         self.characters.install(self.persona, request.scope.companion_id)
         result = self.memory.process_turn(request)
         turn = result.storage.turn
@@ -173,13 +194,7 @@ class CompanionAgent:
             preview = self.relationships.preview(
                 relationship_key, candidates, as_of=turn.occurred_at
             )
-            effective_stage = relationship_stage or preview.stage
-            if preview.distance_ceiling is not None:
-                effective_stage = STAGES[
-                    min(STAGES.index(effective_stage), STAGES.index(preview.distance_ceiling))
-                ]
-            preview.stage = effective_stage
-            preview.stage_state.stage = effective_stage
+            effective_stage = preview.stage
             compiled_relationship = self.relationships.get_relationship_context(
                 relationship_key,
                 goal,
@@ -189,12 +204,68 @@ class CompanionAgent:
                 as_of=turn.occurred_at,
                 allow_sensitive=request.allow_sensitive_model_input,
             )
+            # Preserve a returning turn's cautious distance without erasing history.
+            distance_order = [
+                RelationshipDistance.OPEN,
+                RelationshipDistance.CAUTIOUS,
+                RelationshipDistance.RESERVED,
+            ]
+            distance = max(
+                [
+                    compiled_relationship.relationship_distance,
+                    evaluate_distance(relationship, self.relationships.config, turn.occurred_at),
+                ],
+                key=distance_order.index,
+            )
+            if relationship_stage is not None:
+                override = {
+                    RelationshipStage.NEW: RelationshipDistance.RESERVED,
+                    RelationshipStage.FAMILIAR: RelationshipDistance.CAUTIOUS,
+                    RelationshipStage.ESTABLISHED: RelationshipDistance.OPEN,
+                }[relationship_stage]
+                distance = max([distance, override], key=distance_order.index)
+            compiled_relationship.relationship_distance = distance
+            relationship_payload = json.loads(compiled_relationship.text)
+            relationship_payload["relationship_distance"] = distance.value
+            compiled_relationship.text = json.dumps(
+                relationship_payload, ensure_ascii=False, separators=(",", ":")
+            )
+            compiled_relationship.estimated_tokens = self.memory.token_counter.count(
+                compiled_relationship.text
+            )
+            if (
+                compiled_relationship.estimated_tokens
+                > self.relationships.config.max_relationship_tokens
+            ):
+                raise ValueError("relationship distance context exceeds budget")
             compiled = compile_persona_context(
                 self.persona,
                 goal,
                 effective_stage,
                 max_persona_tokens=self.max_persona_tokens,
                 token_counter=self.memory.token_counter,
+                relationship_identity=compiled_relationship.identity.type,
+                relationship_distance=distance,
+            )
+            recalled_experiences = (
+                self.experiences.recall(
+                    relationship_key,
+                    request.content,
+                    memory_use_plan=plan.memory_use_plan,
+                    allow_sensitive=request.allow_sensitive_model_input,
+                    explicit_recall=bool(discourse and discourse.user_asked_memory_question)
+                    or is_recall_question(request.content),
+                    calendar_timezone=request.calendar_timezone,
+                    as_of=turn.occurred_at,
+                )
+                if request.enable_recall
+                else []
+            )
+            compiled_experiences = compile_experience_context(
+                relationship_key,
+                recalled_experiences,
+                self.memory.token_counter,
+                max_tokens=self.experiences.config.max_context_tokens,
             )
             while True:
                 context = compose_context(
@@ -208,6 +279,7 @@ class CompanionAgent:
                     character_memories=characters,
                     application_rules=self.application_rules,
                     relationship_context=compiled_relationship,
+                    experience_context=compiled_experiences,
                 )
                 serialized = json.dumps(
                     [m.model_dump() for m in context.messages], ensure_ascii=False
@@ -277,16 +349,25 @@ class CompanionAgent:
             try:
                 output = self.main_llm.generate(prepared.context.messages)
                 compiled = prepared.context.persona
-                metadata = {
+                metadata: dict[str, Any] = {
                     "persona_id": compiled.persona_id,
                     "persona_version": compiled.persona_version,
                     "model": output.model,
                     "response_goal": compiled.response_goal.value,
                     "relationship_stage": compiled.relationship_stage.value,
+                    "familiarity_stage": compiled.relationship_stage.value,
+                    "relationship_identity": compiled.relationship_identity.value,
+                    "relationship_distance": compiled.relationship_distance.value,
                     "compiled_persona_tokens": compiled.estimated_tokens,
-                    "agent_version": "0.2.0",
+                    "agent_version": "0.3.0",
+                    "compiled_experience_tokens": prepared.context.experiences.estimated_tokens
+                    if prepared.context.experiences
+                    else 0,
                     "relationship_revision": prepared.relationship_revision,
-                    "relationship_stage_source": "host_override" if relationship_stage else "model",
+                    "relationship_stage_source": "history",
+                    "requested_distance_override": relationship_stage.value
+                    if relationship_stage
+                    else None,
                     "compiled_relationship_tokens": prepared.context.relationship.estimated_tokens
                     if prepared.context.relationship
                     else 0,
@@ -343,12 +424,19 @@ class CompanionAgent:
                     )
                     if stored.turn is None:
                         raise ValueError("assistant response storage failed")
+                    experience_decisions = self.experiences.observe(prepared.user_turn, stored.turn)
+                    experience_candidates = self.experiences.relationship_candidates(
+                        prepared.relationship_key
+                    )
                     relationship_after = self.relationships.commit_candidates(
                         prepared.relationship_key,
-                        prepared.relationship_candidates,
+                        [*prepared.relationship_candidates, *experience_candidates],
                         expected_revision=prepared.relationship_revision,
                     )
                     metadata["relationship_revision_after"] = relationship_after.revision
+                    metadata["experience_decisions"] = [
+                        decision.model_dump(mode="json") for decision in experience_decisions
+                    ]
                     with self.memory.store.database.connection() as connection:
                         connection.execute(
                             "UPDATE conversation_turns SET metadata_json = ? "

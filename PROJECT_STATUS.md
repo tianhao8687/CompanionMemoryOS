@@ -1,5 +1,20 @@
 # Project status
 
+## CompanionAgent v0.3 — 2026-09-14
+
+- 完成身份 / 熟悉度 / 当前距离 / 近期动态分离，旧 CLOSE 兼容到 ESTABLISHED；
+  初始恋人身份不再受熟悉度门控，疏远不会抹掉已积累历史。
+- 新增 user、character、shared 经历的候选、存储、合并、生命周期、召回和证据下钻；
+  复用 MemoryOS Episode 成员机制，高价值共同经历成为里程碑来源。
+- relationship schema 升至 2，experience schema 为 1；MemoryOS 仍为 v8。
+  已验证真实旧 v0.2 安装数据的身份、revision、历史及旧人格哈希兼容。
+- 默认人格版本为 0.1.1。339 项测试通过，新增本阶段 27 项；静态检查和依赖检查通过。
+  378 种人格编译组合为 602～831 个 cl100k_base token，均低于 1200。
+- wheel 独立安装及 CLI 检查通过，开发环境继续保持可编辑安装。
+- 未运行真实模型、真人体验或大规模长期性能实验。下一阶段优先 Current State。
+
+详见 [v0.3 技术说明与验证报告](docs/COMPANION_AGENT_0.3.md)。
+
 ## CompanionAgent v0.2 — 2026-09-13
 
 关系模型全链路已完成：独立 SQLite 迁移和主体隔离、证据校验、候选与决策回执、

@@ -43,7 +43,7 @@ class RelationshipStore:
             row = connection.execute(
                 "SELECT version FROM agent_schema_versions WHERE component = 'relationship'"
             ).fetchone()
-            if row and row["version"] > 1:
+            if row and row["version"] > 2:
                 raise ValueError("relationship database schema is newer than this runtime")
             key = "user_id TEXT NOT NULL, companion_id TEXT NOT NULL, relationship_id TEXT NOT NULL"
             connection.execute(
@@ -69,8 +69,39 @@ class RelationshipStore:
                 "(user_id, companion_id, relationship_id, candidate_id))"
             )
             connection.execute(
-                "INSERT OR IGNORE INTO agent_schema_versions VALUES ('relationship', 1)"
+                f"CREATE TABLE IF NOT EXISTS agent_relationship_identity_configs ({key}, "
+                "id TEXT NOT NULL, data_json TEXT NOT NULL, PRIMARY KEY "
+                "(user_id, companion_id, relationship_id, id))"
             )
+            if row is None or row["version"] < 2:
+                for old in connection.execute(
+                    "SELECT rowid, data_json FROM agent_relationship_models"
+                ).fetchall():
+                    model = RelationshipModel.model_validate_json(old["data_json"])
+                    connection.execute(
+                        "UPDATE agent_relationship_models SET data_json = ? WHERE rowid = ?",
+                        (model.model_dump_json(), old["rowid"]),
+                    )
+                for old in connection.execute(
+                    "SELECT rowid, data_json FROM agent_relationship_revisions"
+                ).fetchall():
+                    revision = RelationshipRevision.model_validate_json(old["data_json"])
+                    for field in ("before", "after"):
+                        snapshot = getattr(revision, field)
+                        if snapshot:
+                            setattr(
+                                revision,
+                                field,
+                                RelationshipModel.model_validate(snapshot).model_dump(mode="json"),
+                            )
+                    connection.execute(
+                        "UPDATE agent_relationship_revisions SET data_json = ? WHERE rowid = ?",
+                        (revision.model_dump_json(), old["rowid"]),
+                    )
+                connection.execute(
+                    "INSERT INTO agent_schema_versions VALUES ('relationship', 2) "
+                    "ON CONFLICT(component) DO UPDATE SET version=excluded.version"
+                )
 
     def get(self, key: RelationshipKey) -> RelationshipModel | None:
         with self.database.connection() as connection:
@@ -197,6 +228,7 @@ class RelationshipStore:
                 "agent_relationship_revisions",
                 "agent_relationship_candidates",
                 "agent_relationship_models",
+                "agent_relationship_identity_configs",
             ]:
                 connection.execute(f"DELETE FROM {table} WHERE {KEY_SQL}", key.values)
 

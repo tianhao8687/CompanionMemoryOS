@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import calendar
-import hashlib
 import re
 from datetime import datetime
 from typing import Protocol
@@ -80,6 +79,27 @@ class LocalRelationshipEvaluator:
             )
 
         for clause in clauses:
+            if re.fullmatch(r"你(?:以后|从现在起)?就是我(?:的)?(?:女朋友|男朋友|恋人)", clause):
+                add(
+                    RelationshipUpdateKind.IDENTITY,
+                    "用户明确建立恋人身份，不代表已有共同历史",
+                    {
+                        "type": "romantic_partner",
+                        "labels": ["恋人"],
+                        "romantic": True,
+                        "description": "用户明确确认恋人关系，熟悉度仍由真实互动历史决定",
+                    },
+                )
+                if any(boundary.id == "relationship-not-romantic" for boundary in model.boundaries):
+                    add(
+                        RelationshipUpdateKind.BOUNDARY,
+                        "用户明确更新先前的非恋爱关系边界",
+                        {
+                            "id": "relationship-not-romantic",
+                            "description": "用户已更新关系身份",
+                            "active": False,
+                        },
+                    )
             if re.fullmatch(r"我们(?:并)?不是恋人[，,]?(?:我们只是朋友)?", clause):
                 correction = [f"user_correction:{turn.id}"]
                 add(
@@ -144,7 +164,7 @@ class LocalRelationshipEvaluator:
                     refs=[f"user_correction:{turn.id}"],
                 )
             if re.fullmatch(
-                r"(?:以后)?(?:我们)?(?:保持一点距离|保持距离|别这么亲密)(?:吧)?", clause
+                r"(?:最近|以后)?(?:我们)?(?:保持一点距离|保持距离|别这么亲密)(?:吧)?", clause
             ):
                 add(RelationshipUpdateKind.DISTANCE, "用户要求降低互动距离", {"ceiling": "new"})
                 add(
@@ -317,24 +337,7 @@ class LocalRelationshipEvaluator:
                         "summary": "用户表示冲突已说开，关系正在恢复",
                     },
                 )
-            important = re.fullmatch(
-                r"(?:这次|上次)(?:和你)?(?:的)?(.{2,80}?)(?:对我|对我们)(?:真的)?很重要", clause
-            )
-            if important:
-                title = important[1]
-                item_id = "explicit-" + hashlib.sha256(title.encode()).hexdigest()[:20]
-                add(
-                    RelationshipUpdateKind.MILESTONE,
-                    "用户明确标记有意义的共同经历",
-                    {
-                        "id": item_id,
-                        "title": title,
-                        "summary": clause,
-                        "occurred_at": None,
-                        "importance": 0.9,
-                        "topic_keys": [title, "关系"],
-                    },
-                )
+            # Importance is evaluated over a shared experience rather than one sentence.
 
         # Reuse accepted MemoryOS facts, not unactivated model suggestions.
         if result.interpretation:

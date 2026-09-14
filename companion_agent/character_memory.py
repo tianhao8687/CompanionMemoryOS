@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from typing import Literal
 
 from companion_agent.persona.models import CharacterMemorySeed, PersonaDefinition, PersonaModel
 from companion_memoryos.database import Database
@@ -11,6 +12,7 @@ from companion_memoryos.schemas import RealityLayer
 
 
 class CharacterMemoryRecord(PersonaModel):
+    source: Literal["canonical_backstory"] = "canonical_backstory"
     persona_id: str
     persona_version: str
     companion_id: str
@@ -36,7 +38,13 @@ class CharacterMemoryStore:
     def install(self, persona: PersonaDefinition, companion_id: str) -> None:
         if not companion_id.strip():
             raise ValueError("companion_id cannot be blank")
-        canonical = json.dumps(persona.model_dump(mode="json"), sort_keys=True, ensure_ascii=False)
+        source = persona.model_dump(mode="json")
+        # Adding a schema default or renaming the legacy stage must not invalidate the
+        # content hash of an unchanged v0.1/v0.2 persona file.
+        if not source["identity_styles"]:
+            source.pop("identity_styles")
+        source["relationship_styles"]["close"] = source["relationship_styles"].pop("established")
+        canonical = json.dumps(source, sort_keys=True, ensure_ascii=False)
         digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
         seeds = json.dumps([item.model_dump(mode="json") for item in persona.character_memories])
         with self.database.atomic() as connection:

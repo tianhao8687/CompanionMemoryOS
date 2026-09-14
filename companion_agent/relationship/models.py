@@ -9,6 +9,11 @@ from typing import Annotated, Any
 from pydantic import Field, StringConstraints, field_validator, model_validator
 
 from companion_agent.persona.models import PersonaModel, RelationshipStage
+from companion_agent.semantics import (
+    FamiliarityStage,
+    RelationshipDistance,
+    RelationshipIdentityType,
+)
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=240)]
 Description = Annotated[
@@ -56,6 +61,9 @@ class RelationshipEvidenceKind(StrEnum):
     USER_CORRECTION = "user_correction"
     RELATIONSHIP_MEMORY = "relationship_memory"
     MILESTONE = "milestone"
+    EXPERIENCE = "experience"
+    CONFIGURATION = "configuration"
+    EPISODE = "episode"
 
 
 class RelationshipEvidenceRef(RelationshipData):
@@ -136,6 +144,7 @@ class RelationshipBoundarySource(StrEnum):
 
 
 class RelationshipIdentity(RelationshipData):
+    type: RelationshipIdentityType = RelationshipIdentityType.UNDEFINED
     labels: list[Name] = Field(default_factory=list)
     description: Description | None = None
     confirmed_by_user: bool = False
@@ -145,9 +154,25 @@ class RelationshipIdentity(RelationshipData):
 
     @model_validator(mode="after")
     def confirmed_identity(self) -> RelationshipIdentity:
-        if (self.labels or self.description or self.romantic is not None) and not (
-            self.confirmed_by_user and self.confirmed_at is not None and self.evidence_ids
-        ):
+        if self.type is RelationshipIdentityType.UNDEFINED:
+            if self.romantic is True or "恋人" in self.labels:
+                self.type = RelationshipIdentityType.ROMANTIC_PARTNER
+            elif "好朋友" in self.labels:
+                self.type = RelationshipIdentityType.CLOSE_FRIEND
+            elif set(self.labels) & {"朋友", "普通朋友"}:
+                self.type = RelationshipIdentityType.FRIEND
+            elif self.labels:
+                self.type = RelationshipIdentityType.CUSTOM
+        if self.type is RelationshipIdentityType.ROMANTIC_PARTNER:
+            if self.romantic is False:
+                raise ValueError("romantic_partner conflicts with romantic=false")
+            self.romantic = True
+        if (
+            self.type is not RelationshipIdentityType.UNDEFINED
+            or self.labels
+            or self.description
+            or self.romantic is not None
+        ) and not (self.confirmed_by_user and self.confirmed_at is not None and self.evidence_ids):
             raise ValueError(
                 "relationship identity requires explicit user confirmation and evidence"
             )
@@ -250,6 +275,7 @@ class RelationshipModel(RelationshipKey):
     last_interaction_at: datetime | None = None
     # Evidence -> observed time, not a scalar relationship score.
     interactions: dict[str, datetime] = Field(default_factory=dict)
+    shared_experiences: dict[str, datetime] = Field(default_factory=dict)
     distance_ceiling: RelationshipStage | None = None
     distance_evidence_ids: list[str] = Field(default_factory=list)
 
@@ -272,6 +298,10 @@ class RelationshipModel(RelationshipKey):
             relationship_id=self.relationship_id,
         )
 
+    @property
+    def familiarity_stage(self) -> FamiliarityStage:
+        return self.stage
+
 
 class RelationshipUpdateKind(StrEnum):
     IDENTITY = "identity"
@@ -283,6 +313,7 @@ class RelationshipUpdateKind(StrEnum):
     TEMPORAL_CORRECTION = "temporal_correction"
     DISTANCE = "distance"
     INTERACTION = "interaction"
+    EXPERIENCE = "experience"
 
 
 class RelationshipAction(StrEnum):
@@ -310,6 +341,7 @@ class RelationshipChangeType(StrEnum):
     INTERACTION_RECORDED = "interaction_recorded"
     EVIDENCE_INVALIDATED = "evidence_invalidated"
     ITEM_REMOVED = "item_removed"
+    EXPERIENCE_LINKED = "experience_linked"
 
 
 class RelationshipUpdateCandidate(RelationshipData):
@@ -354,6 +386,8 @@ class RelationshipConfig(RelationshipData):
     familiar_active_days: int = Field(default=3, ge=2)
     familiar_patterns: int = Field(default=1, ge=1)
     familiar_milestones: int = Field(default=2, ge=1)
+    familiar_experiences: int = Field(default=2, ge=1)
+    established_experiences: int = Field(default=5, ge=1)
     close_days: int = Field(default=60, ge=1)
     close_active_days: int = Field(default=12, ge=2)
     close_patterns: int = Field(default=2, ge=1)
@@ -369,6 +403,9 @@ class RelationshipConfig(RelationshipData):
 class CompiledRelationshipContext(RelationshipKey):
     stage: RelationshipStage
     revision: int
+    identity: RelationshipIdentity = Field(default_factory=RelationshipIdentity)
+    familiarity_stage: FamiliarityStage = FamiliarityStage.NEW
+    relationship_distance: RelationshipDistance = RelationshipDistance.OPEN
     identity_summary: str | None = None
     relevant_patterns: list[str] = Field(default_factory=list)
     relevant_milestones: list[str] = Field(default_factory=list)

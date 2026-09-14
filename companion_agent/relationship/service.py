@@ -5,7 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import datetime
-from typing import Any
+from functools import cached_property
+from typing import TYPE_CHECKING, Any
 
 from companion_agent.persona.models import RelationshipStage
 from companion_agent.relationship.models import (
@@ -34,6 +35,7 @@ from companion_agent.relationship.models import (
     now_utc,
 )
 from companion_agent.relationship.store import RelationshipConflictError, RelationshipStore
+from companion_agent.semantics import RelationshipIdentityType
 from companion_memoryos.schemas import (
     ConsentState,
     ConversationRole,
@@ -53,6 +55,9 @@ from companion_memoryos.schemas import (
 )
 from companion_memoryos.service import CompanionMemoryService
 from companion_memoryos.turn_layers import turn_reality_layer
+
+if TYPE_CHECKING:
+    from companion_agent.experience.service import ExperienceService
 
 
 def candidate_for(
@@ -90,6 +95,57 @@ class RelationshipService:
         self.store = RelationshipStore(memory.store.database)
         self.config = config or RelationshipConfig()
 
+    @cached_property
+    def experiences(self) -> ExperienceService:
+        from companion_agent.experience.service import ExperienceService
+
+        return ExperienceService(self.memory)
+
+    def initialize_identity(
+        self,
+        key: RelationshipKey,
+        identity_type: RelationshipIdentityType,
+        *,
+        labels: list[str] | None = None,
+        description: str | None = None,
+    ) -> RelationshipModel:
+        """Trusted host records the user's explicit relationship choice at character creation."""
+        if identity_type is RelationshipIdentityType.UNDEFINED:
+            raise ValueError("choose an explicit identity type")
+        data = {
+            "type": identity_type.value,
+            "labels": labels or [identity_type.value],
+            "description": description,
+        }
+        identifier = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+        with self.store.database.atomic() as connection:
+            row = connection.execute(
+                "SELECT data_json FROM agent_relationship_identity_configs "
+                "WHERE user_id=? AND companion_id=? AND relationship_id=? AND id=?",
+                (*key.values, identifier),
+            ).fetchone()
+            event: dict[str, Any] = (
+                json.loads(row["data_json"])
+                if row
+                else {"identity": data, "created_at": now_utc().isoformat()}
+            )
+            connection.execute(
+                "INSERT OR IGNORE INTO agent_relationship_identity_configs VALUES (?, ?, ?, ?, ?)",
+                (*key.values, identifier, json.dumps(event)),
+            )
+            return self.commit_candidates(
+                key,
+                [
+                    candidate_for(
+                        RelationshipUpdateKind.IDENTITY,
+                        "用户在角色创建时明确选择关系身份",
+                        [f"configuration:{identifier}"],
+                        data,
+                        datetime.fromisoformat(event["created_at"]),
+                    )
+                ],
+            )
+
     def _evidence_time(
         self,
         key: RelationshipKey,
@@ -104,6 +160,34 @@ class RelationshipService:
             raise ValueError("cyclic relationship evidence")
         seen.add(value)
         ref = RelationshipEvidenceRef.parse(value)
+        if ref.kind is RelationshipEvidenceKind.CONFIGURATION:
+            with self.store.database.connection() as connection:
+                row = connection.execute(
+                    "SELECT data_json FROM agent_relationship_identity_configs "
+                    "WHERE user_id=? AND companion_id=? AND relationship_id=? AND id=?",
+                    (*key.values, ref.id),
+                ).fetchone()
+            if row is None:
+                raise ValueError("identity configuration evidence is unavailable")
+            created = datetime.fromisoformat(json.loads(row["data_json"])["created_at"])
+            if created > as_of:
+                raise ValueError("future identity configuration")
+            return created
+        if ref.kind is RelationshipEvidenceKind.EXPERIENCE:
+            from companion_agent.experience.models import ExperienceType
+            from companion_agent.experience.service import ACTIVE_STATUSES
+
+            experience = self.experiences.get(key, ref.id)
+            if (
+                experience.type is not ExperienceType.SHARED
+                or experience.status not in ACTIVE_STATUSES
+            ):
+                raise ValueError("relationship requires a validated shared experience")
+            for fact in experience.facts:
+                self.experiences.facts_for(
+                    key, fact.evidence_ref, as_of=as_of, allow_sensitive=allow_sensitive
+                )
+            return experience.last_event_at
         if ref.kind is RelationshipEvidenceKind.MILESTONE:
             model = self.store.get(key)
             item = next((m for m in model.milestones if m.id == ref.id), None) if model else None
@@ -235,6 +319,9 @@ class RelationshipService:
             )
         clean.interactions = {ref: time for ref, time in model.interactions.items() if valid([ref])}
         clean.last_interaction_at = max(clean.interactions.values(), default=None)
+        clean.shared_experiences = {
+            ref: time for ref, time in model.shared_experiences.items() if valid([ref])
+        }
         if model.interactions and not model.started_at_evidence_ids:
             clean.started_at = min(clean.interactions.values(), default=at)
         if model.identity.evidence_ids and not valid(model.identity.evidence_ids):
@@ -260,7 +347,6 @@ class RelationshipService:
         with self.store.database.atomic():
             for candidate in candidates:
                 if candidate.kind in {
-                    RelationshipUpdateKind.IDENTITY,
                     RelationshipUpdateKind.DISTANCE,
                     RelationshipUpdateKind.TEMPORAL_CORRECTION,
                     RelationshipUpdateKind.INTERACTION,
@@ -274,6 +360,18 @@ class RelationshipService:
                 ):
                     raise ValueError(
                         "identity, distance, duration and activity require user turn evidence"
+                    )
+                if candidate.kind is RelationshipUpdateKind.IDENTITY and any(
+                    RelationshipEvidenceRef.parse(ref).kind
+                    not in {
+                        RelationshipEvidenceKind.TURN,
+                        RelationshipEvidenceKind.USER_CORRECTION,
+                        RelationshipEvidenceKind.CONFIGURATION,
+                    }
+                    for ref in candidate.evidence_ids
+                ):
+                    raise ValueError(
+                        "identity requires a direct statement or explicit host configuration"
                     )
                 for evidence in candidate.evidence_ids:
                     self._evidence_time(key, evidence, candidate.created_at)
@@ -318,6 +416,15 @@ class RelationshipService:
                     "evidence_ids": refs,
                 }
             )
+        elif kind is RelationshipUpdateKind.EXPERIENCE:
+            for ref in refs:
+                if (
+                    RelationshipEvidenceRef.parse(ref).kind
+                    is not RelationshipEvidenceKind.EXPERIENCE
+                ):
+                    raise ValueError("shared history links require experience evidence")
+                updated.shared_experiences[ref] = self._evidence_time(model.key, ref, at)
+            change = RelationshipChangeType.EXPERIENCE_LINKED
         elif kind is RelationshipUpdateKind.PATTERN:
             old = next((item for item in model.patterns if item.id == data["id"]), None)
             if old is None:
@@ -669,6 +776,9 @@ class RelationshipService:
             return visited
         visited.add(ref)
         evidence = RelationshipEvidenceRef.parse(ref)
+        if evidence.kind is RelationshipEvidenceKind.EXPERIENCE:
+            visited.update(self.experiences.roots(self.experiences.get(key, evidence.id)))
+            return visited
         children: list[str] = []
         if evidence.kind is RelationshipEvidenceKind.USER_CORRECTION:
             children = [f"turn:{evidence.id}"]
@@ -859,6 +969,7 @@ def _all_evidence(model: RelationshipModel) -> set[str]:
         | set(model.identity.evidence_ids)
         | set(model.stage_state.evidence_ids)
     )
+    refs.update(model.shared_experiences)
     refs.update(
         model.started_at_evidence_ids
         + model.distance_evidence_ids

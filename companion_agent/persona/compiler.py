@@ -12,6 +12,7 @@ from companion_agent.persona.tokens import (
     PersonaBudgetError,
     default_token_counter,
 )
+from companion_agent.semantics import RelationshipDistance, RelationshipIdentityType
 from companion_memoryos.schemas import ResponseGoal
 from companion_memoryos.tokens import TokenCounter
 
@@ -24,6 +25,8 @@ def compile_persona_context(
     max_persona_tokens: int = DEFAULT_MAX_PERSONA_TOKENS,
     token_counter: TokenCounter | None = None,
     max_examples: int = 2,
+    relationship_identity: RelationshipIdentityType = RelationshipIdentityType.UNDEFINED,
+    relationship_distance: RelationshipDistance = RelationshipDistance.OPEN,
 ) -> CompiledPersonaContext:
     if max_persona_tokens < 1 or max_examples < 0:
         raise ValueError("invalid persona budget or example limit")
@@ -42,9 +45,20 @@ def compile_persona_context(
     lines.append(f"Response Goal: {goal.value}")
     for key, values in persona.response_styles[goal].model_dump().items():
         lines.append(f"{key}: {unique(values)}")
-    lines.append(f"Relationship Stage: {stage.value}")
+    lines.append(f"Familiarity Stage: {stage.value}")
     for key, values in persona.relationship_styles[stage].model_dump().items():
         lines.append(f"{key}: {unique(values)}")
+    lines.append(f"Relationship Identity: {relationship_identity.value}")
+    identity_style = persona.identity_styles.get(relationship_identity)
+    if identity_style is not None:
+        for key, values in identity_style.model_dump().items():
+            lines.append(f"identity_{key}: {unique(values)}")
+    elif relationship_identity is RelationshipIdentityType.ROMANTIC_PARTNER:
+        lines.append("已确认恋人身份：可以采用双方允许的情侣称呼和适度亲密；NEW不禁止恋爱表达。")
+    lines.append("熟悉度只限制历史知识：不能因关系身份虚构相处时长、共同生活、习惯或内部梗。")
+    lines.append(f"Current Relationship Distance: {relationship_distance.value}")
+    if relationship_distance is not RelationshipDistance.OPEN:
+        lines.append("当前收敛表达，尊重用户距离与边界；这不改变关系身份，也不抹掉共同历史。")
     lines.append("Behavioral Invariants:")
     lines.extend(f"{rule.severity}/{rule.id}: {rule.description}" for rule in persona.invariants)
     text = "\n".join(lines)
@@ -58,7 +72,7 @@ def compile_persona_context(
         omitted.append("identity.summary")
     ranked: list[tuple[int, int]] = []
     for index, example in enumerate(persona.examples):
-        tags = {tag.lower() for tag in example.tags}
+        tags = {"established" if tag.lower() == "close" else tag.lower() for tag in example.tags}
         stage_tags = tags & {item.value for item in RelationshipStage}
         if goal.value in tags and (not stage_tags or stage.value in stage_tags):
             ranked.append((-(2 + int(stage.value in tags)), index))
@@ -82,6 +96,8 @@ def compile_persona_context(
         estimated_tokens=counter.count(text),
         response_goal=goal,
         relationship_stage=stage,
+        relationship_identity=relationship_identity,
+        relationship_distance=relationship_distance,
         omitted_items=omitted,
         selected_example_indices=selected,
     )

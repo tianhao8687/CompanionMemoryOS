@@ -7,8 +7,10 @@ from typing import Any
 from uuid import uuid4
 
 from companion_agent import CompanionAgent, RelationshipStage, load_persona
+from companion_agent.experience import ExperienceConfig
 from companion_agent.llm import MainLLMError, OpenAICompatibleMainLLM
 from companion_agent.relationship import RelationshipConfig, RelationshipKey
+from companion_agent.semantics import RelationshipIdentityType
 from companion_memoryos.config import InterpreterConfig, load_config
 from companion_memoryos.database import Database
 from companion_memoryos.schemas import ConsentState, MemoryScope, ProcessTurnRequest, ResponseGoal
@@ -27,16 +29,32 @@ def main() -> None:
     parser.add_argument("--conversation", default="chat")
     parser.add_argument(
         "--stage",
-        choices=[stage.value for stage in RelationshipStage],
+        choices=[stage.value for stage in RelationshipStage] + ["close"],
         help="temporary distance override; default uses relationship history",
     )
     parser.add_argument("--goal", choices=[goal.value for goal in ResponseGoal])
     parser.add_argument("--max-persona-tokens", type=int, default=1200)
     parser.add_argument("--max-relationship-tokens", type=int, default=700)
+    parser.add_argument("--max-experience-tokens", type=int, default=800)
+    parser.add_argument(
+        "--identity",
+        choices=[
+            kind.value
+            for kind in RelationshipIdentityType
+            if kind is not RelationshipIdentityType.UNDEFINED
+        ],
+        help="user-selected identity at character creation; independent of familiarity",
+    )
     inspection = parser.add_mutually_exclusive_group()
     inspection.add_argument("--relationship-status", action="store_true")
     inspection.add_argument("--relationship-history", action="store_true")
     inspection.add_argument("--relationship-candidates", action="store_true")
+    inspection.add_argument("--experiences", action="store_true")
+    inspection.add_argument("--experience-query")
+    inspection.add_argument("--experience-trace")
+    inspection.add_argument("--experience-history")
+    inspection.add_argument("--experience-ingest-episode")
+    inspection.add_argument("--experience-candidates", action="store_true")
     parser.add_argument("--base-url")
     parser.add_argument("--model")
     parser.add_argument("--api-key-env", default="MAIN_LLM_API_KEY")
@@ -46,7 +64,15 @@ def main() -> None:
     )
     args = parser.parse_args()
     inspect_relationship = (
-        args.relationship_status or args.relationship_history or args.relationship_candidates
+        args.relationship_status
+        or args.relationship_history
+        or args.relationship_candidates
+        or args.experiences
+        or args.experience_query
+        or args.experience_trace
+        or args.experience_history
+        or args.experience_ingest_episode
+        or args.experience_candidates
     )
     if (
         not inspect_relationship
@@ -80,6 +106,10 @@ def main() -> None:
         relationship_config=RelationshipConfig(
             max_relationship_tokens=args.max_relationship_tokens
         ),
+        experience_config=ExperienceConfig(max_context_tokens=args.max_experience_tokens),
+        initial_relationship_identity=RelationshipIdentityType(args.identity)
+        if args.identity
+        else None,
     )
     scope = MemoryScope(
         companion_id=args.companion,
@@ -103,7 +133,43 @@ def main() -> None:
     )
     if inspect_relationship:
         payload: Any
-        if args.relationship_history:
+        if (
+            args.identity
+            and not agent.relationships.get_relationship(key).identity.confirmed_by_user
+        ):
+            agent.relationships.initialize_identity(key, RelationshipIdentityType(args.identity))
+        if args.experiences:
+            payload = [
+                item.model_dump(mode="json") for item in agent.experiences.list_experiences(key)
+            ]
+        elif args.experience_query:
+            payload = [
+                item.model_dump(mode="json")
+                for item in agent.experiences.recall(
+                    key, args.experience_query, explicit_recall=True
+                )
+            ]
+        elif args.experience_trace:
+            payload = [
+                fact.model_dump(mode="json")
+                for fact in agent.experiences.trace(key, args.experience_trace)
+            ]
+        elif args.experience_history:
+            payload = agent.experiences.history(key, args.experience_history)
+        elif args.experience_ingest_episode:
+            with service.store.database.atomic():
+                payload = [
+                    item.model_dump(mode="json")
+                    for item in agent.experiences.ingest_episode(
+                        key, args.experience_ingest_episode
+                    )
+                ]
+                agent.relationships.commit_candidates(
+                    key, agent.experiences.relationship_candidates(key)
+                )
+        elif args.experience_candidates:
+            payload = agent.experiences.candidates(key)
+        elif args.relationship_history:
             payload = [
                 revision.model_dump(mode="json")
                 for revision in agent.relationships.get_history(key)

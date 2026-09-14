@@ -1,4 +1,5 @@
 from companion_agent.context import compose_context
+from companion_agent.experience import ExperienceConfig, ExperienceService, ExperienceType
 from companion_agent.persona import (
     PersonaDefinition,
     RelationshipStage,
@@ -7,11 +8,22 @@ from companion_agent.persona import (
 )
 from companion_agent.relationship import RelationshipConfig, RelationshipKey, RelationshipService
 from companion_agent.runtime import CompanionAgent
+from companion_agent.semantics import (
+    FamiliarityStage,
+    RelationshipDistance,
+    RelationshipIdentityType,
+)
 
 __all__ = [
     "CompanionAgent",
+    "ExperienceConfig",
+    "ExperienceService",
+    "ExperienceType",
+    "FamiliarityStage",
     "PersonaDefinition",
     "RelationshipConfig",
+    "RelationshipDistance",
+    "RelationshipIdentityType",
     "RelationshipKey",
     "RelationshipService",
     "RelationshipStage",
