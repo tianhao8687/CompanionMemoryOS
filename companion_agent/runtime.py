@@ -11,6 +11,11 @@ from typing import Any
 
 from companion_agent.character_memory import CharacterMemoryStore
 from companion_agent.context import ComposedContext, compose_context
+from companion_agent.current_state import CurrentStateConfig, CurrentStateService
+from companion_agent.current_state.compiler import compile_current_state
+from companion_agent.current_state.evaluator import analyze_current_turn
+from companion_agent.current_state.models import CurrentStateAnalysis, StatePreparation
+from companion_agent.current_state.service import choose_response_goal
 from companion_agent.experience import ExperienceConfig
 from companion_agent.experience.compiler import compile_experience_context
 from companion_agent.experience.evaluator import is_recall_question
@@ -19,8 +24,12 @@ from companion_agent.persona import PersonaDefinition, RelationshipStage, compil
 from companion_agent.persona.models import PersonaModel
 from companion_agent.relationship import RelationshipConfig, RelationshipKey, RelationshipService
 from companion_agent.relationship.evaluator import LocalRelationshipEvaluator, RelationshipEvaluator
-from companion_agent.relationship.models import RelationshipUpdateCandidate
-from companion_agent.relationship.transitions import evaluate_distance
+from companion_agent.relationship.models import (
+    RelationshipDynamics,
+    RelationshipUpdateCandidate,
+    RelationshipUpdateKind,
+    now_utc,
+)
 from companion_agent.semantics import RelationshipDistance, RelationshipIdentityType
 from companion_memoryos.schemas import (
     ConsentState,
@@ -30,6 +39,7 @@ from companion_memoryos.schemas import (
     ExperienceEvidenceKind,
     MemoryReferenceMode,
     ProcessTurnRequest,
+    RealityLayer,
     ResponseBeatSentRequest,
     ResponseGoal,
     ResponsePlanRecord,
@@ -73,6 +83,7 @@ class CompanionAgent:
         relationship_evaluator: RelationshipEvaluator | None = None,
         experience_config: ExperienceConfig | None = None,
         initial_relationship_identity: RelationshipIdentityType | None = None,
+        current_state_config: CurrentStateConfig | None = None,
     ) -> None:
         if min(max_persona_tokens, max_context_tokens, recent_turn_limit) < 1:
             raise ValueError("agent budgets and history limit must be positive")
@@ -90,6 +101,15 @@ class CompanionAgent:
         if experience_config is not None:
             self.experiences.config = experience_config
         self.initial_relationship_identity = initial_relationship_identity
+        self.current_state_config = current_state_config or CurrentStateConfig()
+        self.current_states: CurrentStateService | None = None
+        if self.current_state_config.enabled:
+            try:
+                self.current_states = CurrentStateService(
+                    memory, self.relationships, self.current_state_config
+                )
+            except Exception:
+                logger.warning("current_state_initialization_unavailable")
         self._lock = RLock()
 
     def prepare(
@@ -124,31 +144,90 @@ class CompanionAgent:
         turn = result.storage.turn
         if turn is None or result.response_stale:
             raise ValueError("user turn unavailable or superseded")
+        relationship_key = RelationshipKey(
+            user_id=request.user_id,
+            companion_id=request.scope.companion_id,
+            relationship_id=request.scope.relationship_id or "",
+        )
+        state_preparation = StatePreparation(analysis=CurrentStateAnalysis())
+        if self.current_state_config.enabled:
+            try:
+                if self.current_states is None:
+                    raise ValueError("current_state_service_unavailable")
+                state_preparation = self.current_states.process(request, result)
+            except Exception:
+                logger.warning("current_state_preparation_unavailable")
+                state_preparation = StatePreparation(
+                    analysis=analyze_current_turn(
+                        self.memory._direct_user_discourse_text(turn), result
+                    )
+                    if self.relationships.evidence_valid(
+                        relationship_key, f"turn:{turn.id}", now_utc()
+                    )
+                    else CurrentStateAnalysis(),
+                    degraded=True,
+                )
         discourse = result.discourse
         goal = response_goal or (discourse.suggested_goal if discourse else None)
         if goal is None and result.response_context is not None:
             with suppress(ValueError):
                 goal = ResponseGoal(result.response_context.intent.value)
         goal = goal or ResponseGoal.DIRECT_ANSWER
-        plan = self.memory.plan_response(
-            ResponsePlanRequest(
-                user_id=request.user_id,
-                scope=request.scope,
-                trigger_turn_id=turn.id,
-                goal=goal,
-                user_asked_memory_question=discourse.user_asked_memory_question
-                if discourse
-                else False,
-                current_turn_requires_full_attention=discourse.current_turn_requires_full_attention
-                if discourse
-                else False,
-                channel_supports_multiple_beats=False,
-                allow_afterthought=False,
-                # v0.1 renders a single response; proactive follow-ups remain a host capability.
-                allow_follow_up=False,
-            ),
-            prepared_context=result.response_context,
-        )
+        base_goal = goal
+        if self.current_state_config.enabled:
+            goal = choose_response_goal(base_goal, state_preparation, host_goal=response_goal)
+
+        def make_plan(chosen_goal: ResponseGoal) -> ResponsePlanRecord:
+            return self.memory.plan_response(
+                ResponsePlanRequest(
+                    user_id=request.user_id,
+                    scope=request.scope,
+                    trigger_turn_id=turn.id,
+                    goal=chosen_goal,
+                    user_asked_memory_question=bool(
+                        discourse and discourse.user_asked_memory_question
+                    ),
+                    current_turn_requires_full_attention=chosen_goal is ResponseGoal.LISTEN
+                    or any(record.slot == "style:reference" for record in state_preparation.records)
+                    or (
+                        bool(discourse and discourse.current_turn_requires_full_attention)
+                        and state_preparation.analysis.explicit_goal is None
+                    ),
+                    channel_supports_multiple_beats=False,
+                    allow_afterthought=False,
+                    allow_follow_up=False,
+                ),
+                prepared_context=result.response_context,
+            )
+
+        plan = make_plan(goal)
+        if (
+            self.current_states is not None
+            and not state_preparation.degraded
+            and request.reality_layer is RealityLayer.REAL_WORLD
+        ):
+            try:
+                state_preparation = self.current_states.refresh(
+                    relationship_key,
+                    request.scope.conversation_id or "",
+                    state_preparation,
+                    memory_use_plan=plan.memory_use_plan,
+                    allow_sensitive=request.allow_sensitive_model_input,
+                )
+            except Exception:
+                logger.warning("current_state_policy_refresh_unavailable")
+                state_preparation = StatePreparation(
+                    analysis=state_preparation.analysis, degraded=True
+                )
+            filtered_goal = choose_response_goal(
+                base_goal, state_preparation, host_goal=response_goal
+            )
+            if filtered_goal is not goal:
+                self.memory.cancel_response_plan(
+                    plan.id, request.user_id, "current_state_policy_changed_goal"
+                )
+                goal = filtered_goal
+                plan = make_plan(goal)
         recent = [
             item
             for item in self.memory.list_turns(request.user_id, request.scope)
@@ -168,7 +247,11 @@ class CompanionAgent:
         recent = list(reversed(recent[: self.recent_turn_limit]))
         characters = (
             []
-            if (discourse and discourse.current_turn_requires_full_attention)
+            if (
+                goal is ResponseGoal.LISTEN
+                or any(record.slot == "style:reference" for record in state_preparation.records)
+                or (discourse and discourse.current_turn_requires_full_attention)
+            )
             else (
                 self.characters.recall(
                     self.persona.persona_id,
@@ -190,10 +273,29 @@ class CompanionAgent:
             candidates = self.relationship_evaluator.evaluate(
                 result, relationship, self.relationships
             )
+            if self.current_state_config.enabled and not state_preparation.degraded:
+                candidates = [
+                    candidate
+                    for candidate in candidates
+                    if not (
+                        candidate.kind is RelationshipUpdateKind.DYNAMICS
+                        and (
+                            candidate.proposed_change.get("active_topics") == ["本轮倾诉"]
+                            or state_preparation.analysis.conflict
+                            or state_preparation.analysis.repair
+                        )
+                    )
+                ]
             self.relationships.stage_candidates(relationship_key, candidates)
             preview = self.relationships.preview(
                 relationship_key, candidates, as_of=turn.occurred_at
             )
+            if self.current_state_config.enabled and preview.recent_dynamics.active_topics == [
+                "本轮倾诉"
+            ]:
+                preview.recent_dynamics = RelationshipDynamics(
+                    updated_at=preview.recent_dynamics.updated_at
+                )
             effective_stage = preview.stage
             compiled_relationship = self.relationships.get_relationship_context(
                 relationship_key,
@@ -213,7 +315,15 @@ class CompanionAgent:
             distance = max(
                 [
                     compiled_relationship.relationship_distance,
-                    evaluate_distance(relationship, self.relationships.config, turn.occurred_at),
+                    self.relationships.get_relationship_context(
+                        relationship_key,
+                        goal,
+                        request.content,
+                        model=relationship,
+                        memory_use_plan=plan.memory_use_plan,
+                        as_of=turn.occurred_at,
+                        allow_sensitive=request.allow_sensitive_model_input,
+                    ).relationship_distance,
                 ],
                 key=distance_order.index,
             )
@@ -267,6 +377,18 @@ class CompanionAgent:
                 self.memory.token_counter,
                 max_tokens=self.experiences.config.max_context_tokens,
             )
+            compiled_state = None
+            if self.current_state_config.enabled:
+                try:
+                    compiled_state = compile_current_state(
+                        relationship_key,
+                        state_preparation,
+                        goal,
+                        self.memory.token_counter,
+                        max_tokens=self.current_state_config.max_context_tokens,
+                    )
+                except Exception:
+                    logger.warning("current_state_context_unavailable")
             while True:
                 context = compose_context(
                     persona=compiled,
@@ -280,6 +402,7 @@ class CompanionAgent:
                     application_rules=self.application_rules,
                     relationship_context=compiled_relationship,
                     experience_context=compiled_experiences,
+                    current_state_context=compiled_state,
                 )
                 serialized = json.dumps(
                     [m.model_dump() for m in context.messages], ensure_ascii=False
@@ -290,6 +413,8 @@ class CompanionAgent:
                     recent.pop(0)
                 elif characters:
                     characters.pop()
+                elif compiled_state is not None:
+                    compiled_state = None
                 else:
                     raise ValueError(
                         "main context exceeds budget; evidence and rules not truncated"
@@ -359,7 +484,21 @@ class CompanionAgent:
                     "relationship_identity": compiled.relationship_identity.value,
                     "relationship_distance": compiled.relationship_distance.value,
                     "compiled_persona_tokens": compiled.estimated_tokens,
-                    "agent_version": "0.3.0",
+                    "agent_version": "0.4.0",
+                    "current_state_status": "disabled"
+                    if not self.current_state_config.enabled
+                    else (
+                        "degraded"
+                        if prepared.context.current_state is None
+                        or prepared.context.current_state.degraded
+                        else "ready"
+                    ),
+                    "current_state_tokens": prepared.context.current_state.estimated_tokens
+                    if prepared.context.current_state
+                    else 0,
+                    "current_state_ids": prepared.context.current_state.state_ids
+                    if prepared.context.current_state
+                    else [],
                     "compiled_experience_tokens": prepared.context.experiences.estimated_tokens
                     if prepared.context.experiences
                     else 0,

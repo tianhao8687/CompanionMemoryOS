@@ -1,5 +1,16 @@
 # Project status
 
+## CompanionAgent v0.4 Current State — 2026-09-14
+
+- 补齐当前处境、沟通需要和临时风格的跨轮状态；在 `agent.chat/prepare` 中影响实际目标、计划和上下文。
+- 现有 RelationshipDynamics 管理冲突/修复，OpenLoop 管理事项结果，长期边界和熟悉度不受临时状态退出影响。
+- 新增 current_state schema v1 的状态、回执和事件表；MemoryOS v8、关系/经历版本与人格配置不变。
+- 修正来源会话引用限制的继承，防止状态、关系动态或经历在跨会话读取时绕过限制。
+- 372 项测试通过（新增 33 项），Ruff、格式、严格 mypy（75 个源文件）及依赖检查通过。
+- 连续上下文回放验证 LISTEN → LISTEN → PROBLEM_SOLVE → DIRECT_ANSWER；示例状态文本 72～159 token。
+- wheel 独立安装、CLI 状态持久化及增量 schema 检查通过。
+- 仅验证数据、上下文和策略链路；未运行真实模型体验或长期负载实验。详情见 [Current State 说明](docs/CURRENT_STATE.md)。
+
 ## CompanionAgent v0.3 — 2026-09-14
 
 - 完成身份 / 熟悉度 / 当前距离 / 近期动态分离，旧 CLOSE 兼容到 ESTABLISHED；

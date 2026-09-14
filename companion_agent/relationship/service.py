@@ -44,7 +44,6 @@ from companion_memoryos.schemas import (
     ExperienceEvidenceRef,
     MemoryKind,
     MemoryReferenceMode,
-    MemoryScope,
     MemoryStatus,
     MemoryUsePlan,
     RealityLayer,
@@ -814,8 +813,8 @@ class RelationshipService:
         allow_sensitive: bool = False,
         as_of: datetime | None = None,
     ) -> CompiledRelationshipContext:
+        from companion_agent.evidence_policy import restricted_evidence
         from companion_agent.relationship.compiler import compile_relationship_context
-        from companion_memoryos.experience import SUPPRESSING_FEEDBACK
 
         at = as_of or now_utc()
         current = model if model is not None else self.evaluate_stage(key, as_of=at)
@@ -833,17 +832,7 @@ class RelationshipService:
                         kind=ExperienceEvidenceKind(reference.kind.value), id=reference.id
                     )
                 )
-        feedback = self.memory.store.latest_reference_feedback(
-            key.user_id,
-            MemoryScope(companion_id=key.companion_id, relationship_id=key.relationship_id),
-            feedback_refs,
-            at,
-        )
-        blocked = {
-            f"{kind.value}:{identifier}"
-            for (kind, identifier), record in feedback.items()
-            if record.kind in SUPPRESSING_FEEDBACK
-        }
+        blocked = restricted_evidence(self.memory, key, feedback_refs, at)
         modes: dict[str, MemoryReferenceMode] = {}
         for decision in (memory_use_plan or MemoryUsePlan()).decisions:
             ref = f"{decision.evidence.kind.value}:{decision.evidence.id}"
@@ -868,8 +857,15 @@ class RelationshipService:
                 if restrictive in inherited:
                     modes[ref] = restrictive
                     break
+        context_model = current.model_copy(deep=True)
+        if excluded.intersection(current.recent_dynamics.evidence_ids):
+            context_model.recent_dynamics = RelationshipDynamics(
+                updated_at=current.recent_dynamics.updated_at
+            )
+        if excluded.intersection(current.distance_evidence_ids):
+            context_model.distance_ceiling = None
         return compile_relationship_context(
-            current,
+            context_model,
             response_goal,
             current_user_turn,
             config=self.config,

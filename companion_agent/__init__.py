@@ -1,4 +1,5 @@
 from companion_agent.context import compose_context
+from companion_agent.current_state import CurrentStateConfig, CurrentStateService
 from companion_agent.experience import ExperienceConfig, ExperienceService, ExperienceType
 from companion_agent.persona import (
     PersonaDefinition,
@@ -16,6 +17,8 @@ from companion_agent.semantics import (
 
 __all__ = [
     "CompanionAgent",
+    "CurrentStateConfig",
+    "CurrentStateService",
     "ExperienceConfig",
     "ExperienceService",
     "ExperienceType",

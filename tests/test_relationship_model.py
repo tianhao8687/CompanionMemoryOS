@@ -332,7 +332,7 @@ def test_user_boundary_is_in_current_reply_preview_but_only_commits_after_succes
     reply = agent.chat(chat_request("我不喜欢你这么叫我。"))
     assert "不要再使用" in model.inputs[0][0].content
     assert agent.relationships.get_relationship(KEY).boundaries
-    assert reply.turn.metadata["agent_version"] == "0.3.0"
+    assert reply.turn.metadata["agent_version"] == "0.4.0"
     assert (
         reply.turn.metadata["relationship_revision_after"]
         > reply.turn.metadata["relationship_revision"]

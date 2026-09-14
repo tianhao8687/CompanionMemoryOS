@@ -24,13 +24,11 @@ from companion_agent.experience.store import ExperienceStore
 from companion_agent.relationship.models import RelationshipKey, now_utc
 from companion_agent.relationship.store import RelationshipConflictError
 from companion_memoryos.episode_store import EpisodeStore
-from companion_memoryos.experience import SUPPRESSING_FEEDBACK
 from companion_memoryos.schemas import (
     ConsentState,
     ConversationRole,
     EvidenceActor,
     MemoryReferenceMode,
-    MemoryScope,
     MemoryStatus,
     MemoryUsePlan,
     RealityLayer,
@@ -550,13 +548,9 @@ class ExperienceService:
                 for ref in roots
                 if ref.split(":", 1)[0] in {kind.value for kind in MemoryEvidenceKind}
             ]
-            feedback = self.memory.store.latest_reference_feedback(
-                key.user_id,
-                MemoryScope(companion_id=key.companion_id, relationship_id=key.relationship_id),
-                references,
-                now_utc(),
-            )
-            if any(item.kind in SUPPRESSING_FEEDBACK for item in feedback.values()):
+            from companion_agent.evidence_policy import restricted_evidence
+
+            if restricted_evidence(self.memory, key, references, now_utc()):
                 continue
             inherited = {modes[ref] for ref in roots if ref in modes}
             if MemoryReferenceMode.SUPPRESS in inherited:

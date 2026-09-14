@@ -233,7 +233,9 @@ def test_runtime_continuous_chat_restart_retry_and_metadata(
     second_request = request("我小时候怕狗", "turn-2")
     second = agent.chat(second_request, RelationshipStage.FAMILIAR)
     assert first.turn.content in model.inputs[1][1].content
-    assert "阿灰" in model.inputs[1][1].content
+    assert (
+        "阿灰" not in model.inputs[1][1].content
+    )  # persistent listening withholds unsolicited backstory
     assert first.turn.metadata["response_goal"] == "listen"
     assert second.turn.metadata["persona_version"] == "0.1.1"
     assert second.turn.metadata["familiarity_stage"] == "new"

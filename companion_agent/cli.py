@@ -7,6 +7,7 @@ from typing import Any
 from uuid import uuid4
 
 from companion_agent import CompanionAgent, RelationshipStage, load_persona
+from companion_agent.current_state import CurrentStateConfig
 from companion_agent.experience import ExperienceConfig
 from companion_agent.llm import MainLLMError, OpenAICompatibleMainLLM
 from companion_agent.relationship import RelationshipConfig, RelationshipKey
@@ -36,6 +37,8 @@ def main() -> None:
     parser.add_argument("--max-persona-tokens", type=int, default=1200)
     parser.add_argument("--max-relationship-tokens", type=int, default=700)
     parser.add_argument("--max-experience-tokens", type=int, default=800)
+    parser.add_argument("--no-current-state", action="store_true")
+    parser.add_argument("--current-state-tokens", type=int, default=450)
     parser.add_argument(
         "--identity",
         choices=[
@@ -55,6 +58,7 @@ def main() -> None:
     inspection.add_argument("--experience-history")
     inspection.add_argument("--experience-ingest-episode")
     inspection.add_argument("--experience-candidates", action="store_true")
+    inspection.add_argument("--current-state", action="store_true")
     parser.add_argument("--base-url")
     parser.add_argument("--model")
     parser.add_argument("--api-key-env", default="MAIN_LLM_API_KEY")
@@ -73,6 +77,7 @@ def main() -> None:
         or args.experience_history
         or args.experience_ingest_episode
         or args.experience_candidates
+        or args.current_state
     )
     if (
         not inspect_relationship
@@ -110,6 +115,9 @@ def main() -> None:
         initial_relationship_identity=RelationshipIdentityType(args.identity)
         if args.identity
         else None,
+        current_state_config=CurrentStateConfig(
+            enabled=not args.no_current_state, max_context_tokens=args.current_state_tokens
+        ),
     )
     scope = MemoryScope(
         companion_id=args.companion,
@@ -138,7 +146,19 @@ def main() -> None:
             and not agent.relationships.get_relationship(key).identity.confirmed_by_user
         ):
             agent.relationships.initialize_identity(key, RelationshipIdentityType(args.identity))
-        if args.experiences:
+        if args.current_state:
+            payload = {
+                "status": "ready" if agent.current_states else "unavailable",
+                "states": [
+                    state.model_dump(mode="json")
+                    for state in agent.current_states.snapshot(
+                        key, args.conversation, include_inactive=True
+                    )
+                ]
+                if agent.current_states
+                else [],
+            }
+        elif args.experiences:
             payload = [
                 item.model_dump(mode="json") for item in agent.experiences.list_experiences(key)
             ]
