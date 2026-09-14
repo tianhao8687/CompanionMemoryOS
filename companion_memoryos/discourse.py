@@ -25,34 +25,96 @@ NEGATION = re.compile(
     r"(?:并没有|不是|并不|不曾|未曾|没有|尚未|还没|不能|不会|不愿|不想|不要|不用|不必|不再|别|没|未|不)"
     r"(?:(?:能够|愿意|觉得|感到|可以|真的|完全|一直|马上|已经|那么|特别|要你|让你|希望你|说|再|还|就|很|太|能|想|是)\s*)*$"
 )
+CONDITION = re.compile(r"假设|假如|如果|万一|要是|只要|除非|一旦|倘若|前提是|条件是|的话$")
+DENIED_REPORT = re.compile(
+    r"(?:没有|没|不是|并非|不曾|未曾|并不|不能|不)"
+    r"(?:真的|曾经|明确|亲口|曾)?(?:说|表示|声称|认为|觉得|承认|否认|确认)"
+    r"(?!(?:过|了)?(?:完|清楚|完整|得|话))(?:过|了)?"
+)
+DEFERRED = re.compile(
+    r"之后|然后|稍后|随后|过会儿|回头|晚点|待会儿|以后再"
+    r"|(?:等|待)(?!了|过).{0,20}(?:再|才)|^(?:等|待)(?:我|你|我们)"
+)
+INDEPENDENT = re.compile(r"^(?:但是|不过|可是|但|另外|此外)")
+CURRENT = re.compile(r"^(?:我|你|我们)?(?:现在|目前|此刻)")
+
+
+def _deferred_start(clause: str, *, sequenced: bool) -> int | None:
+    if re.match(r"(?:之后|然后|随后)(?:我|你|我们)?(?:就|也)?(?:已经|刚刚)", clause):
+        return None  # An explicitly realized event, not a prospective instruction.
+    later = DEFERRED.search(clause)
+    if later:
+        return later.start()
+    # Bare 再/才 is sequential only after a first step, not in a standalone renewed request
+    # or under a prohibition such as 先不要再给我建议.
+    for match in re.finditer(r"再|(?<!刚)才", clause):
+        if (sequenced or "先" in clause[: match.start()]) and not negated_predicate(
+            clause, match.start()
+        ):
+            return match.start()
+    return None
 
 
 def direct_clauses(text: str) -> list[str]:
-    """A conservative fallback, retaining scope across comma-separated reported clauses.
+    """Direct, current clauses; scope operators govern their following complements.
 
     A placeholder prevents deleting a quote from joining unrelated words into a directive.
     Hosts' speech spans are applied before this function; this also handles plain text.
+    Conditional consequences and deferred actions are not completed facts or current orders.
+    Their original wording remains available to the main model in the user turn.
     """
     text = re.sub(r'“[^”]*”|「[^」]*」|『[^』]*』|"[^"\n]*"', "[引用]", text)
     clauses: list[str] = []
     for sentence in re.finditer(r"(?P<body>[^。；;！!？?\n]+)(?P<ending>[。；;！!？?\n]?)", text):
         reported = False
-        for raw in re.split(r"[，,]|(?=但是|不过|可是|但(?:我|你|和你))", sentence["body"]):
+        scope = ""
+        sequenced = False
+        current: list[str] = []
+        parts = [
+            raw.strip()
+            for raw in re.split(r"[，,]|(?=但是|不过|可是|但(?:我|你|和你))", sentence["body"])
+            if raw.strip()
+        ]
+        for index, raw in enumerate(parts):
             clause = raw.strip()
             body = LEADING_CONTEXT.sub("", clause)
             if not body:
                 continue
-            if OTHER_SUBJECT.search(body) or re.search(
-                r"假设|假如|如果|万一|举个例子|扮演|设定", body
-            ):
+            if INDEPENDENT.match(clause) or (scope != "condition" and CURRENT.match(clause)):
+                scope, sequenced = "", False
+            condition = CONDITION.search(body)
+            if condition:
+                # A postposed prerequisite governs the immediately preceding proposition.
+                # Ordinary fronted conditions do not discard an independent earlier self-report.
+                if current and (
+                    re.match(r"前提是|条件是", body)
+                    or (index == len(parts) - 1 and not INDEPENDENT.match(clause))
+                ):
+                    current.pop()
+                scope = "condition"
+                continue
+            if scope:
+                continue
+            if DENIED_REPORT.search(body):
+                scope = "report"
+                continue
+            if OTHER_SUBJECT.search(body) or re.search(r"举个例子|扮演|设定", body):
                 reported = True
                 continue
             if re.match(r"我(?!的?(?:朋友|同事|家人|同学))|你|请|帮我|给我|让我", body):
                 reported = False
             if reported:
                 continue
+            later = _deferred_start(clause, sequenced=sequenced)
+            if later is not None:
+                scope = "deferred"
+                clause = clause[:later].strip()
+                if not clause:
+                    continue
+            sequenced = sequenced or "先" in clause
             ending = sentence["ending"]
-            clauses.append(clause + (ending if ending in "？?" else ""))
+            current.append(clause + (ending if ending in "？?" else ""))
+        clauses.extend(current)
     return clauses
 
 
@@ -97,7 +159,6 @@ def grounded_model_signals(
         if any(
             not negated_predicate(clause, match.start())
             and not NONASSERTIVE.search(clause)
-            and (signal is not DiscourseSignal.OUTCOME_REPORTED or asserted_clause(clause))
             and (signal is not DiscourseSignal.OUTCOME_REPORTED or asserted_clause(clause))
             for clause in clauses
             for match in re.finditer(anchors[signal], clause)
@@ -174,7 +235,8 @@ def interpret_discourse_signals(
     guidance: list[str] = []
     if conflicting:
         guidance.append(
-            "同一句里同时出现倾听与建议信号；先跟随最后的自然语境，不自动改变长期偏好。"
+            "同一句里同时出现倾听与建议信号；结合条件、先后顺序和当前明确要求理解，"
+            "不把不确定的解释写成长期偏好。"
         )
     if full_attention:
         guidance.append("本轮让当前表达优先，不主动切换到旧事项或追加回访。")
