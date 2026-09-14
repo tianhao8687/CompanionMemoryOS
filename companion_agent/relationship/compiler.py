@@ -29,6 +29,8 @@ RELATIONSHIP_QUERIES = (
     "最近变了",
     "你最近",
     "争吵",
+    "误会",
+    "原谅",
     "认识多久",
 )
 
@@ -125,6 +127,20 @@ def compile_relationship_context(
         else:
             selected_evidence.extend(refs)
 
+    prior = max(
+        ((time, ref) for ref, time in model.interactions.items() if time < at and allowed([ref])),
+        default=None,
+    )
+    if prior and at - prior[0] >= timedelta(days=settings.inactivity_days):
+        fields["time_context"] = {
+            "last_prior_interaction_at": prior[0].isoformat(),
+            "current_turn_at": at.isoformat(),
+        }
+        if counter.count(render()) > max_relationship_tokens:
+            fields.pop("time_context")
+            omitted.append("time_context")
+        else:
+            selected_evidence.append(prior[1])
     dynamics = model.recent_dynamics
     if (
         dynamics.summary

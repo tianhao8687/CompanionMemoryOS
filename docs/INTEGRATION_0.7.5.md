@@ -84,6 +84,7 @@ timeout_seconds = 30.0
 ```python
 from companion_memoryos.schemas import InterpreterContext, InterpreterOutput, TurnInterpretation
 
+
 class HostInterpreter:
     def interpret(self, context: InterpreterContext) -> InterpreterOutput:
         # 在这里调用宿主已经使用的模型。原始消息此时已经保存。
@@ -92,6 +93,7 @@ class HostInterpreter:
             interpretation=TurnInterpretation.model_validate(proposed_json),
             model_fingerprint="host-model-and-prompt-version",
         )
+
 
 service = CompanionMemoryService(store, config, turn_interpreter=HostInterpreter())
 ```

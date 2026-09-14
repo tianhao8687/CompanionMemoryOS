@@ -6,7 +6,11 @@ from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from companion_memoryos.constants import DEFAULT_ENCODING
-from companion_memoryos.discourse import interpret_discourse_signals, interpret_explicit_discourse
+from companion_memoryos.discourse import (
+    grounded_model_signals,
+    interpret_discourse_signals,
+    interpret_explicit_discourse,
+)
 from companion_memoryos.experience import (
     build_initial_response_beat,
     build_response_beats,
@@ -620,7 +624,19 @@ def interpret_turn(
                     user_id=turn.user_id,
                     scope=turn.scope,
                     turn_id=turn.id,
-                    signals=proposed.model_output.discourse_signals,
+                    signals=grounded_model_signals(
+                        self._direct_user_discourse_text(turn),
+                        proposed.model_output.discourse_signals,
+                        evidence_text="\n".join(
+                            turn.content[span.start_offset : span.end_offset]
+                            for span in spans
+                            if span.quote_depth == 0
+                            and span.reality_layer is RealityLayer.REAL_WORLD
+                            and span.attributed_speaker_id in {None, turn.actor_id}
+                        )
+                        if spans
+                        else None,
+                    ),
                 )
     cancelled: list[str] = []
     repair = None

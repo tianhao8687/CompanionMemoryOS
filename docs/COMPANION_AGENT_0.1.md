@@ -57,11 +57,13 @@ from companion_memoryos.config import InterpreterConfig
 from companion_memoryos.schemas import ConsentState, MemoryScope, ProcessTurnRequest
 
 # memory_service 是宿主已初始化的 CompanionMemoryService。
-main_llm = OpenAICompatibleMainLLM(InterpreterConfig(
-    base_url="https://YOUR-HOST/v1",
-    model="YOUR-MODEL",
-    api_key_env="MAIN_LLM_API_KEY",
-))
+main_llm = OpenAICompatibleMainLLM(
+    InterpreterConfig(
+        base_url="https://YOUR-HOST/v1",
+        model="YOUR-MODEL",
+        api_key_env="MAIN_LLM_API_KEY",
+    )
+)
 agent = CompanionAgent(memory_service, load_persona(), main_llm)
 request = ProcessTurnRequest(
     user_id="user-1",

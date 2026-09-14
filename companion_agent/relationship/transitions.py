@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from companion_agent.persona.models import RelationshipStage
 from companion_agent.relationship.models import (
@@ -21,17 +21,9 @@ def evaluate_distance(
 ) -> RelationshipDistance:
     if model.distance_ceiling is RelationshipStage.NEW:
         return RelationshipDistance.RESERVED
-    dynamics = model.recent_dynamics
-    if (
-        dynamics.evidence_ids
-        and timedelta(0) <= as_of - dynamics.updated_at <= timedelta(days=config.dynamics_days)
-        and dynamics.recent_conflict_level >= config.conflict_downgrade_level
-    ):
-        return RelationshipDistance.RESERVED
-    if model.distance_ceiling is RelationshipStage.FAMILIAR or (
-        model.last_interaction_at is not None
-        and as_of - model.last_interaction_at >= timedelta(days=config.inactivity_days)
-    ):
+    # Inactivity and inferred tension are context, not user instructions to be distant.
+    # Keep the signature and config fields compatible with existing hosts.
+    if model.distance_ceiling is RelationshipStage.FAMILIAR:
         return RelationshipDistance.CAUTIOUS
     return RelationshipDistance.OPEN
 

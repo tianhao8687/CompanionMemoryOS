@@ -66,7 +66,9 @@ def request(
 
 
 def state_payload(model: CaptureModel) -> dict[str, object]:
-    return json.loads(model.messages[-1][0].content.split("[CURRENT STATE]\n", 1)[1])
+    assert "[CURRENT STATE]" not in model.messages[-1][0].content
+    text = model.messages[-1][1].content.split("[CURRENT STATE]\n", 1)[1]
+    return json.JSONDecoder().raw_decode(text)[0]
 
 
 def make_agent(service: CompanionMemoryService) -> tuple[CompanionAgent, CaptureModel]:
@@ -141,12 +143,13 @@ def test_conflict_is_with_companion_and_repair_affects_current_turn(
     assert before.recent_dynamics.recent_conflict_level > 0
     agent.chat(request("还有一点我想接着讲。", "continue"))
     assert state_payload(model)["response_goal"] == "listen"
-    assert "减少玩笑" in state_payload(model)["interaction_guidance"]
+    assert "用户对角色的互动方式表达不满" in model.messages[-1][1].content
+    assert "interaction_guidance" not in state_payload(model)  # No duplicate relationship summary.
     reply = agent.chat(request("刚才的误会已经说开了。", "repair"))
     after = agent.relationships.get_relationship(KEY)
     assert after.recent_dynamics.recent_conflict_level == 0
     assert after.identity == before.identity and after.stage == before.stage
-    assert "停止沿用" in state_payload(model)["interaction_guidance"]
+    assert "停止沿用" in model.messages[-1][1].content
     assert reply.turn.metadata["relationship_distance"] == "open"
 
 
@@ -249,7 +252,7 @@ def test_temporary_humor_expires_without_revoking_permanent_boundary(
     agent.current_states.clock = lambda: datetime.now(UTC) + timedelta(days=2)
     agent.chat(request("请解释一下递归。", "later"))
     assert not any(item["slot"] == "style:humor" for item in state_payload(model)["influence"])
-    assert "不随临时状态过期" in model.messages[-1][0].content
+    assert "不随临时状态过期" in model.messages[-1][1].content
 
 
 def test_stop_reference_is_not_resolution(service: CompanionMemoryService) -> None:

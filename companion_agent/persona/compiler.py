@@ -42,7 +42,10 @@ def compile_persona_context(
     lines = [f"Identity: {persona.display_name}；{persona.identity.role}", "Character Kernel:"]
     for key, values in persona.kernel.model_dump().items():
         lines.append(f"{key}: {unique(values)}")
-    lines.append(f"Response Goal: {goal.value}")
+    lines.append(f"Response Goal (suggestion, may blend): {goal.value}")
+    lines.append(
+        "以下表达风格是可调整的偏好；当前明确要求优先，可在完成任务时自然结合关心、分析或幽默。"
+    )
     for key, values in persona.response_styles[goal].model_dump().items():
         lines.append(f"{key}: {unique(values)}")
     lines.append(f"Familiarity Stage: {stage.value}")
@@ -74,8 +77,7 @@ def compile_persona_context(
     for index, example in enumerate(persona.examples):
         tags = {"established" if tag.lower() == "close" else tag.lower() for tag in example.tags}
         stage_tags = tags & {item.value for item in RelationshipStage}
-        if goal.value in tags and (not stage_tags or stage.value in stage_tags):
-            ranked.append((-(2 + int(stage.value in tags)), index))
+        ranked.append((-(2 * int(goal.value in tags) + int(stage.value in stage_tags)), index))
     selected: list[int] = []
     for _, index in sorted(ranked):
         example = persona.examples[index]

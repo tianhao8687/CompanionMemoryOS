@@ -1,4 +1,7 @@
-# CompanionAgent v0.4：跨轮次 Current State
+# CompanionAgent v0.4.1：跨轮次 Current State
+
+本页接入说明已随语义修订更新；完整变更、基线 CI 核实和本轮验证见
+[SEMANTIC_REVISION.md](SEMANTIC_REVISION.md)。底部的 372 项记录属于原 v0.4 本地验证。
 
 本次补齐的是短期处境和交流要求的延续、更新与退出。状态用于调整最终回应策略，不生成固定回复，
 也不改变关系身份、熟悉度或人格。原 `agent.chat(request)` 和 `agent.prepare(request)` 已接入。
@@ -22,9 +25,11 @@ Agent 已有关系动态、经历和上下文组合。原 `state_service` 管理
 优先级是：本轮明确沟通要求 → 宿主明确目标/本轮具体任务 → 仍有效的沟通要求 → 原有目标。
 例如旧倾听要求能越过近期消息窗口继续生效，但“帮我列两个办法”会在本轮切换为 PROBLEM_SOLVE；
 “帮我修改自我介绍”直接协助修改，不先将整轮改成安慰。
-倾听期间还会收住未经请求的角色背景引用，具体回忆或知识问题仍可以直接回答。
+相关角色背景仍可提供给主模型，由模型结合用户要求判断是否引用，不再由倾听枚举一概屏蔽。
+回应目标和人格风格是可以组合的建议；用户明确要求与来源使用限制仍须遵守。
 
-最终输入新增可预算的 `[CURRENT STATE]`，只包含当前可用的控制信息和必要处境，不回灌完整状态库。
+最终输入包含可预算的 `[CURRENT STATE]`，区分明确要求与自述，作为 user 级证据注入，
+与同为 user 级的关系数据共同接受应用规则约束，不回灌完整状态库或提升历史原话的权限。
 状态默认无声影响，禁止播报标签、把过期当作恢复，或用紧张气氛要求用户安抚角色。
 已完成事项不会连带清除其他独立压力；用户刚明确重申仍有压力时，该自述优先于“任务结束”的推断。
 
@@ -41,7 +46,9 @@ Agent 已有关系动态、经历和上下文组合。原 `state_service` 管理
 | “以后不要这样称呼我” | 现有长期关系边界 | 不由临时状态的到期撤销 |
 
 这些时长是可调整的工程默认值，不是生理或心理恢复判断。过期只表示停止将旧报告当作当前依据。
-“别再提了”控制引用，不表示事情已解决；用户主动重新开启时可释放临时引用暂停，
+“别再提了”控制引用，不表示事情已解决；具体话题用独立槽保存，只释放匹配的暂停。
+未指明对象时只在现有证据唯一的情况下关联或释放，不同时解除其他话题或长期边界。
+用户主动重新开启时可释放对应临时引用暂停，
 但不能据此绕过原有永久边界和 MemoryOS 的引用限制。
 
 ## 证据、隔离和一致性
@@ -60,7 +67,9 @@ Agent 已有关系动态、经历和上下文组合。原 `state_service` 管理
 
 用户已说出的交流要求会在回复准备时提交，即使 Main LLM 随后失败也仍可延续；
 它不是双方共同经历，不需要等助手成功回复。经历和助手回复仍遵守 v0.3 的原子提交链路。
-状态表不可用、结构损坏或预算失败时会记录降级元数据并回到原回复路径，不编造缺失状态。
+状态表不可用或结构损坏时会记录降级元数据并回到保守路径，不编造缺失状态。
+普通处境可按预算省略；有效的明确用户要求不能因预算被静默丢弃，放不下时取消计划并报错，
+由宿主提高 `max_context_tokens`，或在状态预算内减少其他上下文。
 底层 MemoryOS 数据库整体不可用时，仍遵循原有存储失败处理。
 
 ## 配置与迁移
@@ -68,14 +77,18 @@ Agent 已有关系动态、经历和上下文组合。原 `state_service` 管理
 ```python
 from companion_agent import CompanionAgent, CurrentStateConfig, load_persona
 
-agent = CompanionAgent(memory_service, load_persona(), main_llm,
+agent = CompanionAgent(
+    memory_service,
+    load_persona(),
+    main_llm,
     current_state_config=CurrentStateConfig(
         communication_hours=8,
         fatigue_hours=12,
         emotion_hours=6,
         pressure_hours=72,
         max_context_tokens=450,
-    ))
+    ),
+)
 response = agent.chat(request)
 ```
 
@@ -85,11 +98,13 @@ response = agent.chat(request)
 只复用其已有话语结果，不把它猜测的情绪自动转为用户事实。
 
 首次启用自动新增 `agent_current_states`、`agent_current_state_receipts`、`agent_current_state_events`，
-组件版本 `current_state=1`，原 MemoryOS schema v8、关系/经历 schema 和人格版本均不改变。
+组件版本仍为 `current_state=1`，原 MemoryOS schema v8、关系/经历 schema 不变；
+默认人格升为 0.1.2，以符合现有角色种子按人格版本隔离的校验。
 没有后台计时器：有效性在读取时计算。现有旧“本轮倾诉”关系摘要在新运行链路中不再冒充当前沟通要求，
 新消息会逐步建立状态；不扫描整库重新推断过去。
 
-日志增加 `current_state_status`、`current_state_tokens`、`current_state_ids`；主 Agent 版本为 0.4.0。
+日志包含 `current_state_status`、`current_state_tokens`、`current_state_ids`；主 Agent 版本为 0.4.1。
+助手消息新增 `context_turn_ids`，用于在历史重用和发送前检查派生回复的来源。
 CLI `--current-state` 是明确的调试查询，可查看有效/过期记录和退出原因；普通聊天不会展示这些内容。
 
 ## 可复现连续示例
@@ -116,15 +131,19 @@ python -m companion_agent --data-dir .agent-data/chat --current-state
 测试检查完整 `agent.chat` 或最终主模型输入，不仅断言数据库记录。
 覆盖多轮/重启、当前覆盖、时间推进、独立压力、冲突对象与修复、永久边界、源删除/限制、
 跨作用域、敏感输入、重试、迟到写入、可选组件失败与损坏结构等。
-回归中旧 Agent 版本断言更新至 0.4.0，并将“持续倾听期间主动插入角色背景”的旧断言修正为抑制，
-具体询问角色经历时仍验证能正常回答。
+旧的“倾听就不提供角色背景”“紧张或久未聊天必须收紧距离”断言已由行为验收替代，
+明确倾听仍延续，当前具体任务仍完成，用户距离要求仍有效，角色背景仍被标为创作而非共同历史。
 
 这属于数据、上下文和回应策略验证，尚未验证真实模型的自然对话效果。
 规则目前偏保守，复杂省略主语、反话、隐含需要、多对象同名事项和更丰富的情绪描述并未全面覆盖；
 模糊来源不应通过扩大标签来补齐。最值得继续改进的是在现有单次解释调用中增加带主体、时间、
 原文跨度与不确定性的受约束状态候选，提高语言覆盖率，而不是新增一次必需模型请求。
 
-## 实际执行的验证
+## 原 v0.4 的本地验证记录（历史）
+
+以下保留原提交记录，不代表远端通过：原提交 `8e24b81` 的 GitHub Actions 实际停在
+`ruff format --check .`（5 个 Markdown Python 代码块文件），后续 mypy、pytest 被跳过。
+本轮使用 CI 相同的 Ruff 0.16.7 修正全文格式，并将 CI 类型检查和覆盖率范围纳入 companion_agent。
 
 2026-09-14，在项目目录执行（使用工作区 Python 虚拟环境）：
 

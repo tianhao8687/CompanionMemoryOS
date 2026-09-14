@@ -5,7 +5,7 @@ from __future__ import annotations
 import calendar
 import re
 from datetime import datetime
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from companion_agent.relationship.models import (
     EvidenceStrength,
@@ -16,7 +16,67 @@ from companion_agent.relationship.models import (
 from companion_agent.relationship.service import RelationshipService, candidate_for
 from companion_memoryos.schemas import MemoryKind, ProcessTurnResult
 
+if TYPE_CHECKING:
+    from companion_agent.current_state.models import CurrentStateAnalysis
+
 TECH_TOPICS = ["技术", "电脑", "显卡", "代码", "硬件", "rtx", "python", "方案"]
+
+
+def interaction_candidates(
+    analysis: CurrentStateAnalysis, model: RelationshipModel, turn_id: str, at: datetime
+) -> list[RelationshipUpdateCandidate]:
+    """One writer for conflict, repair and targeted correction, including legacy fallback."""
+    repair = analysis.repair and (
+        not analysis.repair_requires_context or model.recent_dynamics.recent_conflict_level > 0
+    )
+    correction = analysis.conflict_correction and not analysis.conflict and not repair
+    if not (analysis.conflict or repair or correction):
+        return []
+    summary = (
+        "用户纠正此前冲突判断；撤回误判，不据此推断双方已经和解"
+        if correction
+        else "用户明确表示误会已说开，停止沿用此前冲突语气"
+        if repair
+        else "用户对角色的互动方式表达不满"
+    )
+    refs = [f"user_correction:{turn_id}" if correction else f"turn:{turn_id}"]
+    candidates = [
+        candidate_for(
+            RelationshipUpdateKind.DYNAMICS,
+            summary,
+            refs,
+            {
+                "interaction_tone": "neutral" if correction else "repairing" if repair else "tense",
+                "recent_conflict_level": 0 if correction or repair else 0.85,
+                "recent_closeness_change": "stable"
+                if correction
+                else "increasing"
+                if repair
+                else "decreasing",
+                "active_topics": ["关系"],
+                "summary": summary,
+            },
+            at,
+        )
+    ]
+    if analysis.conflict or any(t.id == "relationship-conflict" for t in model.unresolved_threads):
+        candidates.append(
+            candidate_for(
+                RelationshipUpdateKind.THREAD,
+                summary,
+                refs,
+                {
+                    "id": "relationship-conflict",
+                    "topic": "双方的互动分歧",
+                    "summary": summary,
+                    "topic_keys": ["关系", "争吵", "误会"],
+                    "follow_up_mode": "user_led",
+                    "status": "cancelled" if correction else "resolved" if repair else "open",
+                },
+                at,
+            )
+        )
+    return candidates
 
 
 class RelationshipEvaluator(Protocol):
@@ -33,7 +93,12 @@ def _months_before(at: datetime, months: int) -> datetime:
 
 class LocalRelationshipEvaluator:
     def evaluate(
-        self, result: ProcessTurnResult, model: RelationshipModel, service: RelationshipService
+        self,
+        result: ProcessTurnResult,
+        model: RelationshipModel,
+        service: RelationshipService,
+        *,
+        include_current_interaction: bool = True,
     ) -> list[RelationshipUpdateCandidate]:
         turn = result.storage.turn
         if turn is None or result.response_stale:
@@ -44,17 +109,26 @@ class LocalRelationshipEvaluator:
         # Only direct spans can issue relationship directives. Full-match clauses prevent
         # reported speech such as “她说我们是恋人” from becoming a relationship definition.
         text = service.memory._direct_user_discourse_text(turn).strip()
+        if include_current_interaction:
+            from companion_agent.current_state.evaluator import analyze_current_turn
+
+            current_interaction = interaction_candidates(
+                analyze_current_turn(text, result), model, turn.id, turn.occurred_at
+            )
+        else:
+            current_interaction = []
         clauses = [
             clause.strip() for clause in re.split(r"[。！？!?；;\n]", text) if clause.strip()
         ]
         candidates = [
+            *current_interaction,
             candidate_for(
                 RelationshipUpdateKind.INTERACTION,
                 "新增一次用户主动互动",
                 [ref],
                 {},
                 turn.occurred_at,
-            )
+            ),
         ]
 
         def add(
@@ -229,14 +303,6 @@ class LocalRelationshipEvaluator:
                     {"id": "no-forever-promise", "description": "不使用永远不会离开你之类的承诺"},
                 )
             if re.fullmatch(
-                r"(?:今天|现在)(?:我)?不想听方案[，,]?(?:就|只)想吐槽|今天先听我说(?:就好)?", clause
-            ):
-                add(
-                    RelationshipUpdateKind.DYNAMICS,
-                    "本轮用户只想倾诉，是场景例外",
-                    {"active_topics": ["本轮倾诉"], "summary": "本轮先听用户倾诉，不给解决方案"},
-                )
-            if re.fullmatch(
                 r"(?:讨论|聊)(?:技术|技术问题)时[，,]?(?:我更喜欢|请|我希望你)(?:直接回答|直接给结论|直接判断)",
                 clause,
             ):
@@ -292,53 +358,6 @@ class LocalRelationshipEvaluator:
                     strength=EvidenceStrength.WEAK,
                     confidence=0.35,
                 )
-            if re.fullmatch(r"(?:我觉得)?(?:我们)?上次(?:的)?争吵还没解决|我还在生你的气", clause):
-                add(
-                    RelationshipUpdateKind.THREAD,
-                    "双方的冲突仍未解决",
-                    {
-                        "id": "relationship-conflict",
-                        "topic": "未解决的争吵",
-                        "summary": "用户明确表示双方的争吵仍未解决",
-                        "topic_keys": ["争吵", "生气", "我们", "关系"],
-                        "follow_up_mode": "user_led",
-                    },
-                )
-                add(
-                    RelationshipUpdateKind.DYNAMICS,
-                    "用户直接表达关系紧张",
-                    {
-                        "interaction_tone": "tense",
-                        "recent_closeness_change": "decreasing",
-                        "recent_conflict_level": 0.85,
-                        "active_topics": ["关系", "争吵"],
-                        "summary": "用户仍对角色生气；先尊重距离，避免玩笑",
-                    },
-                )
-            if re.fullmatch(r"上次(?:的)?争吵(?:已经)?说开了|我不再生你的气了", clause):
-                if any(thread.id == "relationship-conflict" for thread in model.unresolved_threads):
-                    add(
-                        RelationshipUpdateKind.THREAD,
-                        "用户明确表示上次冲突已经解决",
-                        {
-                            "id": "relationship-conflict",
-                            "status": "resolved",
-                            "summary": "用户确认冲突已说开",
-                        },
-                    )
-                add(
-                    RelationshipUpdateKind.DYNAMICS,
-                    "关系进入修复状态",
-                    {
-                        "interaction_tone": "repairing",
-                        "recent_conflict_level": 0,
-                        "recent_closeness_change": "increasing",
-                        "active_topics": ["关系"],
-                        "summary": "用户表示冲突已说开，关系正在恢复",
-                    },
-                )
-            # Importance is evaluated over a shared experience rather than one sentence.
-
         # Reuse accepted MemoryOS facts, not unactivated model suggestions.
         if result.interpretation:
             for memory_id in result.interpretation.memory_ids:

@@ -25,8 +25,12 @@ SQLite 增量迁移增加以下表，不改变 MemoryOS 的 schema 版本或历�
 from companion_agent import CompanionAgent, load_persona
 from companion_agent.relationship import RelationshipConfig, RelationshipKey
 
-agent = CompanionAgent(memory_service, load_persona(), main_llm,
-    relationship_config=RelationshipConfig(max_relationship_tokens=700))
+agent = CompanionAgent(
+    memory_service,
+    load_persona(),
+    main_llm,
+    relationship_config=RelationshipConfig(max_relationship_tokens=700),
+)
 reply = agent.chat(request)
 
 key = RelationshipKey(user_id="u1", companion_id="xiaohe", relationship_id="r1")

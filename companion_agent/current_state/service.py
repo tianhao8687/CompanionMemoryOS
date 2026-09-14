@@ -19,6 +19,7 @@ from companion_agent.current_state.models import (
 )
 from companion_agent.evidence_policy import restricted_evidence
 from companion_agent.relationship import RelationshipKey, RelationshipService
+from companion_agent.relationship.evaluator import interaction_candidates
 from companion_agent.relationship.models import RelationshipUpdateKind, now_utc
 from companion_agent.relationship.service import candidate_for
 from companion_memoryos.schemas import (
@@ -257,7 +258,11 @@ class CurrentStateService:
                     if obs.status is StateStatus.ACTIVE
                 }
                 for record in current:
-                    if record.topic in analysis.completed_topics and record.slot not in fresh:
+                    if (
+                        record.kind is StateKind.CONDITION
+                        and record.topic in analysis.completed_topics
+                        and record.slot not in fresh
+                    ):
                         observations.append(
                             StateObservation(
                                 kind=record.kind,
@@ -268,14 +273,38 @@ class CurrentStateService:
                                 reason="explicit_topic_outcome",
                             )
                         )
-                if analysis.topic_switch and analysis.explicit_goal is None:
+                # Resolve an implicit pause target only when existing current evidence is unique.
+                active = self.snapshot(key, turn.scope.conversation_id or "")
+                topics = {r.topic for r in active if r.kind is StateKind.CONDITION and r.topic}
+                for observation in observations:
+                    if observation.slot == "reference" and len(topics) == 1:
+                        observation.topic = next(iter(topics))
+                        observation.slot = f"reference:{observation.topic}"
+                holds = [r for r in active if r.slot.startswith("style:reference")]
+                for record in holds:
+                    if record.topic in analysis.reopened_topics or (
+                        analysis.reopen_unscoped and len(holds) == 1
+                    ):
+                        observations.append(
+                            StateObservation(
+                                kind=StateKind.STYLE,
+                                slot=record.slot.split(":", 1)[1],
+                                value="normal",
+                                topic=record.topic,
+                                status=StateStatus.ENDED,
+                                reason="user_reopened_topic",
+                            )
+                        )
+                if (
+                    analysis.topic_switch or analysis.concrete_task
+                ) and analysis.explicit_goal is None:
                     observations.append(
                         StateObservation(
                             kind=StateKind.COMMUNICATION,
                             slot="need",
                             value="none",
                             status=StateStatus.ENDED,
-                            reason="scene_changed",
+                            reason="current_task_or_scene_changed",
                         )
                     )
                 for observation in observations:
@@ -365,52 +394,15 @@ class CurrentStateService:
         turn_id: str,
         observed_at: datetime,
     ) -> None:
-        proposals = []
         ref = [f"turn:{turn_id}"]
         model = self.relationships.get_relationship(key)
-        if analysis.repair and model.recent_dynamics.recent_conflict_level == 0:
-            direct = self.memory._direct_user_discourse_text(
-                self.memory.store.get_turn(turn_id, key.user_id)
+        if analysis.repair_requires_context:
+            context = self.relationships.get_relationship_context(
+                key, ResponseGoal.REFLECT, "关系", model=model, as_of=self.clock()
             )
-            if not any(word in direct for word in ("你", "我们", "咱俩")):
+            if not (context.recent_dynamic_summary or context.unresolved_threads):
                 analysis.repair = False
-        if analysis.conflict or analysis.repair:
-            proposals.append(
-                candidate_for(
-                    RelationshipUpdateKind.DYNAMICS,
-                    "用户明确表达与角色之间的冲突或修复",
-                    ref,
-                    {
-                        "interaction_tone": "repairing" if analysis.repair else "tense",
-                        "recent_conflict_level": 0 if analysis.repair else 0.85,
-                        "recent_closeness_change": "increasing"
-                        if analysis.repair
-                        else "decreasing",
-                        "active_topics": ["关系"],
-                        "summary": "用户明确表示误会已说开，停止沿用此前冲突语气"
-                        if analysis.repair
-                        else "用户对角色的互动方式表达不满，先听清并减少玩笑",
-                    },
-                    observed_at,
-                )
-            )
-            if analysis.repair and any(
-                t.id == "relationship-conflict" and t.status.value == "open"
-                for t in model.unresolved_threads
-            ):
-                proposals.append(
-                    candidate_for(
-                        RelationshipUpdateKind.THREAD,
-                        "用户确认冲突已说开",
-                        ref,
-                        {
-                            "id": "relationship-conflict",
-                            "status": "resolved",
-                            "summary": "用户确认双方误会已说开",
-                        },
-                        observed_at,
-                    )
-                )
+        proposals = interaction_candidates(analysis, model, turn_id, observed_at)
         if analysis.permanent_address_boundary:
             proposals.append(
                 candidate_for(
@@ -419,7 +411,12 @@ class CurrentStateService:
                     ref,
                     {
                         "id": "rejected-address",
-                        "description": "不再使用用户明确拒绝的称呼；这条边界不随临时状态过期",
+                        "description": "不再使用用户明确拒绝的称呼；这条边界不随临时状态过期"
+                        + (
+                            f"；用户原话：{analysis.rejected_address_text}"
+                            if analysis.rejected_address_text
+                            else ""
+                        ),
                     },
                     observed_at,
                 )

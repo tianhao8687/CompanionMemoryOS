@@ -8,6 +8,10 @@ from companion_memoryos.schemas import ResponseGoal
 from companion_memoryos.tokens import TokenCounter
 
 
+class CurrentStateBudgetError(ValueError):
+    """User requests cannot be silently removed to fit an optional context budget."""
+
+
 def compile_current_state(
     key: RelationshipKey,
     preparation: StatePreparation,
@@ -18,17 +22,12 @@ def compile_current_state(
 ) -> CompiledCurrentState:
     payload: dict[str, object] = {
         "response_goal": goal.value,
+        "goal_authority": "suggestion",
         "influence": [],
-        "rules": (
-            "仅在有效范围内无声影响；当前明确任务和纠正优先。"
-            "未列出或过期不代表恢复、解决或撤销边界。不要播报状态标签。"
-        ),
     }
-    if preparation.interaction_guidance:
-        payload["interaction_guidance"] = preparation.interaction_guidance
     chosen = []
     entries: list[dict[str, object]] = []
-    hold = any(record.slot == "style:reference" for record in preparation.records)
+    holds = [r for r in preparation.records if r.slot.startswith("style:reference")]
     for record in sorted(
         preparation.records,
         key=lambda item: (
@@ -37,7 +36,7 @@ def compile_current_state(
         ),
     ):
         if record.kind is StateKind.CONDITION and (
-            hold
+            any(r.topic is None or r.topic == record.topic for r in holds)
             or (
                 preparation.analysis.concrete_task
                 and record.topic not in preparation.analysis.topics
@@ -51,7 +50,13 @@ def compile_current_state(
             and record.topic not in preparation.analysis.topics
         ):
             continue
-        if record.kind is StateKind.COMMUNICATION and record.value != goal.value:
+        if (
+            record.kind is StateKind.COMMUNICATION
+            and record.value != goal.value
+            and (
+                preparation.analysis.concrete_task or preparation.analysis.explicit_goal is not None
+            )
+        ):
             continue
         entry: dict[str, object] = {
             "kind": record.kind.value,
@@ -59,14 +64,19 @@ def compile_current_state(
             "value": record.value,
             "topic": record.topic,
             "valid_until": record.expires_at.isoformat(),
+            "authority": "self_report"
+            if record.kind is StateKind.CONDITION
+            else "explicit_request",
         }
-        if record.slot == "style:reference":
-            entry["guidance"] = "暂停主动提起旧事，不据此判断事情已解决，也不为建档追问。"
+        if record.slot.startswith("style:reference"):
+            entry["guidance"] = "暂停主动提起此话题；不表示解决，其他话题不受此条影响。"
         payload["influence"] = [*entries, entry]
         text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
         if counter.count(text) <= max_tokens:
             entries.append(entry)
             chosen.append(record)
+        elif record.kind is not StateKind.CONDITION:
+            raise CurrentStateBudgetError("active user requests exceed current state budget")
     payload["influence"] = entries
     text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     if counter.count(text) > max_tokens:
@@ -79,4 +89,5 @@ def compile_current_state(
         state_ids=[r.state_id for r in chosen],
         source_turn_ids=[r.source_turn_id for r in chosen],
         degraded=preparation.degraded,
+        has_explicit_requests=any(record.kind is not StateKind.CONDITION for record in chosen),
     )

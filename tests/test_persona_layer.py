@@ -77,7 +77,7 @@ def test_all_goal_stage_combinations_fit_without_losing_rules(
     compiled = compile_persona_context(persona, goal, stage, token_counter=service.token_counter)
     assert compiled.estimated_tokens == service.token_counter.count(compiled.text)
     assert compiled.estimated_tokens <= 1200
-    assert f"Response Goal: {goal.value}" in compiled.text
+    assert f"Response Goal (suggestion, may blend): {goal.value}" in compiled.text
     assert f"Familiarity Stage: {stage.value}" in compiled.text
     for invariant in persona.invariants:
         assert invariant.description in compiled.text
@@ -145,20 +145,20 @@ def test_seeds_have_separate_subject_version_and_storage(service: CompanionMemor
     store = CharacterMemoryStore(service.store.database)
     store.install(persona, "xiaohe")
     store.install(persona, "xiaohe")
-    memories = store.recall("xiaohe", "0.1.1", "xiaohe", "狗")
+    memories = store.recall("xiaohe", persona.version, "xiaohe", "狗")
     assert len(memories) == 1
     assert memories[0].subject_actor_id == "xiaohe"
     assert memories[0].reality_layer.value == "fiction"
     assert memories[0].seed.occurred_at is None
-    assert not store.recall("xiaohe", "0.1.1", "another", "狗")
-    assert not store.recall("xiaohe", "0.1.2", "xiaohe", "狗")
+    assert not store.recall("xiaohe", persona.version, "another", "狗")
+    assert not store.recall("xiaohe", "next-test-version", "xiaohe", "狗")
     assert not service.export("u").memories
     persona.kernel.core_values.append("新原则")
     with pytest.raises(ValueError, match="increment version"):
         store.install(persona, "xiaohe")
-    persona.version = "0.1.2"
+    persona.version = "next-test-version"
     store.install(persona, "xiaohe")
-    assert store.recall("xiaohe", "0.1.2", "xiaohe", "狗")
+    assert store.recall("xiaohe", persona.version, "xiaohe", "狗")
 
 
 def test_seed_validates_salience_and_dates() -> None:
@@ -233,11 +233,11 @@ def test_runtime_continuous_chat_restart_retry_and_metadata(
     second_request = request("我小时候怕狗", "turn-2")
     second = agent.chat(second_request, RelationshipStage.FAMILIAR)
     assert first.turn.content in model.inputs[1][1].content
-    assert (
-        "阿灰" not in model.inputs[1][1].content
-    )  # persistent listening withholds unsolicited backstory
+    # Relevant authored backstory is available; listening is still an explicit user request.
+    assert "阿灰" in model.inputs[1][1].content
+    assert '"authority":"explicit_request"' in model.inputs[1][1].content
     assert first.turn.metadata["response_goal"] == "listen"
-    assert second.turn.metadata["persona_version"] == "0.1.1"
+    assert second.turn.metadata["persona_version"] == "0.1.2"
     assert second.turn.metadata["familiarity_stage"] == "new"
     assert second.turn.metadata["relationship_distance"] == "cautious"
     assert second.turn.actor_id == "xiaohe"

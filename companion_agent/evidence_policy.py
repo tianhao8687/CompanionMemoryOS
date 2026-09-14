@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
+import json
+import sqlite3
 from datetime import datetime
 
 from companion_agent.relationship.models import RelationshipKey
 from companion_memoryos.experience import SUPPRESSING_FEEDBACK
 from companion_memoryos.schemas import (
+    ConsentState,
+    ConversationTurnRecord,
     ExperienceEvidenceKind,
     ExperienceEvidenceRef,
     MemoryReferenceFeedbackRecord,
+    MemoryReferenceMode,
     MemoryScope,
+    MemoryUsePlan,
+    Sensitivity,
+    TurnDeletionState,
 )
 from companion_memoryos.service import CompanionMemoryService
 
@@ -58,3 +66,87 @@ def restricted_evidence(
         for (kind, identifier), feedback in latest.items()
         if feedback.kind in SUPPRESSING_FEEDBACK
     }
+
+
+def filter_recent_turns(
+    memory: CompanionMemoryService,
+    key: RelationshipKey,
+    turns: list[ConversationTurnRecord],
+    plan: MemoryUsePlan,
+    as_of: datetime,
+    *,
+    allow_sensitive: bool = False,
+) -> list[ConversationTurnRecord]:
+    """A hidden source must not reappear through its reply or a later derived reply."""
+    records = {turn.id: turn for turn in turns}
+    dependencies: dict[str, list[str]] = {}
+    legacy_unavailable: set[str] = set()
+    pending = list(records)
+    while pending:
+        identifier = pending.pop()
+        turn = records[identifier]
+        refs = turn.metadata.get("context_turn_ids", [])
+        refs = [ref for ref in refs if isinstance(ref, str)] if isinstance(refs, list) else []
+        # v0.4.0 recorded state ids. Recover only their already-audited source revision;
+        # never re-interpret the conversation or guess a missing dependency.
+        if "context_turn_ids" not in turn.metadata and turn.metadata.get("current_state_ids"):
+            try:
+                for state_id in turn.metadata["current_state_ids"]:
+                    with memory.store.database.connection() as connection:
+                        rows = connection.execute(
+                            "SELECT data_json FROM agent_current_state_events WHERE "
+                            "user_id=? AND companion_id=? AND relationship_id=? AND state_id=?",
+                            (*key.values, state_id),
+                        ).fetchall()
+                    prior = [json.loads(row["data_json"]) for row in rows]
+                    prior = [
+                        r
+                        for r in prior
+                        if datetime.fromisoformat(r["observed_at"]) <= turn.occurred_at
+                        and r["source_sequence"] < turn.server_sequence
+                    ]
+                    if not prior:
+                        legacy_unavailable.add(identifier)
+                    else:
+                        latest = max(prior, key=lambda r: (r["observed_at"], r["source_sequence"]))
+                        refs.append(latest["source_turn_id"])
+            except (sqlite3.Error, ValueError, KeyError, TypeError):
+                legacy_unavailable.add(identifier)
+        deps = list(
+            dict.fromkeys([*refs, *([turn.reply_to_turn_id] if turn.reply_to_turn_id else [])])
+        )
+        dependencies[identifier] = deps
+        for ref in deps:
+            if ref not in records:
+                try:
+                    records[ref] = memory.store.get_turn(ref, key.user_id)
+                    pending.append(ref)
+                except KeyError:
+                    pass
+    blocked = restricted_evidence(
+        memory,
+        key,
+        [ExperienceEvidenceRef(kind=ExperienceEvidenceKind.TURN, id=ref) for ref in records],
+        as_of,
+    )
+    blocked.update(
+        f"turn:{d.evidence.id}"
+        for d in plan.decisions
+        if d.evidence.kind is ExperienceEvidenceKind.TURN
+        and d.mode in {MemoryReferenceMode.SUPPRESS, MemoryReferenceMode.CLARIFY}
+    )
+    allowed: set[str] = set()
+    for turn in sorted(records.values(), key=lambda t: t.server_sequence):
+        if (
+            turn.consent is ConsentState.GRANTED
+            and turn.deletion_state is TurnDeletionState.ACTIVE
+            and (allow_sensitive or turn.sensitivity is Sensitivity.NORMAL)
+            and turn.occurred_at <= as_of
+            and turn.scope.companion_id == key.companion_id
+            and turn.scope.relationship_id == key.relationship_id
+            and f"turn:{turn.id}" not in blocked
+            and turn.id not in legacy_unavailable
+            and all(ref in allowed for ref in dependencies[turn.id])
+        ):
+            allowed.add(turn.id)
+    return [turn for turn in turns if turn.id in allowed]

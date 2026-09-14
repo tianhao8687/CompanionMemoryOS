@@ -126,8 +126,12 @@ MemoryOS.process_turn（保存原文、解释、Episode/Memory/State）
 ```python
 from companion_agent import CompanionAgent, RelationshipIdentityType, load_persona
 
-agent = CompanionAgent(memory_service, load_persona(), main_llm,
-    initial_relationship_identity=RelationshipIdentityType.ROMANTIC_PARTNER)
+agent = CompanionAgent(
+    memory_service,
+    load_persona(),
+    main_llm,
+    initial_relationship_identity=RelationshipIdentityType.ROMANTIC_PARTNER,
+)
 reply = agent.chat(request)
 ```
 

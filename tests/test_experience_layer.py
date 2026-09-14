@@ -147,7 +147,8 @@ def test_day_one_romantic_identity_does_not_fabricate_history(
     assert not state.shared_experiences and not state.milestones
     assert reply.turn.metadata["relationship_identity"] == "romantic_partner"
     assert "情侣称呼" in model.inputs[0][0].content
-    assert '"familiarity_stage":"new"' in model.inputs[0][0].content
+    assert '"familiarity_stage":"new"' in model.inputs[0][1].content
+    assert "[RELATIONSHIP CONTEXT]" not in model.inputs[0][0].content
     assert not agent.experiences.list_experiences(KEY)
 
 

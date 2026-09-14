@@ -233,12 +233,18 @@ def test_context_specific_exception_preserves_long_term_pattern(
 ) -> None:
     model = evaluate_and_commit(service, "讨论技术时我更喜欢直接回答。")
     assert model.patterns[0].status is RelationshipPatternStatus.ESTABLISHED
-    model = evaluate_and_commit(service, "今天我不想听方案，就想吐槽。")
+    agent = CompanionAgent(service, load_persona(), StubLLM())
+    reply = agent.chat(chat_request("今天我不想听方案，就想吐槽。", "listen"))
+    model = agent.relationships.get_relationship(KEY)
     assert len(model.patterns) == 1 and model.patterns[0].id == "technical-directness"
-    assert "本轮先听" in (model.recent_dynamics.summary or "")
+    assert reply.turn.metadata["response_goal"] == "listen"
+    assert agent.current_states and any(
+        r.value == "listen" for r in agent.current_states.snapshot(KEY, "c1")
+    )
+    assert model.recent_dynamics.summary is None
     context = compile_relationship_context(model, ResponseGoal.LISTEN, "今天老板又找我谈了")
     assert not context.relevant_patterns
-    assert context.recent_dynamic_summary
+    assert context.recent_dynamic_summary is None
 
 
 @pytest.mark.parametrize("text", ["她说我们是恋人。", "如果我们是恋人会怎样？", "我们不是朋友吗？"])
@@ -330,9 +336,9 @@ def test_user_boundary_is_in_current_reply_preview_but_only_commits_after_succes
     assert prepared.context.relationship and prepared.context.relationship.active_boundaries
     assert not agent.relationships.get_relationship(KEY).boundaries
     reply = agent.chat(chat_request("我不喜欢你这么叫我。"))
-    assert "不要再使用" in model.inputs[0][0].content
+    assert "不要再使用" in model.inputs[0][1].content
     assert agent.relationships.get_relationship(KEY).boundaries
-    assert reply.turn.metadata["agent_version"] == "0.4.0"
+    assert reply.turn.metadata["agent_version"] == "0.4.1"
     assert (
         reply.turn.metadata["relationship_revision_after"]
         > reply.turn.metadata["relationship_revision"]
@@ -409,7 +415,7 @@ def test_message_volume_alone_and_long_duration_alone_do_not_upgrade() -> None:
     )
 
 
-def test_conflict_and_user_distance_override_stage() -> None:
+def test_conflict_is_context_but_user_distance_is_binding() -> None:
     model = stage_fixture()
     at = datetime.now(UTC)
     model.stage = RelationshipStage.CLOSE
@@ -420,7 +426,8 @@ def test_conflict_and_user_distance_override_stage() -> None:
     assert (
         evaluate_transition(model, RelationshipConfig(), at).stage is RelationshipStage.ESTABLISHED
     )
-    assert evaluate_distance(model, RelationshipConfig(), at) is RelationshipDistance.RESERVED
+    assert evaluate_distance(model, RelationshipConfig(), at) is RelationshipDistance.OPEN
+    assert model.recent_dynamics.recent_conflict_level == 0.95
     model.distance_ceiling = RelationshipStage.NEW
     model.distance_evidence_ids = ["turn:2"]
     state = evaluate_transition(model, RelationshipConfig(), at)
@@ -731,7 +738,7 @@ def test_returning_turn_preserves_history_and_contracts_distance(
     agent.relationships.store.create(model)
     reply = agent.chat(chat_request("好久不见。"))
     assert reply.turn.metadata["familiarity_stage"] == "established"
-    assert reply.turn.metadata["relationship_distance"] == "cautious"
+    assert reply.turn.metadata["relationship_distance"] == "open"
     assert agent.relationships.get_relationship(KEY).stage is RelationshipStage.ESTABLISHED
     agent.chat(chat_request("今天过得怎么样？", "return-2"))
     assert agent.relationships.get_relationship(KEY).stage is RelationshipStage.ESTABLISHED

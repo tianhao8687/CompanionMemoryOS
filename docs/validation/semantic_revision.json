@@ -1,0 +1,2088 @@
+{
+  "mode": "stub",
+  "live_model_experience_verified": false,
+  "purpose": "Deterministic state, persistence and actual main-model input comparison; stub text is not quality evidence.",
+  "scenario_count": 13,
+  "turn_count": 35,
+  "python": "3.12.14",
+  "tools": {
+    "ruff": "0.16.7",
+    "mypy": "1.20.2",
+    "pytest": "8.4.2",
+    "tiktoken": "0.14.0"
+  },
+  "baseline": {
+    "commit_at_execution": "8e24b81faef7f48df9f2901d148238f6675025e2",
+    "worktree_dirty": true,
+    "runtime": "0.4.0",
+    "persona": "0.1.1",
+    "source_digest": null,
+    "median_latency_ms": 174.76,
+    "p95_latency_ms": 230.19,
+    "median_context_tokens": 1550,
+    "maximum_context_tokens": 1637,
+    "main_adapter_calls": 35,
+    "provider_calls": 0,
+    "interpreter_calls": 0,
+    "rows": [
+      {
+        "scenario": "negated_complaint",
+        "turn": 0,
+        "input": "你刚才没有打断我，我很感谢你。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "reserved",
+        "conflict": 0.85,
+        "states": [],
+        "latency_ms": 179.57,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1527,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "negated_complaint",
+        "turn": 1,
+        "input": "我接着说。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "reserved",
+        "conflict": 0.85,
+        "states": [],
+        "latency_ms": 175.5,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1550,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "denied_repair",
+        "turn": 0,
+        "input": "你刚才打断我，让我很不舒服。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "reserved",
+        "conflict": 0.85,
+        "states": [],
+        "latency_ms": 167.69,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1528,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "denied_repair",
+        "turn": 1,
+        "input": "我不能原谅你。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [],
+        "latency_ms": 176.98,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1562,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "denied_repair",
+        "turn": 2,
+        "input": "还有一件事。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [],
+        "latency_ms": 181.5,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1561,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "third_party",
+        "turn": 0,
+        "input": "今天我朋友很难过。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:sadness:general",
+            "value": "sadness",
+            "topic": null
+          }
+        ],
+        "latency_ms": 163.3,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1549,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "third_party",
+        "turn": 1,
+        "input": "最近我的同事有点累，压力也很大。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:sadness:general",
+            "value": "sadness",
+            "topic": null
+          },
+          {
+            "slot": "condition:fatigue:general",
+            "value": "fatigue",
+            "topic": null
+          }
+        ],
+        "latency_ms": 191.05,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1637,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "quoted_repair",
+        "turn": 0,
+        "input": "你刚才打断我，让我很不舒服。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "reserved",
+        "conflict": 0.85,
+        "states": [],
+        "latency_ms": 164.81,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1528,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "quoted_repair",
+        "turn": 1,
+        "input": "他说“我已经原谅你了”，但我还没有。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "reserved",
+        "conflict": 0.85,
+        "states": [],
+        "latency_ms": 160.67,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1561,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "other_repair",
+        "turn": 0,
+        "input": "你刚才打断我，让我很不舒服。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "reserved",
+        "conflict": 0.85,
+        "states": [],
+        "latency_ms": 174.76,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1528,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "other_repair",
+        "turn": 1,
+        "input": "我和同事的误会说开了，但和你还没有。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "reserved",
+        "conflict": 0.85,
+        "states": [],
+        "latency_ms": 161.73,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1561,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "affirmative",
+        "turn": 0,
+        "input": "我今天很难过。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:sadness:general",
+            "value": "sadness",
+            "topic": null
+          }
+        ],
+        "latency_ms": 158.04,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1546,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "affirmative",
+        "turn": 1,
+        "input": "你刚才误解我，我很生气。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:sadness:general",
+            "value": "sadness",
+            "topic": null
+          }
+        ],
+        "latency_ms": 177.47,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1588,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "affirmative",
+        "turn": 2,
+        "input": "我已经原谅你了。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:sadness:general",
+            "value": "sadness",
+            "topic": null
+          }
+        ],
+        "latency_ms": 225.73,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1610,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "listen_then_solve",
+        "turn": 0,
+        "input": "我不是不想听建议，只是想先说完。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "communication:need",
+            "value": "listen",
+            "topic": null
+          }
+        ],
+        "latency_ms": 143.67,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1473,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "listen_then_solve",
+        "turn": 1,
+        "input": "还有第0件事没讲。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "communication:need",
+            "value": "listen",
+            "topic": null
+          }
+        ],
+        "latency_ms": 166.32,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1500,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "listen_then_solve",
+        "turn": 2,
+        "input": "还有第1件事没讲。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "communication:need",
+            "value": "listen",
+            "topic": null
+          }
+        ],
+        "latency_ms": 183.72,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1500,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "listen_then_solve",
+        "turn": 3,
+        "input": "还有第2件事没讲。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "communication:need",
+            "value": "listen",
+            "topic": null
+          }
+        ],
+        "latency_ms": 205.8,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1500,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "listen_then_solve",
+        "turn": 4,
+        "input": "还有第3件事没讲。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "communication:need",
+            "value": "listen",
+            "topic": null
+          }
+        ],
+        "latency_ms": 219.03,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1500,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "listen_then_solve",
+        "turn": 5,
+        "input": "现在给我两个办法。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "problem_solve",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "communication:need",
+            "value": "problem_solve",
+            "topic": null
+          }
+        ],
+        "latency_ms": 240.6,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1505,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "tired_task",
+        "turn": 0,
+        "input": "我很累，帮我修改这段自我介绍：我做过数据分析，想找产品方面的工作。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:fatigue:general",
+            "value": "fatigue",
+            "topic": null
+          }
+        ],
+        "latency_ms": 147.05,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1527,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "requested_humor",
+        "turn": 0,
+        "input": "我很难过，先听我说。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:sadness:general",
+            "value": "sadness",
+            "topic": null
+          },
+          {
+            "slot": "communication:need",
+            "value": "listen",
+            "topic": null
+          }
+        ],
+        "latency_ms": 151.97,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1514,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "requested_humor",
+        "turn": 1,
+        "input": "讲个笑话让我缓缓。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:sadness:general",
+            "value": "sadness",
+            "topic": null
+          },
+          {
+            "slot": "communication:need",
+            "value": "listen",
+            "topic": null
+          }
+        ],
+        "latency_ms": 171.88,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1550,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "requested_humor",
+        "turn": 2,
+        "input": "接着帮我改一句介绍。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:sadness:general",
+            "value": "sadness",
+            "topic": null
+          },
+          {
+            "slot": "communication:need",
+            "value": "listen",
+            "topic": null
+          }
+        ],
+        "latency_ms": 198.88,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1551,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "returning",
+        "turn": 0,
+        "input": "你好，很高兴认识你。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [],
+        "latency_ms": 139.97,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1504,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "returning",
+        "turn": 1,
+        "input": "好久不见！见到你真开心！",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "cautious",
+        "conflict": 0.0,
+        "states": [],
+        "latency_ms": 156.2,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1583,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "distance",
+        "turn": 0,
+        "input": "以后保持距离吧。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "reserved",
+        "conflict": 0.0,
+        "states": [],
+        "latency_ms": 147.99,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1565,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "distance",
+        "turn": 1,
+        "input": "好久不见！见到你真开心！",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "reserved",
+        "conflict": 0.0,
+        "states": [],
+        "latency_ms": 159.46,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1602,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "topic_hold",
+        "turn": 0,
+        "input": "我担心面试。房租也让我担心。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:pressure:房租",
+            "value": "pressure",
+            "topic": "房租"
+          },
+          {
+            "slot": "condition:pressure:面试",
+            "value": "pressure",
+            "topic": "面试"
+          }
+        ],
+        "latency_ms": 162.25,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1607,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "topic_hold",
+        "turn": 1,
+        "input": "先别提面试了。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:pressure:房租",
+            "value": "pressure",
+            "topic": "房租"
+          },
+          {
+            "slot": "condition:pressure:面试",
+            "value": "pressure",
+            "topic": "面试"
+          }
+        ],
+        "latency_ms": 177.04,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1579,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "topic_hold",
+        "turn": 2,
+        "input": "房租也先别提了。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:pressure:房租",
+            "value": "pressure",
+            "topic": "房租"
+          },
+          {
+            "slot": "condition:pressure:面试",
+            "value": "pressure",
+            "topic": "面试"
+          }
+        ],
+        "latency_ms": 192.41,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1586,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "topic_hold",
+        "turn": 3,
+        "input": "帮我分析工作安排。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:pressure:房租",
+            "value": "pressure",
+            "topic": "房租"
+          },
+          {
+            "slot": "condition:pressure:面试",
+            "value": "pressure",
+            "topic": "面试"
+          }
+        ],
+        "latency_ms": 222.73,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1536,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "topic_hold",
+        "turn": 4,
+        "input": "现在继续聊面试。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:pressure:房租",
+            "value": "pressure",
+            "topic": "房租"
+          },
+          {
+            "slot": "condition:pressure:面试",
+            "value": "pressure",
+            "topic": "面试"
+          }
+        ],
+        "latency_ms": 244.86,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1583,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "correction",
+        "turn": 0,
+        "input": "我很难过，也有点累。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:sadness:general",
+            "value": "sadness",
+            "topic": null
+          }
+        ],
+        "latency_ms": 159.18,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1550,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      },
+      {
+        "scenario": "correction",
+        "turn": 1,
+        "input": "我不是难过，只是累。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:fatigue:general",
+            "value": "fatigue",
+            "topic": null
+          }
+        ],
+        "latency_ms": 200.78,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1584,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": true,
+          "relationship_in_system": true,
+          "hard_distress_humor": true
+        }
+      }
+    ]
+  },
+  "revised": {
+    "commit_at_execution": "8e24b81faef7f48df9f2901d148238f6675025e2",
+    "worktree_dirty": true,
+    "runtime": "0.4.1",
+    "persona": "0.1.2",
+    "source_digest": "f093815fbbd5732f604c76455ef2866f6b433e86f09b186a8ac454d87d0959e1",
+    "median_latency_ms": 198.5,
+    "p95_latency_ms": 295.52,
+    "median_context_tokens": 1679,
+    "maximum_context_tokens": 1799,
+    "main_adapter_calls": 35,
+    "provider_calls": 0,
+    "interpreter_calls": 0,
+    "rows": [
+      {
+        "scenario": "negated_complaint",
+        "turn": 0,
+        "input": "你刚才没有打断我，我很感谢你。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [],
+        "latency_ms": 185.21,
+        "generation_ms": 0.01,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1598,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "negated_complaint",
+        "turn": 1,
+        "input": "我接着说。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [],
+        "latency_ms": 192.45,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1621,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "denied_repair",
+        "turn": 0,
+        "input": "你刚才打断我，让我很不舒服。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.85,
+        "states": [],
+        "latency_ms": 187.07,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1633,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "denied_repair",
+        "turn": 1,
+        "input": "我不能原谅你。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.85,
+        "states": [],
+        "latency_ms": 198.5,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1672,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "denied_repair",
+        "turn": 2,
+        "input": "还有一件事。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.85,
+        "states": [],
+        "latency_ms": 195.11,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1655,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "third_party",
+        "turn": 0,
+        "input": "今天我朋友很难过。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [],
+        "latency_ms": 193.02,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1592,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "third_party",
+        "turn": 1,
+        "input": "最近我的同事有点累，压力也很大。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [],
+        "latency_ms": 211.57,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1633,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "quoted_repair",
+        "turn": 0,
+        "input": "你刚才打断我，让我很不舒服。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.85,
+        "states": [],
+        "latency_ms": 188.05,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1633,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "quoted_repair",
+        "turn": 1,
+        "input": "他说“我已经原谅你了”，但我还没有。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.85,
+        "states": [],
+        "latency_ms": 171.51,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1682,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "other_repair",
+        "turn": 0,
+        "input": "你刚才打断我，让我很不舒服。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.85,
+        "states": [],
+        "latency_ms": 179.97,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1633,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "other_repair",
+        "turn": 1,
+        "input": "我和同事的误会说开了，但和你还没有。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.85,
+        "states": [],
+        "latency_ms": 181.47,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1682,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "affirmative",
+        "turn": 0,
+        "input": "我今天很难过。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:sadness:general",
+            "value": "sadness",
+            "topic": null
+          }
+        ],
+        "latency_ms": 186.06,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1641,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "affirmative",
+        "turn": 1,
+        "input": "你刚才误解我，我很生气。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.85,
+        "states": [
+          {
+            "slot": "condition:sadness:general",
+            "value": "sadness",
+            "topic": null
+          }
+        ],
+        "latency_ms": 223.89,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1717,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "affirmative",
+        "turn": 2,
+        "input": "我已经原谅你了。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:sadness:general",
+            "value": "sadness",
+            "topic": null
+          }
+        ],
+        "latency_ms": 241.91,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1699,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "listen_then_solve",
+        "turn": 0,
+        "input": "我不是不想听建议，只是想先说完。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "communication:need",
+            "value": "listen",
+            "topic": null
+          }
+        ],
+        "latency_ms": 180.94,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1667,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "listen_then_solve",
+        "turn": 1,
+        "input": "还有第0件事没讲。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "communication:need",
+            "value": "listen",
+            "topic": null
+          }
+        ],
+        "latency_ms": 198.27,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1694,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "listen_then_solve",
+        "turn": 2,
+        "input": "还有第1件事没讲。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "communication:need",
+            "value": "listen",
+            "topic": null
+          }
+        ],
+        "latency_ms": 227.44,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1694,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "listen_then_solve",
+        "turn": 3,
+        "input": "还有第2件事没讲。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "communication:need",
+            "value": "listen",
+            "topic": null
+          }
+        ],
+        "latency_ms": 261.72,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1694,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "listen_then_solve",
+        "turn": 4,
+        "input": "还有第3件事没讲。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "communication:need",
+            "value": "listen",
+            "topic": null
+          }
+        ],
+        "latency_ms": 318.39,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1694,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "listen_then_solve",
+        "turn": 5,
+        "input": "现在给我两个办法。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "problem_solve",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "communication:need",
+            "value": "problem_solve",
+            "topic": null
+          }
+        ],
+        "latency_ms": 308.48,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1662,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "tired_task",
+        "turn": 0,
+        "input": "我很累，帮我修改这段自我介绍：我做过数据分析，想找产品方面的工作。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:fatigue:general",
+            "value": "fatigue",
+            "topic": null
+          }
+        ],
+        "latency_ms": 204.67,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1616,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "requested_humor",
+        "turn": 0,
+        "input": "我很难过，先听我说。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "listen",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:sadness:general",
+            "value": "sadness",
+            "topic": null
+          },
+          {
+            "slot": "communication:need",
+            "value": "listen",
+            "topic": null
+          }
+        ],
+        "latency_ms": 208.27,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1713,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "requested_humor",
+        "turn": 1,
+        "input": "讲个笑话让我缓缓。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:sadness:general",
+            "value": "sadness",
+            "topic": null
+          }
+        ],
+        "latency_ms": 247.9,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1628,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "requested_humor",
+        "turn": 2,
+        "input": "接着帮我改一句介绍。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:sadness:general",
+            "value": "sadness",
+            "topic": null
+          }
+        ],
+        "latency_ms": 275.16,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1629,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "returning",
+        "turn": 0,
+        "input": "你好，很高兴认识你。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [],
+        "latency_ms": 175.98,
+        "generation_ms": 0.01,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1593,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "returning",
+        "turn": 1,
+        "input": "好久不见！见到你真开心！",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [],
+        "latency_ms": 214.67,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1682,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "distance",
+        "turn": 0,
+        "input": "以后保持距离吧。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "reserved",
+        "conflict": 0.0,
+        "states": [],
+        "latency_ms": 194.04,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1654,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "distance",
+        "turn": 1,
+        "input": "好久不见！见到你真开心！",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "reserved",
+        "conflict": 0.0,
+        "states": [],
+        "latency_ms": 196.21,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1745,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "topic_hold",
+        "turn": 0,
+        "input": "我担心面试。房租也让我担心。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:pressure:房租",
+            "value": "pressure",
+            "topic": "房租"
+          },
+          {
+            "slot": "condition:pressure:面试",
+            "value": "pressure",
+            "topic": "面试"
+          }
+        ],
+        "latency_ms": 193.2,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1707,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "topic_hold",
+        "turn": 1,
+        "input": "先别提面试了。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:pressure:房租",
+            "value": "pressure",
+            "topic": "房租"
+          },
+          {
+            "slot": "condition:pressure:面试",
+            "value": "pressure",
+            "topic": "面试"
+          },
+          {
+            "slot": "style:reference:面试",
+            "value": "hold",
+            "topic": "面试"
+          }
+        ],
+        "latency_ms": 228.97,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1707,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "topic_hold",
+        "turn": 2,
+        "input": "房租也先别提了。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:pressure:房租",
+            "value": "pressure",
+            "topic": "房租"
+          },
+          {
+            "slot": "condition:pressure:面试",
+            "value": "pressure",
+            "topic": "面试"
+          },
+          {
+            "slot": "style:reference:面试",
+            "value": "hold",
+            "topic": "面试"
+          },
+          {
+            "slot": "style:reference:房租",
+            "value": "hold",
+            "topic": "房租"
+          }
+        ],
+        "latency_ms": 285.33,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1799,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "topic_hold",
+        "turn": 3,
+        "input": "帮我分析工作安排。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:pressure:房租",
+            "value": "pressure",
+            "topic": "房租"
+          },
+          {
+            "slot": "condition:pressure:面试",
+            "value": "pressure",
+            "topic": "面试"
+          },
+          {
+            "slot": "style:reference:面试",
+            "value": "hold",
+            "topic": "面试"
+          },
+          {
+            "slot": "style:reference:房租",
+            "value": "hold",
+            "topic": "房租"
+          }
+        ],
+        "latency_ms": 282.6,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1799,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "topic_hold",
+        "turn": 4,
+        "input": "现在继续聊面试。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:pressure:房租",
+            "value": "pressure",
+            "topic": "房租"
+          },
+          {
+            "slot": "condition:pressure:面试",
+            "value": "pressure",
+            "topic": "面试"
+          },
+          {
+            "slot": "style:reference:房租",
+            "value": "hold",
+            "topic": "房租"
+          }
+        ],
+        "latency_ms": 289.96,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1767,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "correction",
+        "turn": 0,
+        "input": "我很难过，也有点累。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:fatigue:general",
+            "value": "fatigue",
+            "topic": null
+          },
+          {
+            "slot": "condition:sadness:general",
+            "value": "sadness",
+            "topic": null
+          }
+        ],
+        "latency_ms": 184.34,
+        "generation_ms": 0.0,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1697,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      },
+      {
+        "scenario": "correction",
+        "turn": 1,
+        "input": "我不是难过，只是累。",
+        "output": "传输桩：不代表真实模型体验。",
+        "model": "revision-stub",
+        "response_goal": "direct_answer",
+        "distance": "open",
+        "conflict": 0.0,
+        "states": [
+          {
+            "slot": "condition:fatigue:general",
+            "value": "fatigue",
+            "topic": null
+          }
+        ],
+        "latency_ms": 224.36,
+        "generation_ms": 0.01,
+        "main_calls": 1,
+        "provider_calls": 0,
+        "interpreter_calls": 0,
+        "interpreter_configured": false,
+        "interpretation_status": "not_configured",
+        "context_tokens": 1679,
+        "usage": null,
+        "prompt_roles": {
+          "current_state_in_system": false,
+          "relationship_in_system": false,
+          "hard_distress_humor": false
+        }
+      }
+    ]
+  }
+}

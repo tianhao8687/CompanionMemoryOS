@@ -95,7 +95,12 @@ class CurrentStateAnalysis(RelationshipData):
     stop_reference: bool = False
     conflict: bool = False
     repair: bool = False
+    repair_requires_context: bool = False
+    conflict_correction: bool = False
+    reopened_topics: list[str] = Field(default_factory=list)
+    reopen_unscoped: bool = False
     permanent_address_boundary: bool = False
+    rejected_address_text: str | None = None
 
 
 class CompiledCurrentState(RelationshipKey):
@@ -105,6 +110,7 @@ class CompiledCurrentState(RelationshipKey):
     state_ids: list[str] = Field(default_factory=list)
     source_turn_ids: list[str] = Field(default_factory=list)
     degraded: bool = False
+    has_explicit_requests: bool = False
 
 
 class StatePreparation(RelationshipData):
