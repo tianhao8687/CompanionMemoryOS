@@ -447,6 +447,7 @@ class CompanionAgent:
         relationship_stage: RelationshipStage | None = None,
         *,
         response_goal: ResponseGoal | None = None,
+        continuation_key: str | None = None,
     ) -> AgentResponse:
         if self.main_llm is None:
             raise ValueError("configure a Main LLM before chatting")
@@ -457,7 +458,10 @@ class CompanionAgent:
             and not request.allow_sensitive_model_input
         ):
             raise ValueError("Main LLM input requires model consent")
-        response_key = "agent:" + hashlib.sha256(request.idempotency_key.encode()).hexdigest()
+        delivery_key = request.idempotency_key
+        if continuation_key:
+            delivery_key += ":continuation:" + continuation_key
+        response_key = "agent:" + hashlib.sha256(delivery_key.encode()).hexdigest()
         with self._lock:
             turns = self.memory.list_turns(request.user_id, request.scope)
             for turn in turns:

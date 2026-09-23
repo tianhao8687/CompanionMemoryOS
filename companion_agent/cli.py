@@ -8,8 +8,9 @@ from uuid import uuid4
 
 from companion_agent import CompanionAgent, RelationshipStage, load_persona
 from companion_agent.current_state import CurrentStateConfig
+from companion_agent.deepseek import DeepSeekConfig, DeepSeekLLM
 from companion_agent.experience import ExperienceConfig
-from companion_agent.llm import MainLLMError, OpenAICompatibleMainLLM
+from companion_agent.llm import MainLLM, MainLLMError, OpenAICompatibleMainLLM
 from companion_agent.relationship import RelationshipConfig, RelationshipKey
 from companion_agent.semantics import RelationshipIdentityType
 from companion_memoryos.config import InterpreterConfig, load_config
@@ -61,7 +62,8 @@ def main() -> None:
     inspection.add_argument("--current-state", action="store_true")
     parser.add_argument("--base-url")
     parser.add_argument("--model")
-    parser.add_argument("--api-key-env", default="MAIN_LLM_API_KEY")
+    parser.add_argument("--provider", choices=["compatible", "deepseek"], default="compatible")
+    parser.add_argument("--api-key-env")
     parser.add_argument("--allow-model", action="store_true")
     parser.add_argument(
         "--prepare", metavar="TEXT", help="compose input locally without a model call"
@@ -82,7 +84,10 @@ def main() -> None:
     if (
         not inspect_relationship
         and args.prepare is None
-        and (not args.allow_model or not args.base_url or not args.model)
+        and (
+            not args.allow_model
+            or (args.provider != "deepseek" and (not args.base_url or not args.model))
+        )
     ):
         parser.error(
             "chat requires --allow-model, --base-url and --model; use --prepare for local input"
@@ -92,17 +97,23 @@ def main() -> None:
     database.initialize()
     # --prepare never invokes even a configured MemoryOS interpreter.
     service = CompanionMemoryService(MemoryStore(database), config)
-    llm = (
-        OpenAICompatibleMainLLM(
+    llm: MainLLM | None = None
+    if args.prepare is None and not inspect_relationship and args.provider == "deepseek":
+        llm = DeepSeekLLM(
+            DeepSeekConfig(
+                base_url=args.base_url or "https://api.deepseek.com",
+                model=args.model or "deepseek-flash",
+                api_key_env=args.api_key_env or "DEEPSEEK_API_KEY",
+            )
+        )
+    elif args.prepare is None and not inspect_relationship:
+        llm = OpenAICompatibleMainLLM(
             InterpreterConfig(
                 base_url=args.base_url,
                 model=args.model,
-                api_key_env=args.api_key_env,
+                api_key_env=args.api_key_env or "MAIN_LLM_API_KEY",
             )
         )
-        if args.prepare is None and not inspect_relationship
-        else None
-    )
     agent = CompanionAgent(
         service,
         load_persona(args.persona),

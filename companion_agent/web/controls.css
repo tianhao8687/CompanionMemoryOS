@@ -1,0 +1,106 @@
+/* Shared controls, including menus opened above the glass sheets.
+   Customizable native selects retain platform keyboard and form semantics. */
+:root{
+  --control-fill:linear-gradient(140deg,#ffffffa6,#ffffff57);
+  --menu-fill:linear-gradient(140deg,#fffffff0,#f5f3eccf 60%,#edf3e5db);
+  --menu-shadow:inset 0 1px 1px #fff,inset 1px 0 1px #fff9,0 18px 50px #35433126,0 3px 10px #35433112;
+}
+:is(button,a,summary):focus-visible,.style-options input:focus-visible+span{outline:3px solid #007aff70;outline-offset:3px}
+:is(input,textarea,select):focus{outline:3px solid #007aff24;border-color:#7cb8f1!important}
+input[type=hidden]{display:none!important}
+::selection{background:#79b9ff55}
+.settings-body label,.memory-card label{color:#526151}
+.settings-body :is(input:not([type=checkbox]):not([type=radio]),textarea,select),.memory-card :is(input,textarea,select){
+  background:var(--control-fill);border:1px solid #fffffff0;border-radius:13px;
+  box-shadow:inset 0 1px 2px #596b4610,0 1px 0 #ffffffbf;color:#34483c;min-width:0;
+  transition:border-color .18s,outline-color .18s,background .18s;
+}
+.settings-body :is(input,textarea)::placeholder,.memory-card :is(input,textarea)::placeholder{color:#869082}
+.settings-body :is(input,textarea,select):disabled{opacity:.5;cursor:not-allowed}
+.settings-body :is(input,textarea,select):user-invalid:focus,.memory-card input:user-invalid:focus{border-color:#d9978b!important;outline-color:#e2a39b33}
+.settings-body select{cursor:pointer;line-height:1.5;text-overflow:ellipsis;min-height:43px}
+/* Unsupported browsers keep their native picker, with the same closed field. */
+@supports (appearance:base-select){
+  select,select::picker(select){appearance:base-select}
+  .settings-body select,.calendar-time select{display:flex;align-items:center;justify-content:space-between}
+  select::picker(select){
+    padding:6px;margin-block:7px;border:1px solid #ffffffed;border-radius:17px;
+    background:var(--menu-fill);box-shadow:var(--menu-shadow);color:#35473a;
+    -webkit-backdrop-filter:blur(30px) saturate(150%);backdrop-filter:blur(30px) saturate(150%);
+    max-height:min(330px,50dvh);max-width:calc(100vw - 20px);overflow:auto;min-width:anchor-size(width);
+  }
+  select::picker-icon{content:"";width:7px;height:7px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;rotate:45deg;translate:0 -2px;margin-left:16px;margin-right:4px;flex-shrink:0;color:#73816d;transition:rotate .2s}
+  select:open::picker-icon{rotate:225deg;translate:0 2px}
+  select option{display:flex;align-items:center;gap:12px;padding:11px 12px;min-height:40px;border:0;border-radius:11px;background:transparent;color:#465748;font-size:13px;white-space:normal;overflow-wrap:anywhere}
+  select option:checked{color:#176dc0;background:#007aff0c;font-weight:550}
+  select option:hover,select option:focus{background:#007aff14;color:#1769b8;outline:0}
+  select option::checkmark{order:1;margin-left:auto;content:"✓";color:#007aff;font-weight:600}
+}
+.control-input{display:flex;align-items:center;position:relative;margin-top:7px}
+.control-input>input{margin-top:0!important;padding-right:44px!important;width:100%}
+.control-trigger{position:absolute;right:4px;top:4px;bottom:4px;width:35px;display:grid;place-items:center;border:0;border-radius:10px;background:transparent;color:#6f806c;padding:8px}
+.control-trigger:hover,.control-trigger[aria-expanded=true]{background:#ffffff9c;color:#007aff}
+.control-trigger .icon{width:17px;height:17px}
+.control-chevron{width:7px;height:7px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;rotate:45deg;translate:0 -2px;transition:rotate .2s}
+.control-trigger[aria-expanded=true] .control-chevron{rotate:225deg;translate:0 2px}
+.control-popover{position:fixed;inset:auto;margin:0;padding:7px;border:1px solid #ffffffe6;border-radius:19px;background:var(--menu-fill);box-shadow:var(--menu-shadow);color:#34483c;overflow:auto;max-width:calc(100vw - 20px);-webkit-backdrop-filter:blur(30px) saturate(150%);backdrop-filter:blur(30px) saturate(150%)}
+.control-popover::backdrop{background:transparent}
+.model-suggestion{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;min-height:42px;border-radius:12px;font-size:13px;cursor:pointer}
+.model-suggestion[aria-selected=true]{background:#007aff0b;color:#176dc0}
+.model-suggestion[aria-selected=true]::after{content:"✓";color:#007aff}
+.model-suggestion:hover,.model-suggestion[data-active=true]{background:#007aff17;color:#1769b8}
+.control-hint{font-size:11px;color:#7c8375;line-height:1.8;padding:9px 12px 5px;margin:0;border-top:1px solid #73806c12}
+.calendar-popover{width:310px;padding:16px}
+.calendar-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}
+.calendar-heading strong{font-size:14px;font-weight:600}
+.calendar-nav{display:flex;gap:6px}
+.calendar-nav button{width:30px;height:30px;border:1px solid #fff;border-radius:50%;background:#ffffff80;color:#63775f;font-size:20px;line-height:1}
+.calendar-nav button:hover{background:#fff;color:#007aff}
+.calendar-week,.calendar-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));text-align:center;gap:3px}
+.calendar-week{font-size:10px;color:#8a9181;margin-bottom:6px;line-height:24px}
+.calendar-days button{height:34px;width:100%;padding:0;border:1px solid transparent;border-radius:50%;background:transparent;font-size:12px;color:#52634e;font-variant-numeric:tabular-nums}
+.calendar-days button:hover{background:#ffffffa6;border-color:#fff}
+.calendar-days button[aria-current=date]{color:#007aff;font-weight:600}
+.calendar-days button[aria-pressed=true]{background:linear-gradient(145deg,#49a6ff,#007aff);color:#fff;border-color:#85beff;box-shadow:inset 0 1px 1px #fff8,0 3px 8px #1475d32b}
+.calendar-time{display:flex;gap:8px;align-items:center;border-top:1px solid #75816d19;margin-top:13px;padding-top:13px;font-size:12px;color:#6c7a63}
+.calendar-time>span{margin-right:auto}
+.calendar-time select{width:61px;padding:7px 8px;border-radius:10px;border:1px solid #fff;background:#ffffff8c;color:#43593e;font-size:13px}
+.calendar-time select::picker-icon{margin-left:6px;margin-right:2px;width:5px;height:5px}
+.calendar-footer{display:flex;gap:10px;align-items:center;margin-top:15px}
+.calendar-footer .primary-button{margin-left:auto;padding:8px 13px;min-height:35px;font-size:11px}
+.calendar-footer .text-button{color:#6b8161}
+.calendar-caption{font-size:10px;color:#7c8875;margin:10px 0 0;text-align:center}
+dialog details:not(.more-tools)>summary{display:flex;align-items:center;gap:10px;list-style:none;line-height:1.6;color:#64775c}
+dialog details:not(.more-tools)>summary::-webkit-details-marker{display:none}
+dialog details:not(.more-tools)>summary::after{content:"";flex-shrink:0;width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;rotate:-45deg;margin-left:auto;transition:rotate .2s}
+dialog details[open]:not(.more-tools)>summary::after{rotate:45deg}
+.memory-editor{margin-top:14px;padding-top:14px;border-top:1px solid #fff;display:flex;flex-wrap:wrap;gap:9px}
+.memory-editor textarea{flex-basis:100%;min-height:96px;resize:vertical;line-height:1.8;font-size:13px}
+.memory-card .text-button{border:1px solid #ffffffd6;border-radius:11px;background:#ffffff60;padding:7px 11px;box-shadow:inset 0 1px 1px #fff}
+.memory-card .text-button:hover{background:#ffffffb0}
+.memory-card .auto-controls>details{flex:1;min-width:100px;padding:10px 0}
+.memory-card .auto-controls>details[open]{flex-basis:100%}
+.auto-card pre{background:#ffffff5e;border:1px solid #ffffffc4;color:#52634d;line-height:1.7;box-shadow:inset 0 1px 3px #58634708}
+.empty-state,.memory-empty{white-space:pre-line;text-align:center;padding:24px 17px;margin:14px 0;border:1px solid #ffffffb8;border-radius:19px;background:linear-gradient(140deg,#ffffff75,#ffffff25);color:#7a8673;font-size:12px;line-height:2;box-shadow:inset 0 1px 1px #fff}
+.auto-state,.key-status{display:inline-flex;align-items:center;border-radius:20px;border:1px solid #ffffffb3;background:#74856612;padding:4px 9px;font-size:10px;color:#778369;white-space:nowrap}
+.auto-state[data-status=active],.auto-state[data-status=running],.auto-state[data-status="未读"]{color:#3479b9;background:#3c99ef12}
+.auto-state[data-status=succeeded],.auto-state[data-status=completed],.auto-state[data-status="已启用"]{color:#5b885c;background:#69a16b18}
+.auto-state[data-status=pending],.auto-state[data-status=uncertain]{color:#ad823a;background:#dfb85819}
+.auto-state[data-status=failed],.auto-state[data-status=denied]{color:#b66d60;background:#d9857215}
+.settings-message{margin:0 20px 12px;padding:12px 15px;border:1px solid #ffffffc9;border-radius:15px;background:linear-gradient(135deg,#e9f3ffbb,#ffffff5c);color:#5480a5;box-shadow:inset 0 1px 1px #fff;font-size:12px}
+.settings-message[data-tone=success]{background:linear-gradient(135deg,#e6f3dfad,#ffffff5c);color:#638058}
+.settings-message[data-tone=error],.chat-error{background:linear-gradient(135deg,#faeae5cc,#fff7f066);border:1px solid #ffffffc9;color:#a26a5d;border-radius:15px}
+.text-button{color:#708763}.text-button:hover{color:#3f714f}
+#channel-state:not(:empty),#channel-login-result:not(:empty){padding:13px 15px;border-radius:14px;border:1px solid #ffffffc9;background:#ffffff57;margin-top:16px}
+#channel-login-result a{color:#007aff}
+.toast[popover]{inset:auto auto 28px 50%;margin:0;width:max-content}
+@media(max-width:760px){
+  .memory-card :is(input,textarea){font-size:16px}
+  select option{font-size:14px;min-height:44px}
+  .settings-message{margin:0 14px 12px}
+  .control-input>input{padding-right:42px!important}
+  .calendar-days button{height:36px}
+  .toast[popover]{bottom:20px}
+}
+@media(max-width:420px){#settings-model .two-columns{grid-template-columns:1fr;gap:0}}
+@supports not (backdrop-filter:blur(1px)){.control-popover,select::picker(select){background:#f5f4ed}}

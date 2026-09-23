@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#eaded6">
+  <title>心隅 · 留一盏灯，听你说</title>
+  <link rel="icon" href="/static/heart.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/material.css">
+  <link rel="stylesheet" href="/static/controls.css">
+  <script src="/static/app.js" defer></script>
+  <script src="/static/automation.js" defer></script>
+  <script src="/static/life.js" defer></script>
+  <script src="/static/controls.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-heading">
+        <a class="brand" href="/" aria-label="心隅首页"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#heart"/></svg></span><span>心隅<small>A LITTLE CLOSER</small></span></a>
+        <button class="icon-button sidebar-close" id="close-sidebar" aria-label="收起历史对话"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#close"/></svg></button>
+      </div>
+      <div class="sidebar-caption">给日常，留一个温柔的角落。</div>
+      <button class="new-chat" id="new-chat"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#plus"/></svg> 开始一段新对话</button>
+      <div class="section-caption">最近的对话 <span id="conversation-count">0</span></div>
+      <nav class="conversation-list" id="conversations" aria-label="历史对话"></nav>
+      <div class="sidebar-bottom">
+        <div class="little-note"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#leaf"/></svg><p>慢慢来，就很好。<small>每个平常的日子，都值得被听见。</small></p></div>
+        <button class="settings-button" id="open-settings"><span class="user-avatar" id="user-avatar">你</span><span class="settings-label"><span id="user-label">我的陪伴设置</span><small>让这里，更像我们</small></span><svg class="icon gear" aria-hidden="true"><use href="/static/icons.svg#sliders"/></svg></button>
+      </div>
+    </aside>
+
+    <button class="sidebar-backdrop" id="sidebar-backdrop" aria-label="关闭历史对话" tabindex="-1" hidden></button>
+    <main class="chat-panel">
+      <header class="chat-header">
+        <button class="icon-button mobile-menu" id="toggle-sidebar" aria-label="展开历史对话" aria-expanded="false" aria-controls="sidebar"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#menu"/></svg></button>
+        <div class="avatar small-avatar" aria-hidden="true"><span>禾</span></div>
+        <div class="partner-heading"><h1 id="partner-name">小禾</h1><p><span class="status-dot"></span><span id="connection-status">正在准备我们的角落</span></p></div>
+        <span class="ai-label">AI 伴侣</span>
+        <div class="header-actions">
+          <button class="memory-button" id="open-memory" aria-label="记忆手札" title="记忆手札"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#book"/></svg><span>记忆手札</span></button>
+          <button class="memory-button" id="open-automation" aria-label="能力与定时" title="能力与定时"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#clock"/></svg><span>能力与定时</span><i id="automation-badge" aria-label="有待处理事项" hidden></i></button>
+        </div>
+      </header>
+
+      <div class="connection-notice" id="setup-notice" hidden><span>初次见面，先选一个喜欢的相处方式。</span><button id="setup-now">认识一下<svg class="icon" aria-hidden="true"><use href="/static/icons.svg#arrow"/></svg></button></div>
+
+      <section class="messages-scroll" id="messages-scroll" aria-label="聊天内容">
+        <button class="load-older" id="load-older" hidden>查看更早的对话</button>
+        <div class="welcome" id="welcome">
+          <div class="welcome-art" aria-hidden="true"><div class="warm-halo"></div><div class="welcome-emblem"><svg viewBox="0 0 64 64"><defs><linearGradient id="warm-heart" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e8b39f"/><stop offset="1" stop-color="#b77565"/></linearGradient></defs><path d="M32 51S11 38 11 24a12 12 0 0 1 21-8 12 12 0 0 1 21 8c0 14-21 27-21 27Z" fill="url(#warm-heart)"/><path d="M19 24a5 5 0 0 1 7-4" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="3" stroke-linecap="round"/></svg></div><span class="presence-pill"><span></span>安心做自己</span></div>
+          <p class="eyebrow">属于我们的片刻</p>
+          <h2>留一盏灯，<br><span>听你慢慢说。</span></h2>
+          <p class="welcome-copy">我是<span id="welcome-name">小禾</span>。开心的、乱糟糟的，或只是平常的一天，<br class="desktop-break">都可以在这里，慢慢说给我听。</p>
+          <div class="starters">
+            <button data-starter="今天有点累，想让你陪我聊一会儿。"><span class="starter-icon moon"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#moon"/></svg></span><span class="starter-copy">陪我一会儿<small>今天想慢下来</small></span><svg class="icon starter-arrow" aria-hidden="true"><use href="/static/icons.svg#arrow"/></svg></button>
+            <button data-starter="今天发生了一件小事，想第一个告诉你。"><span class="starter-icon sun"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#sun"/></svg></span><span class="starter-copy">分享小确幸<small>把开心讲给你</small></span><svg class="icon starter-arrow" aria-hidden="true"><use href="/static/icons.svg#arrow"/></svg></button>
+            <button data-starter="我们慢慢认识吧，先聊聊你喜欢什么？"><span class="starter-icon heart"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#heart"/></svg></span><span class="starter-copy">再靠近一点<small>从认识彼此开始</small></span><svg class="icon starter-arrow" aria-hidden="true"><use href="/static/icons.svg#arrow"/></svg></button>
+          </div>
+          <p class="welcome-footnote">不必想好怎么开场，你的日常就很好。</p>
+        </div>
+        <div id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions"></div>
+        <div id="typing" class="typing" hidden><span></span><span></span><span></span><p id="typing-label">正在认真听，也在想怎么回应你…</p><button type="button" id="cancel-run" class="text-button">停止操作</button></div>
+        <div class="chat-error" id="chat-error" role="alert" hidden><span id="chat-error-text"></span><button id="retry-message">重试这条消息</button></div>
+      </section>
+
+      <footer class="composer-area">
+        <form id="chat-form" class="composer">
+          <label class="sr-only" for="message-input">给伴侣的消息</label>
+          <textarea id="message-input" maxlength="6000" rows="1" placeholder="这一刻，想对我说什么？"></textarea>
+          <div class="composer-toolbar">
+            <div class="voice-controls">
+              <button type="button" class="composer-tool" id="voice-input" aria-label="语音输入" title="语音输入"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#mic"/></svg></button>
+              <button type="button" class="composer-tool" id="read-reply" aria-label="朗读回复" title="朗读回复"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#speaker"/></svg></button>
+              <details class="more-tools" id="composer-more"><summary class="composer-tool" aria-label="更多聊天选项" title="更多聊天选项"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#more"/></svg></summary><div class="tools-popover"><button type="button" id="stop-reply">停止朗读与语音</button><button type="button" id="browser-notifications">开启桌面通知</button></div></details>
+              <span class="composer-prompt">把今天的小事，说给我听。</span>
+            </div>
+            <button type="submit" class="send-button" id="send-message" aria-label="发送消息"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#up"/></svg></button>
+          </div>
+          <span id="voice-status" class="voice-status" role="status"></span>
+        </form>
+        <div class="composer-meta"><span id="model-mode-label">离线演示 · 记忆保存在本机</span><span><kbd>↵</kbd> 发送 <span class="meta-separator">·</span> <kbd>Shift ↵</kbd> 换行</span></div>
+      </footer>
+    </main>
+  </div>
+
+  <dialog class="settings-dialog" id="settings-dialog" aria-labelledby="settings-title">
+    <form id="settings-form" novalidate>
+      <div class="dialog-heading"><div><p class="eyebrow">MAKE IT OURS</p><h2 id="settings-title">让陪伴，有你的模样</h2></div><button type="button" class="icon-button" data-close="settings-dialog" aria-label="关闭设置">×</button></div>
+      <nav class="settings-tabs" role="tablist" aria-label="陪伴设置分类"><button type="button" role="tab" id="tab-persona" data-settings-tab="persona" aria-selected="true" aria-controls="settings-persona">相处的模样</button><button type="button" role="tab" id="tab-model" data-settings-tab="model" aria-selected="false" aria-controls="settings-model" tabindex="-1">对话方式</button><button type="button" role="tab" id="tab-memory" data-settings-tab="memory" aria-selected="false" aria-controls="settings-memory" tabindex="-1">记忆与陪伴</button></nav>
+      <div class="settings-body">
+        <div class="form-section" id="settings-persona" data-settings-panel="persona" role="tabpanel" aria-labelledby="tab-persona"><h3>从认识彼此开始</h3>
+          <div class="two-columns"><label>TA 的名字<input id="companion-name" maxlength="24" required autocomplete="off"></label><label>希望怎么称呼你<input id="user-name" maxlength="24" placeholder="随你喜欢，也可以先不填" autocomplete="off"></label></div>
+          <fieldset class="style-field"><legend>相处的感觉</legend><div class="style-options"><label><input type="radio" name="style" value="gentle"><span>温柔细腻<small>把偏爱放在小事里</small></span></label><label><input type="radio" name="style" value="playful"><span>轻快俏皮<small>一起发现日常的有趣</small></span></label><label><input type="radio" name="style" value="steady"><span>沉稳坦诚<small>话不多，回应很认真</small></span></label></div></fieldset>
+          <label>还想赋予 TA 的特点 <span class="optional">选填</span><textarea id="persona-notes" maxlength="1000" rows="2" placeholder="例如：喜欢音乐，偶尔讲冷笑话，表达直接一点。"></textarea></label>
+          <label class="check-label"><input id="romance-consent" type="checkbox"><span>我希望以恋人设定与 AI 相处<small>可以随时改为普通陪伴，也可以在聊天中调整亲密边界。</small></span></label>
+        </div>
+        <div class="form-section" id="settings-model" data-settings-panel="model" role="tabpanel" aria-labelledby="tab-model" hidden><h3>用喜欢的方式聊天 <span class="key-status" id="key-status">尚未配置</span></h3>
+          <label>运行方式<select id="model-mode"><option value="offline">离线演示 · 不调用 DeepSeek</option><option value="api">API 模型 · 手动配置后连接</option></select></label>
+          <p class="field-hint" id="model-mode-hint">离线模式用固定规则演示记忆、提醒和工具流程，不能代表真实模型的聊天质量。</p>
+          <div id="api-settings" hidden><label>API Key<input id="api-key" type="password" autocomplete="off" maxlength="512" placeholder="sk-…"></label>
+          <p class="field-hint">Key 仅保存在服务端本次运行的内存中，重启后需重填。也可通过 DEEPSEEK_API_KEY 环境变量配置。</p>
+          <div class="two-columns"><label>模型名称<input id="model" list="model-options" required maxlength="128"><datalist id="model-options"><option value="deepseek-flash"><option value="deepseek-v4-pro"><option value="deepseek-chat"><option value="deepseek-reasoner"></datalist></label><label>思考模式<select id="thinking"><option value="disabled">关闭 · 适合日常聊天</option><option value="enabled">开启 · 需要更长时间</option></select></label></div>
+          <details class="advanced"><summary>高级连接设置</summary><label>API 地址<input id="base-url" type="url" required placeholder="https://api.deepseek.com"></label><div class="two-columns"><label>输出 Token 上限<input id="max-tokens" type="number" min="128" max="32768" required></label><label>温度 · 0 到 2<input id="temperature" type="number" min="0" max="2" step="0.1" required></label></div><button type="button" class="text-button" id="clear-key">清除本次输入的 Key</button></details></div>
+        </div>
+        <div class="form-section consent-section" id="settings-memory" data-settings-panel="memory" role="tabpanel" aria-labelledby="tab-memory" hidden><h3>把相处，留在日常里</h3><label class="check-label"><input id="storage-consent" type="checkbox"><span>在这台设备保存对话与记忆<small>延续称呼、偏好、共同经历和相处边界。</small></span></label><label class="check-label"><input id="model-consent" type="checkbox"><span>允许当前对话模式处理聊天与相关记忆<small>离线模式只在本机处理；API 模式会发送到你配置的服务并使用额度。</small></span></label>
+          <p class="field-hint">聊天中的明确喜好和相处方式会自动记住。直接说出变化或“忘掉咖啡的喜好”即可调整，不需要逐条确认。</p>
+          <label class="check-label"><input id="proactive-enabled" type="checkbox"><span>允许对手札中安排的事件主动关心一次<small>至少空闲 4 小时、两次间隔 12 小时、每天最多 2 次；未回应时暂停主动联系。</small></span></label>
+          <div class="two-columns"><label>安静开始（小时）<input id="quiet-start" type="number" min="0" max="23"></label><label>安静结束（小时）<input id="quiet-end" type="number" min="0" max="23"></label></div>
+          <details class="advanced"><summary>记忆提取与检索</summary>
+            <label class="check-label"><input id="extract-memory" type="checkbox"><span>自动整理聊天记忆</span></label>
+            <label class="check-label"><input id="model-extraction" type="checkbox"><span>API 模式下启用模型语义提取<small>证据充分的明确偏好自动生效，模糊信息暂不采用；增加一次模型调用。离线模式不会调用。</small></span></label>
+            <label>检索方式<select id="embedding-backend"><option value="local">本地词语特征匹配（演示）</option><option value="api">独立 Embedding API</option><option value="off">只用文本检索</option></select></label>
+            <label>Embedding 地址<input id="embedding-url" type="url"></label><label>Embedding 模型<input id="embedding-model" maxlength="128"></label><label>Key 环境变量名<input id="embedding-key-env" maxlength="128"></label>
+            <p class="field-hint">Embedding 使用独立服务与凭证。离线模式始终使用本地匹配，不发送记忆到此地址。</p>
+          </details>
+        </div>
+      </div>
+      <div class="settings-message" id="settings-message" role="status" hidden></div>
+      <div class="dialog-footer"><button type="button" class="secondary-button" id="test-connection">保存并测试连接</button><button type="submit" class="primary-button" id="save-settings">保存，回到聊天</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="memory-dialog" id="memory-dialog" aria-labelledby="memory-title">
+    <div class="dialog-heading"><div><p class="eyebrow">LITTLE THINGS, KEPT CLOSE</p><h2 id="memory-title">我们的记忆手札</h2></div><button type="button" class="icon-button" data-close="memory-dialog" aria-label="关闭记忆手札">×</button></div>
+    <div id="memory-content" class="memory-content"></div>
+    <div class="dialog-footer"><span class="field-hint">来自真实对话，随你的新表达更新。</span><button class="secondary-button" id="export-data">导出本地记录 ↓</button></div>
+  </dialog>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <dialog class="automation-dialog" id="automation-dialog" aria-labelledby="automation-title">
+    <div class="dialog-heading"><div><p class="eyebrow">DO LITTLE THINGS, TOGETHER</p><h2 id="automation-title">能力与定时</h2></div><button type="button" class="icon-button" data-close="automation-dialog" aria-label="关闭能力与定时">×</button></div>
+    <nav class="automation-tabs" aria-label="能力面板"><button type="button" data-auto-tab="tasks" aria-pressed="true">待办与提醒</button><button type="button" data-auto-tab="connections" aria-pressed="false">工具连接</button><button type="button" data-auto-tab="channels" aria-pressed="false">消息渠道</button><button type="button" data-auto-tab="history" aria-pressed="false">操作记录</button></nav>
+    <div class="automation-body settings-body">
+      <section id="auto-tasks">
+        <div id="action-approvals" aria-live="polite"></div>
+        <div class="auto-section-heading"><h3>提醒与定时任务</h3><button id="refresh-automation" class="text-button">刷新</button></div>
+        <p class="field-hint">任务保存在本机，服务保持运行时触发。关闭网页不影响执行；关闭程序或电脑后，重新启动时补发一次到期提醒。</p>
+        <form id="schedule-form">
+          <label>提醒什么<input id="schedule-message" maxlength="1000" required placeholder="例如：晚饭后散步，或给小雨发晚安"></label>
+          <div class="two-columns"><label>首次时间<input id="schedule-at" type="datetime-local" required></label><label>重复<select id="schedule-repeat"><option value="once">仅一次</option><option value="daily">每天同一时间</option><option value="interval">固定间隔</option></select></label></div>
+          <label id="schedule-interval-label" hidden>间隔分钟<input id="schedule-interval" type="number" min="1" max="525600" value="60"></label>
+          <details class="advanced"><summary>到时调用工具（选填）</summary><label>已连接工具<select id="schedule-tool"><option value="">只在应用内提醒</option></select></label><label>固定参数 JSON<textarea id="schedule-arguments" rows="3" spellcheck="false">{}</textarea></label><p class="field-hint">沿用工具权限。需要确认的操作到时会暂停等待；微信界面操作需要当时的新界面，建议定时提醒后再发起。</p></details>
+          <button type="submit" class="primary-button">保存任务</button>
+        </form>
+        <div id="schedule-list" class="automation-list"></div>
+        <div class="auto-section-heading"><h3>收到的提醒</h3><button id="read-notifications" class="text-button">标为已读</button></div>
+        <div id="notification-list" class="automation-list"></div>
+      </section>
+      <section id="auto-connections" hidden>
+        <form id="loop-form" class="form-section">
+          <h3>每轮的执行范围</h3><label class="check-label"><input id="loop-enabled" type="checkbox"><span>启用工具与定时任务<small>关闭后停止接收新工具调用与定时触发。已经发出的操作需核对结果。</small></span></label>
+          <div class="two-columns"><label>最多思考轮数<input id="loop-steps" type="number" min="1" max="12" required></label><label>最多工具调用<input id="loop-calls" type="number" min="1" max="24" required></label></div>
+          <div class="two-columns"><label>总时限（秒）<input id="loop-timeout" type="number" min="10" max="600" required></label><label>Token 预算<input id="loop-tokens" type="number" min="1000" max="100000" required></label></div>
+          <button type="submit" class="secondary-button">保存执行范围</button>
+        </form>
+        <div class="auto-section-heading"><h3>MCP 服务</h3><button id="add-phone-template" class="text-button">填入安卓 / 微信模板</button></div>
+        <p class="field-hint">仅连接你信任的服务。本地命令将在这台电脑运行，所选工具的返回内容会进入模型上下文。工具默认每次确认，可逐项关闭或允许。</p>
+        <div id="mcp-server-list"></div>
+        <form id="mcp-form">
+          <div class="two-columns"><label>服务标识<input id="mcp-id" pattern="[a-z][a-z0-9_-]{0,31}" required placeholder="android"></label><label>显示名称<input id="mcp-label" maxlength="80" required placeholder="我的安卓手机"></label></div>
+          <label>传输方式<select id="mcp-transport"><option value="stdio">本地进程 · stdio</option><option value="streamable_http">远程服务 · Streamable HTTP</option><option value="sse">兼容旧服务 · SSE</option></select></label>
+          <div id="mcp-local-fields"><label>程序路径<input id="mcp-command" placeholder="python 或程序绝对路径"></label><label>启动参数 JSON 数组<textarea id="mcp-args" rows="3" spellcheck="false">[]</textarea></label><label>环境变量映射 JSON<textarea id="mcp-env" rows="2" spellcheck="false">{}</textarea></label><p class="field-hint">例如 {"TOKEN":"MY_WECHAT_TOKEN"}：从服务端 MY_WECHAT_TOKEN 环境变量读取，不在这里填写密钥。</p></div>
+          <div id="mcp-remote-fields" hidden><label>MCP 地址<input id="mcp-url" placeholder="https://example.com/mcp"></label><label>Bearer Token 的环境变量名（选填）<input id="mcp-bearer" placeholder="MY_MCP_TOKEN"></label></div>
+          <div class="two-columns"><label>调用超时（秒）<input id="mcp-timeout" type="number" min="2" max="60" value="20" required></label><label class="check-label"><input id="mcp-enabled" type="checkbox" checked><span>启用此服务</span></label></div>
+          <button type="submit" class="primary-button">保存服务</button>
+        </form>
+      </section>
+      <section id="auto-history" hidden><h3>工具执行记录</h3><p class="field-hint">确认绑定具体工具与参数，15 分钟内有效。出现“结果待核对”时，请先检查外部应用。</p><div id="action-history"></div></section>
+      <section id="auto-channels" hidden>
+        <h3>让消息来到同一段关系里</h3><p class="field-hint">只接收绑定的本人账号，复用当前对话与记忆。模拟渠道可直接试用；微信需支持 ClawBot 的客户端与账号。手机 ADB 操作仍在工具连接中配置。</p>
+        <form id="channel-form"><label>渠道<select id="channel-transport"><option value="demo">本地模拟消息</option><option value="weixin">个人微信 · ClawBot 文本</option></select></label><label>本人账号 ID<input id="channel-owner" maxlength="240" value="demo-owner"></label><label class="check-label"><input id="channel-enabled" type="checkbox"><span>启用接收并自动回复本人消息</span></label><button class="primary-button" type="submit">保存并绑定当前对话</button></form>
+        <div class="auto-controls"><button class="secondary-button" id="channel-login" type="button">获取微信登录入口</button><button class="secondary-button" id="channel-login-poll" type="button">检查扫码结果</button></div><div id="channel-login-result" class="field-hint"></div>
+        <p class="field-hint">登录凭证仅在本次运行内存中；重启需重新登录或设置 COMPANION_WEIXIN_TOKEN。此入口仅收发与本人的文本，不会读取整个微信通讯录，也不会自动在微信主动推送。</p>
+        <form id="channel-demo-form"><label>模拟一条本人消息<textarea id="channel-demo-text" required maxlength="6000" placeholder="我喜欢咖啡"></textarea></label><button class="secondary-button" type="submit">从模拟渠道发送</button></form>
+        <div id="channel-state" class="field-hint"></div>
+      </section>
+    </div>
+    <div class="settings-message" id="automation-message" role="status" hidden></div>
+  </dialog>
+</body>
+</html>

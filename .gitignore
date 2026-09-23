@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .coverage
+.coverage.*
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
@@ -13,3 +14,6 @@ dist/
 *.db-wal
 .companion-memoryos/
 .agent-data/
+.env
+.env.*
+!.env.example

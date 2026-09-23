@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100" fill="none">
+  <defs>
+    <linearGradient id="sky" x1="220" y1="0" x2="1420" y2="1100" gradientUnits="userSpaceOnUse"><stop stop-color="#efe0d4"/><stop offset=".42" stop-color="#f6e8de"/><stop offset="1" stop-color="#d9e4ef"/></linearGradient>
+    <linearGradient id="peach" x1="90" y1="870" x2="1180" y2="320" gradientUnits="userSpaceOnUse"><stop stop-color="#c89588"/><stop offset=".32" stop-color="#e6b09d"/><stop offset=".68" stop-color="#f5c3a6"/><stop offset="1" stop-color="#f9e7ca"/></linearGradient>
+    <linearGradient id="rose" x1="350" y1="1150" x2="510" y2="520" gradientUnits="userSpaceOnUse"><stop stop-color="#b1b4d0"/><stop offset=".52" stop-color="#d5a8b2"/><stop offset="1" stop-color="#f3d4c7"/></linearGradient>
+    <linearGradient id="blue" x1="1660" y1="410" x2="1160" y2="1160" gradientUnits="userSpaceOnUse"><stop stop-color="#c2cddd"/><stop offset=".48" stop-color="#b3c9dd"/><stop offset="1" stop-color="#d9e4e7"/></linearGradient>
+    <linearGradient id="light" x1="710" y1="220" x2="840" y2="1000" gradientUnits="userSpaceOnUse"><stop stop-color="#fff9ed"/><stop offset=".56" stop-color="#fff9ef" stop-opacity=".6"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#fffdf5"/><stop offset="1" stop-color="#fffdf5" stop-opacity="0"/></radialGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="32"/></filter>
+    <filter id="edge" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3"/></filter>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h1600v1100H0z"/>
+  <ellipse cx="770" cy="290" rx="780" ry="540" fill="url(#glow)"/>
+  <path d="M-270 1040C-30 420 370 820 590 688S890 220 1320 190s510 70 640 10" stroke="#b57866" stroke-opacity=".17" stroke-width="240" filter="url(#soft)"/>
+  <path d="M-270 1070C-30 450 370 850 590 718S890 250 1320 220s510 70 640 10" stroke="url(#peach)" stroke-width="235" filter="url(#edge)"/>
+  <path d="M-150 960C160 645 370 1055 680 825S974 433 1330 470s460 120 500 130" stroke="url(#rose)" stroke-width="245" filter="url(#edge)"/>
+  <path d="M940 1350C1370 1280 1470 905 1300 750s-270-258-81-353 525-9 635-107" stroke="url(#blue)" stroke-width="320" filter="url(#edge)"/>
+  <path d="M-130 1090C120 755 353 1080 667 875S910 460 1230 490s440 111 550 53" stroke="#fff7ec" stroke-opacity=".32" stroke-width="1.5"/>
+  <path d="M1110 1130C1393 1018 1401 883 1251 738s-220-267-41-363 380-26 490-93" stroke="#f0f5f9" stroke-opacity=".25" stroke-width="2"/>
+  <path d="M680 1140C1000 970 1010 712 910 575S780 290 1090 160" stroke="url(#light)" stroke-width="155" filter="url(#soft)"/>
+  <ellipse cx="820" cy="215" rx="570" ry="450" fill="url(#glow)" opacity=".8"/>
+</svg>
