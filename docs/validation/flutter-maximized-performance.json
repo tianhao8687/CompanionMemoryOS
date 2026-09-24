@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-24",
+  "flutter": "3.47.5",
+  "mode": "profile",
+  "physical_width": 2560,
+  "physical_height": 1369,
+  "device_pixel_ratio": 1.0,
+  "messages": 200,
+  "frames": 507,
+  "build_p95_ms": 0.328,
+  "raster_p95_ms": 3.687,
+  "over_16_67_ms": 1,
+  "scenario": "8 flings, text entry, 4 settings open/close cycles",
+  "limitations": "Single local Windows run. Flutter build/raster timings, not display FPS or a browser comparison. Android/iOS hardware performance not measured."
+}
