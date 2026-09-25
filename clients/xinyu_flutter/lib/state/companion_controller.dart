@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../data/demo_repository.dart';
 import '../data/local_repository.dart';
+import '../data/managed_repository.dart';
 import '../data/models.dart';
 
 class CompanionController extends ChangeNotifier {
@@ -15,6 +17,9 @@ class CompanionController extends ChangeNotifier {
   List<Conversation> conversations = [];
   List<ChatLine> messages = [];
   Map<String, dynamic> settings = {};
+  Map<String, dynamic> capabilities = {};
+  bool connected = false;
+  String? _activeRequest;
   String? active;
   bool loading = false, sending = false, hasMore = false;
   int? _before;
@@ -34,7 +39,8 @@ class CompanionController extends ChangeNotifier {
   String get userName => settings['user_name'] as String? ?? '';
   bool get ready =>
       isDemo ||
-      (settings['storage_consent'] == true &&
+      (connected &&
+          settings['storage_consent'] == true &&
           settings['model_consent'] == true);
   void _emit() {
     if (!_disposed) notifyListeners();
@@ -54,7 +60,13 @@ class CompanionController extends ChangeNotifier {
     _emit();
     try {
       final snapshot = await next.bootstrap();
-      final selected = snapshot.conversations.firstOrNull;
+      final selected =
+          (identical(next, _repository)
+              ? snapshot.conversations
+                    .where((item) => item.id == active)
+                    .firstOrNull
+              : null) ??
+          snapshot.conversations.firstOrNull;
       final page = selected == null
           ? const MessagePage([])
           : await next.messages(selected.id);
@@ -65,6 +77,8 @@ class CompanionController extends ChangeNotifier {
       if (!identical(next, _repository)) _repository.close();
       _repository = next;
       settings = snapshot.settings;
+      capabilities = snapshot.capabilities;
+      connected = true;
       conversations = snapshot.conversations;
       active = selected?.id;
       messages = page.messages;
@@ -73,6 +87,7 @@ class CompanionController extends ChangeNotifier {
       _failed = null;
       draft = '';
     } catch (e) {
+      if (identical(next, _repository)) connected = false;
       if (!identical(next, _repository)) next.close();
       error = _error(e);
       rethrow;
@@ -88,6 +103,69 @@ class CompanionController extends ChangeNotifier {
   }
 
   Future<void> useDemo() => _replace(DemoRepository());
+
+  Future<void> useLocal() async {
+    if (_repository is ManagedRepository) {
+      await _replace(_repository);
+    } else {
+      await _replace(ManagedRepository());
+    }
+  }
+
+  LocalRepository? get localConnection => switch (_repository) {
+    ManagedRepository repository => repository.connection,
+    LocalRepository repository => repository,
+    _ => null,
+  };
+
+  Future<void> cancel() async {
+    final request = _activeRequest;
+    if (request != null) await localConnection?.cancel(request);
+  }
+
+  Future<bool> backup() async {
+    if (busy || _repository is! ManagedRepository) return false;
+    loading = true;
+    _emit();
+    try {
+      final bytes = await localConnection!.backup();
+      return await const MethodChannel(
+            'xinyu/local-files',
+          ).invokeMethod<bool>('saveBackup', {
+            'bytes': bytes,
+            'name':
+                'xinyu-${DateTime.now().toIso8601String().substring(0, 10)}.sqlite',
+          }) ??
+          false;
+    } finally {
+      loading = false;
+      _emit();
+    }
+  }
+
+  Future<bool> restoreBackup() async {
+    if (busy || _repository is! ManagedRepository) return false;
+    final repository = _repository as ManagedRepository;
+    loading = true;
+    _emit();
+    var restored = false;
+    try {
+      final bytes = await const MethodChannel('xinyu/local-files')
+          .invokeMethod<Uint8List>('pickBackup');
+      if (bytes == null) return false;
+      await repository.connection.restore(bytes);
+      connected = false;
+      await repository.restart();
+      restored = true;
+    } finally {
+      loading = false;
+      _emit();
+    }
+    if (restored) await _replace(repository);
+    return restored;
+  }
+
+  bool get hasManagedStorage => _repository is ManagedRepository;
 
   Future<void> select(String id) async {
     if (busy || id == active) return;
@@ -150,12 +228,24 @@ class CompanionController extends ChangeNotifier {
     }
   }
 
-  Future<void> save(Map<String, dynamic> values, {String? apiKey}) async {
+  Future<void> save(
+    Map<String, dynamic> values, {
+    String? apiKey,
+    bool? rememberKey,
+    bool clearKey = false,
+  }) async {
     if (busy) throw const CompanionException('请等当前操作完成后保存。');
     loading = true;
     _emit();
     try {
-      settings = await _repository.saveSettings(values, apiKey: apiKey);
+      settings = await _repository.saveSettings(
+        values,
+        apiKey: apiKey,
+        rememberKey: rememberKey,
+        clearKey: clearKey,
+      );
+      final snapshot = await _repository.bootstrap();
+      capabilities = snapshot.capabilities;
     } finally {
       loading = false;
       _emit();
@@ -193,6 +283,7 @@ class CompanionController extends ChangeNotifier {
   }
 
   Future<void> _send(String text, String request) async {
+    _activeRequest = request;
     sending = true;
     error = null;
     draft = '';
@@ -255,6 +346,7 @@ class CompanionController extends ChangeNotifier {
       _paintTimer?.cancel();
       _paintTimer = null;
       sending = false;
+      _activeRequest = null;
       draft = '';
       _emit();
     }

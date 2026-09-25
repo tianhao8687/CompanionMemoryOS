@@ -19,9 +19,14 @@ class Conversation {
 }
 
 class Snapshot {
-  const Snapshot(this.settings, this.conversations);
+  const Snapshot(
+    this.settings,
+    this.conversations, {
+    this.capabilities = const {},
+  });
   final Map<String, dynamic> settings;
   final List<Conversation> conversations;
+  final Map<String, dynamic> capabilities;
 }
 
 class MessagePage {
@@ -44,6 +49,8 @@ abstract class CompanionRepository {
   Future<Map<String, dynamic>> saveSettings(
     Map<String, dynamic> settings, {
     String? apiKey,
+    bool? rememberKey,
+    bool clearKey = false,
   });
   void close();
 }

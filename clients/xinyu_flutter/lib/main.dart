@@ -5,17 +5,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'state/companion_controller.dart';
+import 'data/managed_repository.dart';
 import 'state/frame_probe.dart';
 import 'ui/glass.dart';
 import 'ui/home.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const XinYuApp());
+  runApp(const XinYuApp(local: true));
 }
 
 class XinYuApp extends StatefulWidget {
-  const XinYuApp({super.key, this.controller, this.probe});
+  const XinYuApp({super.key, this.controller, this.probe, this.local = false});
+  final bool local;
   final CompanionController? controller;
   final FrameProbe? probe;
   @override
@@ -24,7 +26,10 @@ class XinYuApp extends StatefulWidget {
 
 class _XinYuAppState extends State<XinYuApp> {
   late final CompanionController controller =
-      widget.controller ?? CompanionController();
+      widget.controller ??
+      CompanionController(
+        repository: widget.local ? ManagedRepository() : null,
+      );
   late final FrameProbe probe = widget.probe ?? FrameProbe();
   @override
   void initState() {

@@ -27,7 +27,10 @@ void main() {
 
   test('Cookie handshake, request header and split UTF-8 stream match backend', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    final repository = LocalRepository('http://127.0.0.1:${server.port}');
+    final repository = LocalRepository(
+      'http://127.0.0.1:${server.port}',
+      clientToken: 'synthetic-launch-token',
+    );
     addTearDown(() async {
       repository.close();
       await server.close(force: true);
@@ -35,6 +38,7 @@ void main() {
     final requests = <String>[];
     server.listen((request) async {
       requests.add(request.uri.path);
+      expect(request.headers.value('x-xinyu-token'), 'synthetic-launch-token');
       if (request.uri.path == '/') {
         request.response.cookies.add(
           Cookie('companion_romance_session_${server.port}', 'test-session'),

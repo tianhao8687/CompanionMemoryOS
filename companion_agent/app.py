@@ -125,7 +125,12 @@ def public_turn(turn: ConversationTurnRecord) -> dict[str, Any]:
 
 class RomanceHost:
     def __init__(
-        self, data_dir: Path, llm: MainLLM | None = None, *, testing: TestControl | None = None
+        self,
+        data_dir: Path,
+        llm: MainLLM | None = None,
+        *,
+        testing: TestControl | None = None,
+        credentials: CredentialStore | None = None,
     ) -> None:
         self.testing = testing
         config = load_config()
@@ -156,7 +161,7 @@ class RomanceHost:
         self.lock = RLock()
         self.session = secrets.token_urlsafe(32)
         self.api_key: str | None = None
-        self.credential_store = CredentialStore(data_dir, enabled=testing is None)
+        self.credential_store = credentials or CredentialStore(data_dir, enabled=testing is None)
         self.key_persisted = False
         self.credential_store_error = False
         self.injected_llm = llm
@@ -642,14 +647,17 @@ def create_app(
     *,
     llm: MainLLM | None = None,
     testing: TestControl | None = None,
+    client_token: str | None = None,
+    credentials: CredentialStore | None = None,
+    background_services: bool = True,
 ) -> FastAPI:
     if testing and Path(data_dir).resolve() != testing.directory / "data":
         raise ValueError("testing requires the owned run's isolated data directory")
-    host = RomanceHost(Path(data_dir), llm, testing=testing)
+    host = RomanceHost(Path(data_dir), llm, testing=testing, credentials=credentials)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        if testing is None:
+        if testing is None and background_services:
             host.tools.scheduler.start()
             host.channels.start()
         try:
@@ -671,8 +679,14 @@ def create_app(
 
     @app.middleware("http")
     async def local_security(request: Request, call_next: Any) -> Response:
+        # Native apps receive this ephemeral secret through their private launch
+        # channel. Other apps on the same device must not obtain a session at /.
+        if client_token is not None and not secrets.compare_digest(
+            request.headers.get("x-xinyu-token", ""), client_token
+        ):
+            return JSONResponse({"detail": {"message": "本机应用凭证无效，请重新启动。"}}, 401)
         if (
-            testing
+            (testing or not background_services)
             and request.method in {"POST", "PUT", "PATCH", "DELETE"}
             and (
                 request.url.path.startswith("/api/channels")
@@ -683,21 +697,33 @@ def create_app(
                 or request.url.path == "/api/connection"
             )
         ):
-            return JSONResponse({"detail": "external actions disabled in test instance"}, 403)
+            return JSONResponse({"detail": {"message": "此运行环境未启用外部工具和渠道。"}}, 403)
         origin = request.headers.get("origin")
         expected = str(request.base_url).rstrip("/")
         if origin and origin != expected:
             return JSONResponse({"detail": {"message": "不允许跨站请求。"}}, status_code=403)
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+            if (
+                client_token is not None
+                and (host.database.data_dir / "restore-pending.sqlite").exists()
+            ):
+                return JSONResponse(
+                    {"detail": {"message": "备份已准备好，请重启应用完成恢复。"}}, 409
+                )
             if request.headers.get("x-companion-client") != "local-web":
                 return JSONResponse(
                     {"detail": {"message": "缺少本地客户端标识。"}}, status_code=403
                 )
             # Limit the actual body, including requests without Content-Length.
+            limit = MAX_BODY_BYTES
+            if client_token is not None and request.url.path == "/api/local/restore":
+                from companion_agent.local_data import MAX_BACKUP_BYTES
+
+                limit = MAX_BACKUP_BYTES
             body = bytearray()
             async for chunk in request.stream():
                 body.extend(chunk)
-                if len(body) > MAX_BODY_BYTES:
+                if len(body) > limit:
                     return JSONResponse({"detail": {"message": "请求内容过长。"}}, status_code=413)
             request._body = bytes(body)
         response: Response = await call_next(request)
@@ -983,6 +1009,33 @@ def create_app(
                 media_type="application/json",
                 headers={"Content-Disposition": 'attachment; filename="companion-memories.json"'},
             )
+
+    if client_token is not None:
+
+        @app.get("/api/local/backup", dependencies=[Depends(authorized)])
+        def local_backup() -> Response:
+            from companion_agent.local_data import backup_bytes
+
+            with host.exclusive():
+                return Response(backup_bytes(host.database), media_type="application/octet-stream")
+
+        @app.post("/api/local/restore", dependencies=[Depends(authorized)])
+        async def local_restore(request: Request) -> dict[str, bool]:
+            import asyncio
+
+            from companion_agent.local_data import stage_restore
+
+            content = await request.body()
+
+            def prepare() -> None:
+                with host.exclusive():
+                    try:
+                        stage_restore(host.database.data_dir, content)
+                    except ValueError as error:
+                        raise problem(422, "invalid_backup", str(error)) from None
+
+            await asyncio.to_thread(prepare)
+            return {"restart_required": True}
 
     @app.get("/api/automation", dependencies=[Depends(authorized)])
     def automation() -> dict[str, Any]:

@@ -343,8 +343,13 @@ class _ComposerState extends State<Composer> {
               valueListenable: text,
               builder: (_, value, _) => IconButton.filled(
                 key: const Key('send-message'),
-                tooltip: '发送消息（Ctrl / ⌘ + Enter）',
-                onPressed: widget.controller.busy || value.text.trim().isEmpty
+                tooltip: widget.controller.sending
+                    ? '停止回复'
+                    : '发送消息（Ctrl / ⌘ + Enter）',
+                onPressed:
+                    widget.controller.sending && !widget.controller.isDemo
+                    ? widget.controller.cancel
+                    : widget.controller.busy || value.text.trim().isEmpty
                     ? null
                     : _send,
                 style: IconButton.styleFrom(
@@ -354,7 +359,7 @@ class _ComposerState extends State<Composer> {
                 ),
                 icon: Icon(
                   widget.controller.sending
-                      ? Icons.more_horiz_rounded
+                      ? Icons.stop_rounded
                       : Icons.arrow_upward_rounded,
                   size: 21,
                 ),

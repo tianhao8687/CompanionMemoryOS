@@ -6,6 +6,7 @@ import 'chat.dart';
 import 'glass.dart';
 import 'navigation.dart';
 import 'settings_sheet.dart';
+import 'memory_sheet.dart';
 
 class XinYuHome extends StatefulWidget {
   const XinYuHome({super.key, required this.controller, required this.probe});
@@ -181,7 +182,9 @@ class _XinYuHomeState extends State<XinYuHome> {
                           ? '演示空间'
                           : widget.controller.loading
                           ? '正在连接'
-                          : '本地服务已连接',
+                          : widget.controller.connected
+                          ? '记忆保存在本机'
+                          : '本机引擎未连接',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -194,6 +197,14 @@ class _XinYuHomeState extends State<XinYuHome> {
               ),
             ],
           ),
+        ),
+        IconButton(
+          key: const Key('open-memories'),
+          tooltip: '查看记忆',
+          onPressed: widget.controller.busy || !widget.controller.connected
+              ? null
+              : () => showMemories(context, widget.controller),
+          icon: const Icon(Icons.auto_awesome_outlined, size: 21),
         ),
         IconButton(
           tooltip: '显示性能面板',
@@ -240,6 +251,17 @@ class _XinYuHomeState extends State<XinYuHome> {
             ),
             if (controller.canRetry)
               TextButton(onPressed: controller.retry, child: const Text('重试')),
+            if (!controller.connected && !controller.busy)
+              TextButton(
+                onPressed: () async {
+                  try {
+                    await controller.useLocal();
+                  } catch (_) {
+                    /* Error is shown above. */
+                  }
+                },
+                child: const Text('重新连接'),
+              ),
           ],
         ),
       ),

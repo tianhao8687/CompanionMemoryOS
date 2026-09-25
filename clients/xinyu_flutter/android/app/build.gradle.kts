@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.chaquo.python")
 }
 
 android {
@@ -18,7 +19,8 @@ android {
         applicationId = "com.xinyu.xinyu_flutter"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 24
+        ndk { abiFilters += listOf("arm64-v8a") }
         targetSdk = 36
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
@@ -34,6 +36,23 @@ android {
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
         }
+    }
+}
+
+chaquopy {
+    defaultConfig {
+        version = "3.13"
+        System.getenv("XINYU_BUILD_PYTHON")?.let { buildPython(it) }
+        pip {
+            // Prepared wheels must be actual Android binaries, never desktop wheels.
+            options("--find-links", System.getenv("XINYU_ANDROID_WHEELS")
+                ?: "${project.projectDir}/../../engine/wheels")
+            install("-r", "${project.projectDir}/../../engine/requirements-android.txt")
+        }
+        extractPackages("companion_agent", "companion_memoryos")
+    }
+    sourceSets {
+        getByName("main") { srcDir(System.getenv("XINYU_ENGINE_SOURCES") ?: "../../engine/python") }
     }
 }
 

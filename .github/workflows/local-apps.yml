@@ -1,0 +1,144 @@
+name: Build local Windows and Android apps
+
+# Packaging runs only on a dedicated build branch or explicit manual dispatch.
+# The branch trigger lets a new workflow run before it is merged to the default branch.
+# This workflow does not publish a release or deploy a server.
+on:
+  push:
+    branches: ['codex/local-apps-*']
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Local application to build
+        type: choice
+        options: [both, windows, android]
+        default: both
+
+permissions:
+  contents: read
+
+jobs:
+  android-wheels:
+    if: inputs.target != 'windows'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: python -m pip install cibuildwheel==4.2.1
+      - name: Build original native dependencies for Android ARM64
+        run: python clients/xinyu_flutter/tool/build_android_wheels.py --output "$RUNNER_TEMP/xinyu-wheels"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-native-wheels
+          path: ${{ runner.temp }}/xinyu-wheels/*.whl
+          if-no-files-found: error
+          retention-days: 7
+      - name: Preserve build receipts and failure logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-native-build-evidence
+          path: |
+            .agent-tests/android-wheels-*/results.json
+            .agent-tests/android-wheels-*/*.log
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  windows:
+    if: inputs.target != 'android'
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare project and official Flutter SDK
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install -e '.[dev]' pyinstaller==6.22.3
+          if ($LASTEXITCODE) { throw 'Python setup failed' }
+          $sdk = Join-Path $env:RUNNER_TEMP 'flutter'
+          git init $sdk
+          git -C $sdk config core.longpaths true
+          git -C $sdk remote add origin https://github.com/flutter/flutter.git
+          git -C $sdk fetch --depth 1 origin 6a19cca56475dbfba1478ee68d7bd0c2ef891da1
+          git -C $sdk checkout --detach FETCH_HEAD
+          if ($LASTEXITCODE) { throw 'Flutter checkout failed' }
+      - name: Build and check the bundled Windows engine
+        shell: pwsh
+        run: |
+          .\clients\xinyu_flutter\tool\build_local.ps1 -Target windows -FlutterSdk (Join-Path $env:RUNNER_TEMP 'flutter')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: XinYu-Windows-local
+          path: dist/xinyu-local/*/XinYu-Windows.zip
+          if-no-files-found: error
+          retention-days: 7
+      - name: Preserve engine acceptance status without conversation exports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-engine-status
+          path: .agent-tests/native-bundle-*/results.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  android:
+    needs: android-wheels
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        id: python313
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-native-wheels
+          path: ${{ runner.temp }}/xinyu-wheels
+      - name: Prepare project and official Flutter SDK
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install -e '.[dev]'
+          if ($LASTEXITCODE) { throw 'Python setup failed' }
+          $sdk = Join-Path $env:RUNNER_TEMP 'flutter'
+          git init $sdk
+          git -C $sdk config core.longpaths true
+          git -C $sdk remote add origin https://github.com/flutter/flutter.git
+          git -C $sdk fetch --depth 1 origin 6a19cca56475dbfba1478ee68d7bd0c2ef891da1
+          git -C $sdk checkout --detach FETCH_HEAD
+          if ($LASTEXITCODE) { throw 'Flutter checkout failed' }
+      - name: Build local testing APK (development signing)
+        shell: pwsh
+        env:
+          XINYU_BUILD_PYTHON: ${{ steps.python313.outputs.python-path }}
+        run: |
+          .\clients\xinyu_flutter\tool\build_local.ps1 -Target android `
+            -FlutterSdk (Join-Path $env:RUNNER_TEMP 'flutter') `
+            -AndroidWheels (Join-Path $env:RUNNER_TEMP 'xinyu-wheels')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: XinYu-Android-local-unverified-on-device
+          path: dist/xinyu-local/*/XinYu-Android-arm64.apk
+          if-no-files-found: error
+          retention-days: 7

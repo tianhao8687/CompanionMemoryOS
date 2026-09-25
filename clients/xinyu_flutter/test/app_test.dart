@@ -1,9 +1,87 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:xinyu_flutter/data/managed_repository.dart';
+import 'package:xinyu_flutter/data/models.dart';
 import 'package:xinyu_flutter/main.dart';
 import 'package:xinyu_flutter/state/companion_controller.dart';
 
+class SettingsFixture extends ManagedRepository {
+  Map<String, dynamic> values = {
+    'companion_name': '小禾',
+    'style': 'custom',
+    'custom_style': '自然坦诚',
+    'model_mode': 'api',
+    'storage_consent': true,
+    'model_consent': true,
+    'deepseek': {'model': 'synthetic-model', 'base_url': 'https://example.com'},
+  };
+  @override
+  Future<Snapshot> bootstrap() async => Snapshot(
+    values,
+    [],
+    capabilities: {
+      'key_configured': true,
+      'key_persisted': true,
+      'credential_persistence_supported': true,
+    },
+  );
+  @override
+  Future<Map<String, dynamic>> saveSettings(
+    Map<String, dynamic> settings, {
+    String? apiKey,
+    bool? rememberKey,
+    bool clearKey = false,
+  }) async {
+    values = settings;
+    return values;
+  }
+}
+
 void main() {
+  testWidgets(
+    'Native settings, secure Key controls and backup fit a narrow phone',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repository = SettingsFixture();
+      final controller = CompanionController(repository: repository);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(XinYuApp(controller: controller));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('open-settings')));
+      await tester.pumpAndSettle();
+      expect(find.text('自然坦诚'), findsOneWidget);
+      await tester.tap(find.text('连接与数据'));
+      await tester.pumpAndSettle();
+      final scrollable = find
+          .descendant(
+            of: find.byKey(const Key('settings-scroll')),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      await tester.scrollUntilVisible(
+        find.text('在这台设备安全保存 Key'),
+        220,
+        scrollable: scrollable,
+      );
+      expect(find.text('在这台设备安全保存 Key'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('导出备份'),
+        220,
+        scrollable: scrollable,
+      );
+      expect(find.text('从备份恢复'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('保存设置'));
+      await tester.pumpAndSettle();
+      expect(repository.values['custom_style'], '自然坦诚');
+      expect(repository.values['model_consent'], true);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
   for (final size in [
     const Size(320, 640),
     const Size(390, 844),
@@ -25,7 +103,7 @@ void main() {
       expect(find.text('让这里，更像我们'), findsOneWidget);
       await tester.tap(find.text('连接与数据'));
       await tester.pumpAndSettle();
-      expect(find.text('连接服务'), findsOneWidget);
+      expect(find.text('打开本机数据'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });

@@ -105,6 +105,8 @@ class DemoRepository implements CompanionRepository {
   Future<Map<String, dynamic>> saveSettings(
     Map<String, dynamic> settings, {
     String? apiKey,
+    bool? rememberKey,
+    bool clearKey = false,
   }) async {
     _settings = Map.of(settings);
     return Map.of(_settings);

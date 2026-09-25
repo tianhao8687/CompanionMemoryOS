@@ -30,8 +30,9 @@ Key 不写入数据库或浏览器存储。默认仅在本次运行中使用；W
 本轮界面验证见 [控件检查记录](docs/UI_CONTROLS_VALIDATION.md)。真实模型、个人微信账号和手机设备仍需在配置后单独验收。
 以下内容为记忆基础设施及前序 Agent 的说明与验证记录。
 
-桌面与手机版迁移评估另有 [Flutter 全玻璃原型](clients/xinyu_flutter/README.md)：
-包含自适应聊天、设置、演示模式、本地后端连接和帧耗时测试；与现有网页分开运行。
+Windows / Android 软件位于 [Flutter 本地客户端](clients/xinyu_flutter/README.md)：
+保留玻璃界面，两台设备各自保存数据。已加入内置引擎接入、记忆管理和备份恢复；
+当前构建产物、测试结果和未完成的平台验证见 [本地版交付记录](docs/LOCAL_APP_DELIVERY.md)。
 
 **CompanionAgent v0.4.1：语义修复与表达策略精简。** 修复否定、主体和修复对象误判；
 保留可持续、可更改的用户要求，将推断的回应风格改为建议，不再因久未聊天自动收紧距离。

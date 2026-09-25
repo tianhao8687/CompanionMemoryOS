@@ -1,120 +1,90 @@
-# 心隅 · Flutter 全玻璃原型
+# 心隅 · Windows / Android 本地客户端
 
-这是供 Windows / Android / iOS 后续迁移评估使用的客户端原型。保留原有 Python
-记忆引擎及网页应用，客户端单独位于此目录。不是完整移动产品，也不宣称达到苹果
-Liquid Glass 的光学效果。Windows 和 Android 的构建、测试结果见
-[验证记录](../../docs/FLUTTER_PROTOTYPE_VALIDATION.md)。
+Flutter 玻璃界面 + 原有 Python 记忆引擎。电脑和手机各自保存聊天与记忆，
+不互通，不依赖电脑给手机提供服务，也不需要租服务器。当前源码和实际产物状态见
+[本地版交付记录](../../docs/LOCAL_APP_DELIVERY.md)；源码接入不等于安装包已经验收。
 
-## 已实现
+## 应用行为
 
-- 自适应桌面侧栏 / 手机抽屉、虚拟化长对话列表、多行输入、中文输入法支持。
-- 真实背景模糊的侧栏、顶部、消息气泡、输入框和设置弹窗。
-- 同一平面内不重叠的玻璃区域使用 `BackdropGroup` / `BackdropFilter.grouped`；
-  弹窗与抽屉独立分组，避免对重叠表面错误复用模糊结果。
-- 静态背景单独绘制和隔离重绘；流式文本更新合并为最多约每 32ms 一次。
-- 自带明确标记的示例对话和示例回复。演示数据只在本次运行内存中保留，不调用模型。
-- 连接已有本地后端：读取设置、创建会话、分页历史、NDJSON 流式回复、失败重试。
-  重试沿用同一个 request_id，避免重复写入；保存设置保留未在原型展示的后端字段。
-- 右上角速度表按钮：开关帧耗时面板、清空统计、载入 200 条示例消息。
+- 正常入口自动启动本机引擎。启动失败会显示错误，不自动切到示例回复。
+- Windows 启动安装目录中的 `engine/xinyu-engine.exe`，随机监听回环端口；
+  主窗口退出会关闭引擎的输入管道。用户无需单独安装 Python。
+- Android 通过 Chaquopy 在应用进程内启动相同引擎，使用应用私有目录。
+  Android 原生依赖还需要构建验证，当前不是已经交付的独立 APK。
+- Windows 数据在当前账号的 `%LOCALAPPDATA%\XinYu\data`；Android 在应用私有
+  `files/xinyu-data` 中。不会自动打开网页应用的 `.agent-data/romance`。
+- 模型默认使用离线规则回复，**不是本地大模型**。联网聊天需在设置中选择 API 模式，
+  填写自己的模型信息和 Key，并启用消息处理及本机保存授权。
+- Key 默认仅用于当前运行。可选择系统安全存储：Windows 凭据管理器、Android Keystore。
+  Key 不写入 SQLite，也不包含在聊天备份中。
+- 支持新会话、分页历史、流式回复、同请求重试、停止回复、自定义风格、记忆更正和遗忘。
+- 备份导出完整 SQLite 快照；恢复前验证并在下次引擎启动时应用，保留恢复前副本。
+  备份上限 64 MB。备份包含私人内容，遗忘不会清除以前导出的副本。
+- 本地应用当前不启动微信、设备/MCP 连接或后台定时服务。
 
-## Windows 运行
+侧栏、消息气泡、输入框和弹窗保留背景模糊、半透明边框和玻璃层次。
+桌面与窄屏共享布局，演示模式仅用于开发与测试。
 
-构建后可运行仓库根目录的 `start-flutter-prototype.ps1`，或直接打开
-`dist/xinyu-flutter/windows/xinyu_flutter.exe`。旁边的 `data` 和 DLL 必须一同保留。
-启动默认进入演示空间，不自动读取原网页数据库。
+## 构建
 
-需要接入真实引擎时，另开终端运行仓库根目录的：
+使用 Flutter 3.47.5 / Dart 3.13.4，Python 3.12+ 的项目虚拟环境。
+Windows 需要 Visual Studio C++ 桌面工作负载、CMake 和 Windows SDK，
+以及项目环境中的 `pyinstaller==6.22.3`。Android 需要 JDK 21、Android SDK 36、
+Python 3.13 构建解释器和三个 Android ARM64 原生 wheel。
 
-```powershell
-.\start-flutter-backend.ps1
-```
-
-原型后端监听 `http://127.0.0.1:8766`，使用独立的 `.agent-data/flutter-prototype`
-目录。客户端「陪伴设置 → 连接与数据 → 连接服务」后，核对本地保存与消息处理选项并保存。
-可以先使用离线规则回复验证流程，再自主选择 DeepSeek。
-
-原型沿用现有根页面 Cookie 握手和请求头，不改动后端的回环监听、TrustedHost、
-Origin 校验及同意检查。客户端仅接受回环 HTTP 地址，禁止重定向。API Key 只在会话
-内存中使用；不写入客户端配置。没有把后端直接暴露到局域网或公网。
-
-## Android
-
-安装生成的 `dist/xinyu-flutter/xinyu-prototype.apk` 后可以独立体验演示界面。
-此 APK 使用开发签名，仅用于原型测试，不是应用商店发布包。
-
-连接电脑上的本地记忆服务时，用户先在已授权的 Android 调试设备上配置 USB 转发：
+在仓库根目录运行：
 
 ```powershell
-adb devices
-adb reverse tcp:8766 tcp:8766
+.\clients\xinyu_flutter\tool\build_local.ps1 -Target test -FlutterSdk <Flutter目录>
+.\clients\xinyu_flutter\tool\build_local.ps1 -Target windows -FlutterSdk <Flutter目录>
+.\clients\xinyu_flutter\tool\build_local.ps1 -Target android -FlutterSdk <Flutter目录> `
+  -AndroidSdk <Android-SDK目录> -JavaDirectory <JDK目录> `
+  -BuildPython <Python-3.13可执行文件> -AndroidWheels <Android-wheel目录>
 ```
 
-手机应用仍连接 `http://127.0.0.1:8766`。拔掉 USB 后应回到演示，或重新连接服务。
-这不是手机内置 Python 引擎，也不是远程账号服务。Android 仅允许回环地址的明文 HTTP。
-ADB 设备授权和安装确认由用户完成。
+脚本复制到新的英文构建路径，执行分析和 Flutter 测试，再生成应用；不镜像删除源码。
+也可使用准备好的 [GitHub Actions 流程](../../.github/workflows/local-apps.yml)；
+仅手动运行或推送到 `codex/local-apps-*` 专用构建分支时触发。
+该流程目前仅保存在本地，未上传或运行。
+Windows 产物为 `dist/xinyu-local/<构建ID>/XinYu-Windows.zip`，必须完整解压。
+Android 构建当前使用开发签名，只用于本地验收；正式分发前配置并妥善保管长期签名密钥。
+旧的 `tool/build.ps1` 只保留测试与玻璃性能评估入口，不能生成缺少引擎的交付包。
 
-## iOS
+### Android 原生依赖
 
-已生成 iOS 工程并共享客户端代码。必须在 macOS + Xcode 中完成构建、签名和真机测试。
-此轮 Windows 环境没有编译或验证 iOS。iPhone 真机目前以演示模式评估界面；没有
-提供 iPhone 到电脑服务的网络连接方案。iOS 模拟器可在后续 Mac 环境中测试本机后端。
+`pydantic-core`、`rpds-py`、`tiktoken` 没有本次所需的现成目标 wheel；
+保持原记忆引擎和准确 tokenizer，需要从上游源码交叉编译。
+`cibuildwheel` 的 Android 构建支持 Linux / macOS，不支持直接在 Windows 构建。
 
-## 构建与测试
+在另一个具备 Python 3.12+、Java 21 和 Android SDK 的 Linux/macOS 构建环境中：
 
-使用 Flutter 3.47.5 / Dart 3.13.4；依赖版本由 `pubspec.lock` 固定。
-Windows 需 Visual Studio C++ 桌面编译工作负载、CMake 和 Windows SDK；
-Android 使用 JDK 21、Android SDK 36、Build Tools 36。
+```sh
+python -m pip install cibuildwheel==4.2.1
+python clients/xinyu_flutter/tool/build_android_wheels.py --check
+python clients/xinyu_flutter/tool/build_android_wheels.py --output /absolute/path/xinyu-wheels
+```
 
-Windows 下中文项目路径可能触发 Dart LSP 和 Android 路径检查问题。
-`tool/build.ps1` 将源码复制到单独英文路径构建，再把产物复制回仓库 `dist/`。
-只复制，不镜像删除。不要同时在同一构建目录运行多个 Flutter 构建或测试命令。
+脚本下载明确版本的官方 PyPI 源码并核对 SHA-256，保存失败日志和构建清单，
+检查 ARM64 ELF 和 16 KB 段对齐。它不宣称完成手机导入、FTS5、APK 对齐或实际运行验证。
+将输出目录传给上面的 `-AndroidWheels` 后再构建 APK。
+具体依赖钉在 `engine/requirements-android.txt`；引擎源码与 tokenizer 数据由
+`tool/prepare_engine.py` 单独打入包，不随应用从网上下载。
+前序探测证据见 [独立手机版路线验证](../../docs/ANDROID_ENGINE_FEASIBILITY.md)。
+
+## 开发与验收
+
+Flutter 测试使用合成数据与本地 HTTP 替身。实际进程测试规则见
+[聊天验收说明](../../docs/CHAT_QUALITY_TESTING.md)。不要用日常数据库进行测试。
 
 ```powershell
-# 在本目录运行；将 FlutterSdk 换成实际安装位置。
-.\tool\build.ps1 -Target test -FlutterSdk D:\Tools\xinyu-sdk\flutter
-.\tool\build.ps1 -Target windows -FlutterSdk D:\Tools\xinyu-sdk\flutter
-.\tool\build.ps1 -Target android -FlutterSdk D:\Tools\xinyu-sdk\flutter `
-  -AndroidSdk <Android-SDK目录> -JavaDirectory <JDK目录>
-.\tool\build.ps1 -Target profile -FlutterSdk D:\Tools\xinyu-sdk\flutter
+.\.venv\Scripts\python.exe -m pytest tests/test_local_runtime.py
+.\.venv\Scripts\python.exe clients/xinyu_flutter/tool/smoke_native_engine.py `
+  --engine <打包后的xinyu-engine.exe>
 ```
 
-在没有中文路径问题的工作目录也可直接：
+开发时可以设置 `XINYU_DEVELOPMENT_PYTHON` 指向项目虚拟环境 Python，
+`XINYU_DATA_DIR` 指向新的合成数据目录，并从仓库根目录启动 Flutter Windows 程序。
+编译时加 `--dart-define=XINYU_DEVELOPMENT=true` 才会显示开发服务/演示切换入口。
 
-```text
-flutter pub get
-flutter analyze
-flutter test
-flutter run -d windows
-flutter run -d <Android设备ID>
-```
-
-`tool/live_backend_smoke.dart` 是端到端接口测试，必须使用**新建的可丢弃数据目录**：
-
-```text
-python -m companion_agent.app --port 8767 --data-dir .agent-data/flutter-smoke
-dart run tool/live_backend_smoke.dart http://127.0.0.1:8767
-```
-
-测试会临时启用离线回复和保存选项，在独立测试库创建合成对话，最后还原设置。
-不要将它指向正在使用的真实数据服务。
-
-## 性能记录的含义
-
-性能面板记录最近 600 帧的 build / raster P95，以及两者较大值超过 16.67ms 的帧数。
-这不是显示器实际 FPS，也不是 GPU 呈现完整延迟。面板每秒最多刷新一次，避免自发重绘循环。
-正式比较使用 profile / release 模式，关闭面板后用 integration_test 采集。
-
-`integration_test/glass_performance_test.dart` 覆盖 200 条消息的滚动、多行输入和
-4 次设置弹窗开合。`XINYU_MAXIMIZED=1` 可让 Windows 测试窗口最大化；输出位于
-构建目录 `build/integration_response_data.json`。手机要单独测试键盘、手势、功耗和持续发热。
-
-## 未包含的产品功能
-
-手机端独立记忆引擎、跨设备同步、登录、多用户隔离、推送、语音、相机、应用商店签名发布，
-以及网页已有的记忆编辑、MCP 和定时任务面板，均不属于此原型。当前 API 模型参数沿用
-后端设置；界面只提供模式和 Key 输入，没有迁移所有高级选项。
-
-## 文件组织
-
-`lib/data` 定义与实现接口；`lib/state` 管理会话和帧统计；`lib/ui` 是玻璃组件与页面。
-后续决定端侧或服务端架构时，可替换 repository，而不必重写聊天页面。
+原型阶段的截图与性能记录保留在 [旧验证记录](../../docs/FLUTTER_PROTOTYPE_VALIDATION.md)，
+它们不能用来证明当前本地软件已经通过 Windows/Android 验收。本次范围是 Windows 和 Android。

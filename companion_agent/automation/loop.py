@@ -113,6 +113,12 @@ class AgentLoop:
                 context.cancelled.set()
             return context is not None
 
+    def cancel_all(self) -> None:
+        """Stop only this engine's work when its owning native app exits."""
+        with self._lock:
+            for context in self._runs.values():
+                context.cancelled.set()
+
     def generate(self, messages: list[ChatMessage]) -> ModelResponse:
         run = self._context.get()
         config = self.hub.config.loop.model_copy()
