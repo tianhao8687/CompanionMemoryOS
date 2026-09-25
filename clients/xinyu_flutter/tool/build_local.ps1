@@ -84,6 +84,8 @@ try {
         if ($LASTEXITCODE) { throw 'APK 16 KB ZIP alignment verification failed.' }
         & (Join-Path $sdkTools.FullName 'apksigner.bat') verify --verbose $apk
         if ($LASTEXITCODE) { throw 'APK signature verification failed.' }
+        & $python (Join-Path $PSScriptRoot 'verify_android_apk.py') --apk $apk --output (Join-Path $delivery 'android-bridge-check.json')
+        if ($LASTEXITCODE) { throw 'The release APK lost a Python-to-Java bridge during optimization.' }
         Copy-Item -LiteralPath $apk -Destination (Join-Path $delivery 'XinYu-Android-arm64.apk')
     }
     Get-ChildItem -LiteralPath $delivery -File | Get-FileHash -Algorithm SHA256

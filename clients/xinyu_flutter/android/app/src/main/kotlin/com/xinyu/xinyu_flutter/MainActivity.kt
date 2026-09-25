@@ -2,6 +2,7 @@ package com.xinyu.xinyu_flutter
 
 import com.chaquo.python.Python
 import android.content.Intent
+import android.util.Log
 import com.chaquo.python.android.AndroidPlatform
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterActivity
@@ -25,9 +26,12 @@ class MainActivity : FlutterActivity() {
                     return@setMethodCallHandler
                 }
                 worker.execute {
+                    var stage = "engine_runtime"
                     try {
                         if (!Python.isStarted()) Python.start(AndroidPlatform(applicationContext))
+                        stage = "engine_import"
                         val module = Python.getInstance().getModule("companion_agent.local_runtime")
+                        stage = if (call.method == "stop") "engine_stop" else "engine_start"
                         if (call.method == "stop") {
                             module.callAttr("stop_embedded")
                             runOnUiThread { result.success(null) }
@@ -43,12 +47,26 @@ class MainActivity : FlutterActivity() {
                             )
                             runOnUiThread { result.success(response) }
                         }
-                    } catch (_: Exception) {
-                        // Python/Java errors may contain paths or credentials. Do not log them.
-                        runOnUiThread { result.error("engine_unavailable", "本机记忆引擎启动失败，请重启应用。", null) }
+                    } catch (error: Exception) {
+                        engineFailure(result, stage, error)
+                    } catch (error: LinkageError) {
+                        engineFailure(result, stage, error)
                     }
                 }
             }
+    }
+
+    private fun engineFailure(result: MethodChannel.Result, stage: String, error: Throwable) {
+        // Only fixed stages and code locations: never log exception messages,
+        // Python arguments, file paths, database contents, or credentials.
+        val safeName = Regex("[A-Za-z0-9_.$<>]+")
+        val frames = error.stackTrace.filter {
+            safeName.matches(it.className) && safeName.matches(it.methodName)
+        }.take(12).joinToString(" > ") {
+            "${it.className}.${it.methodName}:${it.lineNumber}"
+        }
+        Log.e("XinYuEngine", "$stage ${error.javaClass.simpleName} $frames")
+        runOnUiThread { result.error(stage, "手机内置记忆引擎未能启动。", null) }
     }
 
     override fun onDestroy() {
