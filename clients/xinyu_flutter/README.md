@@ -10,7 +10,7 @@ Flutter 玻璃界面 + 原有 Python 记忆引擎。电脑和手机各自保存�
 - Windows 启动安装目录中的 `engine/xinyu-engine.exe`，随机监听回环端口；
   主窗口退出会关闭引擎的输入管道。用户无需单独安装 Python。
 - Android 通过 Chaquopy 在应用进程内启动相同引擎，使用应用私有目录。
-  Android 原生依赖还需要构建验证，当前不是已经交付的独立 APK。
+  ARM64 APK 已通过完整编译、签名和 ZIP 对齐检查；设备运行需要单独验收。
 - Windows 数据在当前账号的 `%LOCALAPPDATA%\XinYu\data`；Android 在应用私有
   `files/xinyu-data` 中。不会自动打开网页应用的 `.agent-data/romance`。
 - 模型默认使用离线规则回复，**不是本地大模型**。联网聊天需在设置中选择 API 模式，
@@ -18,6 +18,8 @@ Flutter 玻璃界面 + 原有 Python 记忆引擎。电脑和手机各自保存�
 - Key 默认仅用于当前运行。可选择系统安全存储：Windows 凭据管理器、Android Keystore。
   Key 不写入 SQLite，也不包含在聊天备份中。
 - 支持新会话、分页历史、流式回复、同请求重试、停止回复、自定义风格、记忆更正和遗忘。
+- 设置分为“相处设定、外观、连接与数据”。外观提供标准、大号、特大字号及预览，
+  保存进当前设备的 SQLite 设置，重启和备份恢复后保留。玻璃质感统一设计，不提供强度滑块。
 - 备份导出完整 SQLite 快照；恢复前验证并在下次引擎启动时应用，保留恢复前副本。
   备份上限 64 MB。备份包含私人内容，遗忘不会清除以前导出的副本。
 - 本地应用当前不启动微信、设备/MCP 连接或后台定时服务。
@@ -29,7 +31,7 @@ Flutter 玻璃界面 + 原有 Python 记忆引擎。电脑和手机各自保存�
 
 使用 Flutter 3.47.5 / Dart 3.13.4，Python 3.12+ 的项目虚拟环境。
 Windows 需要 Visual Studio C++ 桌面工作负载、CMake 和 Windows SDK，
-以及项目环境中的 `pyinstaller==6.22.3`。Android 需要 JDK 21、Android SDK 36、
+Inno Setup 6，以及项目环境中的 `pyinstaller==6.22.3`。Android 需要 JDK 21、Android SDK 36、
 Python 3.13 构建解释器和三个 Android ARM64 原生 wheel。
 
 在仓库根目录运行：
@@ -45,9 +47,13 @@ Python 3.13 构建解释器和三个 Android ARM64 原生 wheel。
 脚本复制到新的英文构建路径，执行分析和 Flutter 测试，再生成应用；不镜像删除源码。
 也可使用准备好的 [GitHub Actions 流程](../../.github/workflows/local-apps.yml)；
 仅手动运行或推送到 `codex/local-apps-*` 专用构建分支时触发。
-该流程目前仅保存在本地，未上传或运行。
-Windows 产物为 `dist/xinyu-local/<构建ID>/XinYu-Windows.zip`，必须完整解压。
-Android 构建当前使用开发签名，只用于本地验收；正式分发前配置并妥善保管长期签名密钥。
+流程已经上传并运行，具体版本、下载地址与验证边界见交付记录。
+Windows 产物包括 `XinYu-Windows-Setup.exe`（当前用户安装，无需管理员）和
+`XinYu-Windows.zip`（免安装，必须完整解压）；Android 为 `XinYu-Android-arm64.apk`。
+构建机输出位于 `dist/xinyu-local/<构建ID>/`。用户电脑交付目录见交付记录。
+Android 构建当前使用开发签名，只用于本地验收。不同构建机的开发签名可能不同，
+不保证覆盖安装；正式分发及持续升级前需配置并妥善保管固定签名密钥。
+卸载安卓应用会清除其私有数据，请先使用导出备份功能。
 旧的 `tool/build.ps1` 只保留测试与玻璃性能评估入口，不能生成缺少引擎的交付包。
 
 ### Android 原生依赖
@@ -64,6 +70,7 @@ python clients/xinyu_flutter/tool/build_android_wheels.py --check
 python clients/xinyu_flutter/tool/build_android_wheels.py --output /absolute/path/xinyu-wheels
 ```
 
+这三个 wheel 已在 Actions Linux runner 从源码编译成功。
 脚本下载明确版本的官方 PyPI 源码并核对 SHA-256，保存失败日志和构建清单，
 检查 ARM64 ELF 和 16 KB 段对齐。它不宣称完成手机导入、FTS5、APK 对齐或实际运行验证。
 将输出目录传给上面的 `-AndroidWheels` 后再构建 APK。
