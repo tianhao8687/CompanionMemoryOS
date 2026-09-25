@@ -17,6 +17,11 @@ on:
         description: Existing package run to test (android-startup only)
         type: string
         default: ''
+      api_level:
+        description: Emulator Android API (30 retained for translation diagnostics)
+        type: choice
+        options: ['35', '30']
+        default: '35'
 
 permissions:
   contents: read
@@ -164,10 +169,6 @@ jobs:
     if: always() && (needs.android.result == 'success' || inputs.target == 'android-startup')
     runs-on: ubuntu-24.04
     timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        api: [30, 35]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -189,7 +190,9 @@ jobs:
         env:
           XINYU_APK_RUN_ID: ${{ inputs.artifact_run_id || github.run_id }}
         with:
-          api-level: ${{ matrix.api }}
+          # API 30's ARM translator crashes on SIMD instructions in this APK.
+          # Test the actual ARM64 release on API 35; keep 30 available to diagnose.
+          api-level: ${{ inputs.api_level || '35' }}
           target: google_apis
           arch: x86_64
           ram-size: 2048M
@@ -200,7 +203,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-startup-evidence-api-${{ matrix.api }}
+          name: android-startup-evidence-api-${{ inputs.api_level || '35' }}
           path: .agent-tests/android-startup-*/
           include-hidden-files: true
           if-no-files-found: ignore

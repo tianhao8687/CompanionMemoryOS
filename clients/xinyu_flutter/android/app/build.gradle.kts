@@ -57,10 +57,29 @@ android {
     }
     packaging {
         jniLibs {
-            // Prefer the app's FTS5-enabled SQLite to the dependency's minimal copy.
-            // The final APK check rejects a copy without FTS5.
-            pickFirsts += "**/libsqlite3_python.so"
             keepDebugSymbols += "**/libsqlite3_python.so"
+        }
+    }
+}
+
+// Chaquopy 17 stages its minimal SQLite as generated JNI source. Remove only
+// that generated copy after its producer finishes, leaving the CMake FTS5 build
+// as the sole input. pickFirsts is order-dependent and selected the wrong copy.
+// Configure after Chaquopy has registered all of its own task actions.
+afterEvaluate {
+    val generatedRoot = layout.buildDirectory.dir("python/jniLibs")
+    tasks.matching {
+        it.name.startsWith("generate") && it.name.endsWith("PythonJniLibs")
+    }.configureEach {
+        doLast {
+            val minimalSqlite = outputs.files.asFileTree.matching {
+                include("**/libsqlite3_python.so")
+            }.files.single()
+            check(minimalSqlite.canonicalFile.toPath().startsWith(
+                generatedRoot.get().asFile.canonicalFile.toPath()
+            )) { "Refusing to alter SQLite outside this build's generated Python JNI files" }
+            check(minimalSqlite.delete()) { "Could not remove generated minimal SQLite" }
+            logger.lifecycle("Using the app's FTS5 SQLite instead of the generated minimal copy")
         }
     }
 }
