@@ -2,6 +2,12 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+double readingScale(Object? size) => switch (size) {
+  'large' => 1.12,
+  'extra_large' => 1.24,
+  _ => 1.0,
+};
+
 abstract final class XinYuColors {
   static const ink = Color(0xff30463f);
   static const muted = Color(0xff61736c);

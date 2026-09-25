@@ -354,14 +354,13 @@ class _SettingsSheetState extends State<SettingsSheet> {
               const SizedBox(height: 10),
               Text(
                 '今天，也想听你慢慢说。',
-                style: TextStyle(
-                  fontSize: switch (values['font_size']) {
-                    'large' => 17.92,
-                    'extra_large' => 19.84,
-                    _ => 16,
-                  },
-                  height: 1.7,
+                textScaler: TextScaler.linear(
+                  MediaQuery.textScalerOf(context).scale(16) /
+                      16 *
+                      readingScale(values['font_size']) /
+                      readingScale(widget.controller.settings['font_size']),
                 ),
+                style: const TextStyle(fontSize: 16, height: 1.7),
               ),
             ],
           ),

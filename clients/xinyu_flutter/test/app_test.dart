@@ -147,6 +147,14 @@ void main() {
       ).scale(14),
       closeTo(15.68, .01),
     );
+    await tester.tap(find.byKey(const Key('open-settings')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('外观'));
+    await tester.pumpAndSettle();
+    final preview = tester.widget<Text>(find.text('今天，也想听你慢慢说。'));
+    expect(preview.textScaler!.scale(16), closeTo(17.92, .01));
+    await tester.tap(find.byTooltip('关闭设置'));
+    await tester.pumpAndSettle();
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     addTearDown(tester.view.resetViewInsets);
     tester.platformDispatcher.textScaleFactorTestValue = 1.5;

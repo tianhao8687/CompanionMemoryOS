@@ -52,11 +52,7 @@ class _XinYuAppState extends State<XinYuApp> {
     builder: (context, child) => ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
-        final scale = switch (controller.settings['font_size']) {
-          'large' => 1.12,
-          'extra_large' => 1.24,
-          _ => 1.0,
-        };
+        final scale = readingScale(controller.settings['font_size']);
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
             textScaler: _XinYuTextScaler(
