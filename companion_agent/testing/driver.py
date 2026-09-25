@@ -283,6 +283,9 @@ class ManagedInstance:
             executable = getattr(sys, "_base_executable", sys.executable)
             env["PYTHONPATH"] = os.pathsep.join(sys.path)
         expected_code = fingerprint()
+        creation_flags = 0
+        if sys.platform == "win32":
+            creation_flags = subprocess.CREATE_NO_WINDOW
         with (self.directory / "server.log").open("ab") as log:
             self.process = subprocess.Popen(
                 [
@@ -299,7 +302,7 @@ class ManagedInstance:
                 stdin=subprocess.DEVNULL,
                 stdout=log,
                 stderr=log,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                creationflags=creation_flags,
             )
         self.client = Client(f"http://127.0.0.1:{port}", self.token, timeout=180, owns_process=True)
         deadline = time.monotonic() + 30

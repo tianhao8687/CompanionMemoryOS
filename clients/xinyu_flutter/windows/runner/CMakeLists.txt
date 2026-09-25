@@ -20,6 +20,11 @@ add_executable(${BINARY_NAME} WIN32
 # Apply the standard set of build settings. This can be removed for applications
 # that need different build settings.
 apply_standard_settings(${BINARY_NAME})
+# File operations report failures through the method channel, using C++ exceptions.
+get_target_property(RUNNER_DEFINITIONS ${BINARY_NAME} COMPILE_DEFINITIONS)
+list(REMOVE_ITEM RUNNER_DEFINITIONS "_HAS_EXCEPTIONS=0")
+set_target_properties(${BINARY_NAME} PROPERTIES COMPILE_DEFINITIONS "${RUNNER_DEFINITIONS}")
+target_compile_definitions(${BINARY_NAME} PRIVATE "_HAS_EXCEPTIONS=1")
 target_compile_options(${BINARY_NAME} PRIVATE /utf-8)
 
 # Add preprocessor definitions for the build version.

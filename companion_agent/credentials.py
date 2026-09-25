@@ -6,6 +6,7 @@ import ctypes
 import hashlib
 import json
 import os
+import sys
 from ctypes import wintypes
 from pathlib import Path
 from typing import Any
@@ -34,7 +35,7 @@ class _Credential(ctypes.Structure):
 
 class CredentialStore:
     def __init__(self, data_dir: Path, *, enabled: bool = True) -> None:
-        self.available = enabled and os.name == "nt"
+        self.available = enabled and sys.platform == "win32"
         self.scope = os.path.normcase(str(data_dir.resolve()))
 
     def target(self, endpoint: str) -> str:
@@ -43,7 +44,7 @@ class CredentialStore:
         return "CompanionMemoryOS/romance/" + hashlib.sha256(identity.encode()).hexdigest()
 
     def _library(self) -> Any:
-        if not self.available:
+        if sys.platform != "win32" or not self.available:
             raise CredentialStoreError("credential_store_unavailable")
         library = ctypes.WinDLL("Advapi32.dll", use_last_error=True)
         library.CredReadW.argtypes = [
@@ -62,7 +63,7 @@ class CredentialStore:
         return library
 
     def load(self, endpoint: str) -> str | None:
-        if not self.available:
+        if sys.platform != "win32" or not self.available:
             return None
         library = self._library()
         credential = ctypes.POINTER(_Credential)()
@@ -107,6 +108,8 @@ class CredentialStore:
             ctypes.memset(blob, 0, ctypes.sizeof(blob))
 
     def delete(self, endpoint: str) -> None:
+        if sys.platform != "win32":
+            raise CredentialStoreError("credential_store_unavailable")
         library = self._library()
         if not library.CredDeleteW(self.target(endpoint), 1, 0) and ctypes.get_last_error() != 1168:
             raise CredentialStoreError("credential_store_delete_failed")

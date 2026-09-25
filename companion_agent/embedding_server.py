@@ -7,6 +7,7 @@ import ctypes
 import importlib
 import math
 import os
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from threading import Lock
@@ -32,7 +33,7 @@ class EmbeddingInput(BaseModel):
 
 
 def load_encoder(cache_dir: Path, threads: int, runtime_dir: Path | None = None) -> Encoder:
-    if runtime_dir is not None and os.name == "nt":
+    if runtime_dir is not None and sys.platform == "win32":
         # An optional application-local Microsoft runtime avoids replacing system DLLs.
         directory = runtime_dir.resolve(strict=True)
         _runtime_handles.append(os.add_dll_directory(str(directory)))

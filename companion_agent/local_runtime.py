@@ -36,7 +36,7 @@ class InstanceLease:
             self.file.flush()
         self.file.seek(0)
         try:
-            if os.name == "nt":
+            if sys.platform == "win32":
                 import msvcrt
 
                 msvcrt.locking(self.file.fileno(), msvcrt.LK_NBLCK, 1)
