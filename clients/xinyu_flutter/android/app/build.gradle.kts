@@ -30,7 +30,7 @@ android {
         externalNativeBuild {
             cmake {
                 arguments += "-DXINYU_SQLITE_SOURCE=" + (System.getenv("XINYU_SQLITE_SOURCE")
-                    ?: "${project.projectDir}/../../engine/sqlite/sqlite3.c")
+                    ?: "${project.projectDir}/../../engine/sqlite/sqlite3.c").replace('\\', '/')
             }
         }
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
