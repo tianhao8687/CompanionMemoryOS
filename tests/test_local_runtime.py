@@ -85,7 +85,11 @@ def test_native_runtime_restart_idempotency_backup_restore_and_eof(tmp_path: Pat
         assert httpx.get(str(client.base_url), trust_env=False).status_code == 401
         assert client.get("/", headers={"X-Xinyu-Token": "wrong"}).status_code == 401
         boot = request(client, "GET", "/api/bootstrap")
-        values = boot["settings"] | {"storage_consent": True, "model_consent": True}
+        values = boot["settings"] | {
+            "storage_consent": True,
+            "model_consent": True,
+            "font_size": "extra_large",
+        }
         request(client, "PUT", "/api/settings", json={"settings": values})
         conversation = boot["conversations"][0]["id"]
         message = {
@@ -121,6 +125,7 @@ def test_native_runtime_restart_idempotency_backup_restore_and_eof(tmp_path: Pat
     try:
         boot = request(client, "GET", "/api/bootstrap")
         assert boot["settings"]["user_name"] == values["user_name"]
+        assert boot["settings"]["font_size"] == "extra_large"
         history = request(client, "GET", f"/api/conversations/{conversation}/messages")
         assert [row["id"] for row in history["messages"]] == [
             first["user"]["id"],

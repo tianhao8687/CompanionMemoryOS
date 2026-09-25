@@ -49,6 +49,25 @@ class _XinYuAppState extends State<XinYuApp> {
   Widget build(BuildContext context) => MaterialApp(
     title: '心隅',
     debugShowCheckedModeBanner: false,
+    builder: (context, child) => ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final scale = switch (controller.settings['font_size']) {
+          'large' => 1.12,
+          'extra_large' => 1.24,
+          _ => 1.0,
+        };
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: _XinYuTextScaler(
+              MediaQuery.textScalerOf(context),
+              scale,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    ),
     locale: const Locale('zh', 'CN'),
     supportedLocales: const [Locale('zh', 'CN'), Locale('en')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
@@ -72,19 +91,24 @@ class _XinYuAppState extends State<XinYuApp> {
       scaffoldBackgroundColor: Colors.transparent,
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0x66ffffff),
+        fillColor: const Color(0x60ffffff),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 15,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: Color(0xaaffffff)),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xcaffffff)),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: Color(0xaaffffff)),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xcaffffff)),
         ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xff719887), width: 1.4),
+        ),
+        labelStyle: const TextStyle(color: XinYuColors.muted, fontSize: 13),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
@@ -107,4 +131,22 @@ class _XinYuAppState extends State<XinYuApp> {
     ),
     home: XinYuHome(controller: controller, probe: probe),
   );
+}
+
+/// Keep the OS accessibility curve and apply the user's app preference to it.
+class _XinYuTextScaler extends TextScaler {
+  const _XinYuTextScaler(this.system, this.factor);
+  final TextScaler system;
+  final double factor;
+  @override
+  double scale(double fontSize) => system.scale(fontSize) * factor;
+  @override
+  double get textScaleFactor => system.scale(14) / 14 * factor;
+  @override
+  bool operator ==(Object other) =>
+      other is _XinYuTextScaler &&
+      other.system == system &&
+      other.factor == factor;
+  @override
+  int get hashCode => Object.hash(system, factor);
 }

@@ -50,6 +50,7 @@ STYLES = {
 
 
 class RomanceSettings(PersonaModel):
+    font_size: Literal["standard", "large", "extra_large"] = "standard"
     model_mode: Literal["offline", "api"] = "offline"
     cognition: CognitionSettings = Field(default_factory=CognitionSettings)
     proactive_enabled: bool = False

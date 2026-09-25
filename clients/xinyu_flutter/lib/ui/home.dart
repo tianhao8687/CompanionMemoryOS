@@ -206,11 +206,13 @@ class _XinYuHomeState extends State<XinYuHome> {
               : () => showMemories(context, widget.controller),
           icon: const Icon(Icons.auto_awesome_outlined, size: 21),
         ),
-        IconButton(
-          tooltip: '显示性能面板',
-          onPressed: widget.probe.toggle,
-          icon: const Icon(Icons.speed_rounded, size: 21),
-        ),
+        if (widget.controller.isDemo ||
+            const bool.fromEnvironment('XINYU_DEVELOPMENT'))
+          IconButton(
+            tooltip: '显示性能面板',
+            onPressed: widget.probe.toggle,
+            icon: const Icon(Icons.speed_rounded, size: 21),
+          ),
         IconButton(
           key: const Key('open-settings'),
           tooltip: '陪伴设置',

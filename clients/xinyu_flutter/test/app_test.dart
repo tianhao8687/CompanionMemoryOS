@@ -133,9 +133,20 @@ void main() {
     await tester.tap(find.byKey(const Key('open-settings')));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextFormField, '怎么称呼 TA'), '小夏');
+    await tester.tap(find.text('外观'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('大号'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('保存设置'));
     await tester.pumpAndSettle();
     expect(controller.companionName, '小夏');
+    expect(controller.settings['font_size'], 'large');
+    expect(
+      MediaQuery.textScalerOf(
+        tester.element(find.byKey(const Key('message-input'))),
+      ).scale(14),
+      closeTo(15.68, .01),
+    );
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     addTearDown(tester.view.resetViewInsets);
     tester.platformDispatcher.textScaleFactorTestValue = 1.5;
