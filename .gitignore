@@ -17,6 +17,7 @@ dist/
 .agent-tests/
 clients/xinyu_flutter/engine/python/
 clients/xinyu_flutter/engine/wheels/
+clients/xinyu_flutter/engine/sqlite/
 clients/xinyu_flutter/android/key.properties
 *.jks
 *.keystore

@@ -1,4 +1,4 @@
-"""Check Python's Java bridge in the final, R8-optimized APK, not build inputs."""
+"""Check Python's Java bridge and SQLite FTS5 in the final release APK."""
 
 from __future__ import annotations
 
@@ -100,6 +100,8 @@ def inspect_apk(apk: Path) -> dict[str, object]:
                 found = bridge_methods(archive.read(name))
                 if found is not None:
                     break
+        sqlite = archive.read("lib/arm64-v8a/libsqlite3_python.so")
+        sqlite_fts5 = b"ENABLE_FTS5\0" in sqlite and b"fts5\0" in sqlite
     with apk.open("rb") as source:
         digest = hashlib.file_digest(source, "sha256").hexdigest()
     missing = sorted(REQUIRED_METHODS - (found or set()))
@@ -108,7 +110,9 @@ def inspect_apk(apk: Path) -> dict[str, object]:
         "bridge_present": found is not None,
         "public_bridge_methods": sorted(found or set()),
         "missing_methods": missing,
-        "status": "passed" if found is not None and not missing else "failed",
+        "sqlite_fts5_present": sqlite_fts5,
+        "sqlite_sha256": hashlib.sha256(sqlite).hexdigest(),
+        "status": "passed" if found is not None and not missing and sqlite_fts5 else "failed",
         "android_runtime": "not_run",
     }
 

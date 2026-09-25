@@ -73,6 +73,9 @@ try {
         & $python (Join-Path $PSScriptRoot 'prepare_engine.py') --output (Join-Path $run 'android-engine')
         if ($LASTEXITCODE) { throw 'Engine staging failed.' }
         $env:XINYU_ENGINE_SOURCES = Join-Path $run 'android-engine\python'
+        & $python (Join-Path $PSScriptRoot 'prepare_android_sqlite.py') --output (Join-Path $run 'android-sqlite')
+        if ($LASTEXITCODE) { throw 'SQLite source verification failed.' }
+        $env:XINYU_SQLITE_SOURCE = Join-Path $run 'android-sqlite\sqlite3.c'
         & $flutter build apk --release --target-platform android-arm64 -Pdisable-abi-filtering=true
         if ($LASTEXITCODE) { throw 'Android build failed. No independent APK has been delivered.' }
         $apk = Join-Path $client 'build\app\outputs\flutter-apk\app-release.apk'
@@ -85,7 +88,7 @@ try {
         & (Join-Path $sdkTools.FullName 'apksigner.bat') verify --verbose $apk
         if ($LASTEXITCODE) { throw 'APK signature verification failed.' }
         & $python (Join-Path $PSScriptRoot 'verify_android_apk.py') --apk $apk --output (Join-Path $delivery 'android-bridge-check.json')
-        if ($LASTEXITCODE) { throw 'The release APK lost a Python-to-Java bridge during optimization.' }
+        if ($LASTEXITCODE) { throw 'The release APK is missing its Python bridge or SQLite FTS5.' }
         Copy-Item -LiteralPath $apk -Destination (Join-Path $delivery 'XinYu-Android-arm64.apk')
     }
     Get-ChildItem -LiteralPath $delivery -File | Get-FileHash -Algorithm SHA256

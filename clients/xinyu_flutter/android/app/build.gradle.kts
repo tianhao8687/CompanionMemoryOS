@@ -8,6 +8,7 @@ plugins {
 android {
     namespace = "com.xinyu.xinyu_flutter"
     compileSdk = 36
+    ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -26,6 +27,12 @@ android {
             abiFilters += listOf("arm64-v8a")
         }
         targetSdk = 36
+        externalNativeBuild {
+            cmake {
+                arguments += "-DXINYU_SQLITE_SOURCE=" + (System.getenv("XINYU_SQLITE_SOURCE")
+                    ?: "${project.projectDir}/../../engine/sqlite/sqlite3.c")
+            }
+        }
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
         // You can force using the value of versionCode by specifying the `-P force-version-code-ignoring-abi=true`
@@ -40,6 +47,20 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+    packaging {
+        jniLibs {
+            // Prefer the app's FTS5-enabled SQLite to the dependency's minimal copy.
+            // The final APK check rejects a copy without FTS5.
+            pickFirsts += "**/libsqlite3_python.so"
+            keepDebugSymbols += "**/libsqlite3_python.so"
         }
     }
 }
