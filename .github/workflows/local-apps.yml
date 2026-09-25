@@ -11,15 +11,19 @@ on:
       target:
         description: Local application to build
         type: choice
-        options: [both, windows, android]
+        options: [both, windows, android, android-startup]
         default: both
+      artifact_run_id:
+        description: Existing package run to test (android-startup only)
+        type: string
+        default: ''
 
 permissions:
   contents: read
 
 jobs:
   android-wheels:
-    if: inputs.target != 'windows'
+    if: inputs.target != 'windows' && inputs.target != 'android-startup'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -59,7 +63,7 @@ jobs:
           retention-days: 7
 
   windows:
-    if: inputs.target != 'android'
+    if: inputs.target != 'android' && inputs.target != 'android-startup'
     runs-on: windows-2022
     timeout-minutes: 45
     steps:
@@ -157,8 +161,13 @@ jobs:
 
   android-startup:
     needs: android
+    if: always() && (needs.android.result == 'success' || inputs.target == 'android-startup')
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [30, 35]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -168,6 +177,8 @@ jobs:
         with:
           name: XinYu-Android-local-unverified-on-device
           path: .agent-tests/android-install
+          run-id: ${{ inputs.artifact_run_id || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Enable KVM for the owned emulator
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -175,8 +186,10 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Install and launch the actual ARM64 release APK twice
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          XINYU_APK_RUN_ID: ${{ inputs.artifact_run_id || github.run_id }}
         with:
-          api-level: 30
+          api-level: ${{ matrix.api }}
           target: google_apis
           arch: x86_64
           ram-size: 2048M
@@ -187,7 +200,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-startup-evidence
+          name: android-startup-evidence-api-${{ matrix.api }}
           path: .agent-tests/android-startup-*/
           include-hidden-files: true
           if-no-files-found: ignore

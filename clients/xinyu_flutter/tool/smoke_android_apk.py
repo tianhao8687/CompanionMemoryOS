@@ -31,7 +31,8 @@ def main() -> int:
     run.mkdir(parents=True)
     result: dict[str, object] = {
         "run_id": run_id,
-        "source_commit": os.environ.get("GITHUB_SHA"),
+        "test_driver_commit": os.environ.get("GITHUB_SHA"),
+        "apk_workflow_run": os.environ.get("XINYU_APK_RUN_ID", os.environ.get("GITHUB_RUN_ID")),
         "status": "running",
         "android_runtime": "not_run",
         "physical_device": "not_run",
@@ -69,7 +70,10 @@ def main() -> int:
         installed = True
         result["android_runtime"] = "started"
         for attempt in (1, 2):
-            adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/.MainActivity")
+            launch = adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/.MainActivity")
+            (run / f"launch-{attempt}.log").write_text(launch, encoding="utf-8")
+            if "Error:" in launch or "Status: ok" not in launch:
+                raise RuntimeError(f"Android did not start the activity on launch {attempt}")
             deadline = time.monotonic() + 150
             connected = False
             while time.monotonic() < deadline:
@@ -106,7 +110,10 @@ def main() -> int:
     finally:
         if installed:
             try:
-                log = adb("logcat", "-d", "-s", "XinYuEngine:E", "AndroidRuntime:E")
+                # This driver only uses a fresh CI emulator with synthetic empty
+                # app data. Include native/Flutter crashes, which are absent from
+                # the Java error tag. Never run this collection on a user's phone.
+                log = adb("logcat", "-d", "-v", "threadtime", "-b", "all")
                 (run / "startup.log").write_text(log, encoding="utf-8")
                 adb("shell", "am", "force-stop", PACKAGE)
             except (OSError, subprocess.SubprocessError):
