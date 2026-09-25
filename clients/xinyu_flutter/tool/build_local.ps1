@@ -5,6 +5,7 @@ param(
     [string]$JavaDirectory = $env:JAVA_HOME,
     [string]$BuildPython = $env:XINYU_BUILD_PYTHON,
     [string]$AndroidWheels = $env:XINYU_ANDROID_WHEELS,
+    [string]$InstallerCompiler = (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),
     [string]$BuildRoot = (Join-Path $env:LOCALAPPDATA 'XinYuBuild\releases')
 )
 $ErrorActionPreference = 'Stop'
@@ -63,6 +64,9 @@ try {
         & $python (Join-Path $PSScriptRoot 'smoke_native_engine.py') --engine (Join-Path $bundle 'engine\xinyu-engine.exe')
         if ($LASTEXITCODE) { throw 'The packaged engine failed acceptance. Artifacts retained for diagnosis.' }
         Compress-Archive -LiteralPath $bundle -DestinationPath (Join-Path $delivery 'XinYu-Windows.zip')
+        if (-not (Test-Path -LiteralPath $InstallerCompiler)) { throw 'Inno Setup 6 missing. The portable ZIP was built; pass -InstallerCompiler for the installer.' }
+        & $InstallerCompiler "/DBundleDirectory=$bundle" "/O$delivery" (Join-Path $PSScriptRoot 'windows_installer.iss')
+        if ($LASTEXITCODE) { throw 'Windows installer compilation failed.' }
     } else {
         if (-not $BuildPython) { throw 'Android packaging requires a Python 3.13 host. Pass -BuildPython.' }
         if (-not $AndroidWheels) { throw 'Android native wheels missing. Pass -AndroidWheels after building them.' }

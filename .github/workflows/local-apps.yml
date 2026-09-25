@@ -32,7 +32,13 @@ jobs:
           distribution: temurin
           java-version: '21'
       - run: python -m pip install cibuildwheel==4.2.1
+      - uses: actions/cache@v4
+        id: native-cache
+        with:
+          path: ${{ runner.temp }}/xinyu-wheels
+          key: xinyu-cp313-android-arm64-${{ hashFiles('clients/xinyu_flutter/tool/build_android_wheels.py', 'clients/xinyu_flutter/tool/probe_android_engine.py', 'clients/xinyu_flutter/engine/requirements-android.txt') }}
       - name: Build original native dependencies for Android ARM64
+        if: steps.native-cache.outputs.cache-hit != 'true'
         run: python clients/xinyu_flutter/tool/build_android_wheels.py --output "$RUNNER_TEMP/xinyu-wheels"
       - uses: actions/upload-artifact@v4
         with:
@@ -72,6 +78,7 @@ jobs:
           git -C $sdk config core.longpaths true
           git -C $sdk remote add origin https://github.com/flutter/flutter.git
           git -C $sdk fetch --depth 1 origin 6a19cca56475dbfba1478ee68d7bd0c2ef891da1
+          git -C $sdk fetch --depth 1 origin refs/tags/3.47.5:refs/tags/3.47.5
           git -C $sdk checkout --detach FETCH_HEAD
           if ($LASTEXITCODE) { throw 'Flutter checkout failed' }
       - name: Build and check the bundled Windows engine
@@ -81,7 +88,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: XinYu-Windows-local
-          path: dist/xinyu-local/*/XinYu-Windows.zip
+          path: |
+            dist/xinyu-local/*/XinYu-Windows.zip
+            dist/xinyu-local/*/XinYu-Windows-Setup.exe
           if-no-files-found: error
           retention-days: 7
       - name: Preserve engine acceptance status without conversation exports
@@ -126,6 +135,7 @@ jobs:
           git -C $sdk config core.longpaths true
           git -C $sdk remote add origin https://github.com/flutter/flutter.git
           git -C $sdk fetch --depth 1 origin 6a19cca56475dbfba1478ee68d7bd0c2ef891da1
+          git -C $sdk fetch --depth 1 origin refs/tags/3.47.5:refs/tags/3.47.5
           git -C $sdk checkout --detach FETCH_HEAD
           if ($LASTEXITCODE) { throw 'Flutter checkout failed' }
       - name: Build local testing APK (development signing)
