@@ -73,9 +73,18 @@ try {
         & $python (Join-Path $PSScriptRoot 'prepare_engine.py') --output (Join-Path $run 'android-engine')
         if ($LASTEXITCODE) { throw 'Engine staging failed.' }
         $env:XINYU_ENGINE_SOURCES = Join-Path $run 'android-engine\python'
-        & $flutter build apk --release --target-platform android-arm64
+        & $flutter build apk --release --target-platform android-arm64 -Pdisable-abi-filtering=true
         if ($LASTEXITCODE) { throw 'Android build failed. No independent APK has been delivered.' }
-        Copy-Item -LiteralPath (Join-Path $client 'build\app\outputs\flutter-apk\app-release.apk') -Destination (Join-Path $delivery 'XinYu-Android-arm64.apk')
+        $apk = Join-Path $client 'build\app\outputs\flutter-apk\app-release.apk'
+        $sdkTools = Get-ChildItem -LiteralPath (Join-Path $env:ANDROID_HOME 'build-tools') -Directory |
+            Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'apksigner.bat') } |
+            Sort-Object Name -Descending | Select-Object -First 1
+        if (-not $sdkTools) { throw 'Android SDK build tools missing for APK verification.' }
+        & (Join-Path $sdkTools.FullName 'zipalign.exe') -c -P 16 4 $apk
+        if ($LASTEXITCODE) { throw 'APK 16 KB ZIP alignment verification failed.' }
+        & (Join-Path $sdkTools.FullName 'apksigner.bat') verify --verbose $apk
+        if ($LASTEXITCODE) { throw 'APK signature verification failed.' }
+        Copy-Item -LiteralPath $apk -Destination (Join-Path $delivery 'XinYu-Android-arm64.apk')
     }
     Get-ChildItem -LiteralPath $delivery -File | Get-FileHash -Algorithm SHA256
     Write-Output "Local application artifacts: $delivery"
