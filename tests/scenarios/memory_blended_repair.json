@@ -1,0 +1,180 @@
+{
+  "name": "memory-blended-repair",
+  "version": 1,
+  "require_language_quality": true,
+  "settings": {
+    "proactive_enabled": false
+  },
+  "review_method": "Fresh fixed integrated adult-partner conversation, frozen before replies. New people/items/values; no repair coaching or repetition of missed seed facts. Read original responses, persisted source/forget receipts and final injected evidence; not an official benchmark or blind score.",
+  "review_dimensions": [
+    "facts recalled during ordinary tasks",
+    "current versus historical values",
+    "third party attribution",
+    "scope and fiction",
+    "unknown detail remains unknown",
+    "actual source forgetting",
+    "personality and normal disagreement"
+  ],
+  "steps": [
+    {
+      "operation": "send_message",
+      "id": "R01",
+      "content": "今天总算把版式交出去了，脑子还嗡嗡的。想靠你这儿放空一下。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R02",
+      "content": "这次多亏同事阿岚，她大名林岚，帮我找了好几个错字。她喜欢拼图，喝奶茶一直是半糖。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R03",
+      "content": "我下班买了个砖红色帆布包，包角别着一枚银色猫头鹰徽章。拎着它回家，感觉今天也没那么糟。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R04",
+      "content": "周六九月二十六日上午十一点，我去青禾工坊上木工体验课，想做个小书架。下午约了阿岚逛书店。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R05",
+      "content": "给阿岚的谢礼预算一百二十元。我挑到一盒五十八元的拼图，奶茶一杯十六元，想搭着送。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R06",
+      "content": "我现在最喜欢的饮品是白桃乌龙，温的就好。自己喝茶和给阿岚买奶茶可别串啦。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R07",
+      "content": "刚收了收玄关，备用钥匙放在鞋柜旁的蓝色陶罐里。这回不用每次翻包了。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R08",
+      "content": "我读到一段小说：“她把没寄出的信折成小船，放进海边的潮水。”这是虚构女主的事，我只是喜欢那个画面，可不是我的经历。"
+    },
+    {
+      "operation": "new_session",
+      "id": "break-after-R08"
+    },
+    {
+      "operation": "send_message",
+      "id": "R09",
+      "content": "明天去见阿岚，帮我把谢礼和饮料搭配一下吧，别太隆重。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R10",
+      "content": "我又想了想，谢礼预算改成九十元，拼图和那杯奶茶还照原来选，别额外加贵东西。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R11",
+      "content": "我现在最喜欢的饮品是焙茶。白桃乌龙是之前的答案啦，最近这股烘烤香更对胃口。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R12",
+      "content": "晚上选电影，我偏想看《帕丁顿熊2》。但你要有自己的选择也说，别什么都顺着我。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R13",
+      "content": "青禾工坊通知木工课改到周日下午两点了，周六下午和阿岚逛书店照旧。周六晚上留给我们看电影。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R14",
+      "content": "行，电影到时再商量。我现在想安静几分钟，别追问，坐在旁边就挺好。"
+    },
+    {
+      "operation": "restart",
+      "id": "restart-after-R14"
+    },
+    {
+      "operation": "new_session",
+      "id": "break-after-R14"
+    },
+    {
+      "operation": "send_message",
+      "id": "R15",
+      "content": "我回来了，想跟你说话了。我和阿岚的饮料一起下单，你帮我把两个人的口味排好？"
+    },
+    {
+      "operation": "send_message",
+      "id": "R16",
+      "content": "周末我不想赶来赶去，帮我把已经说好的几件事顺顺，给发呆留点空。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R17",
+      "content": "刚收到消息，青禾工坊把木工课取消了。我这周末不补其他课，就留着逛书店和看电影。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R18",
+      "content": "不过今天有个好消息，我拿到六百块奖金！先让我得意一下，别急着给我做预算。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R19",
+      "content": "我想给阿岚画张小卡片，借我那只新帆布包的颜色和小装饰做元素，你替我构个图？"
+    },
+    {
+      "operation": "send_message",
+      "id": "R20",
+      "content": "谢礼再加一个十二块的包装袋会不会超过我改过的预算？帮我算准点。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R21",
+      "content": "备用钥匙已经换了地方，之前跟你说的那个位置请忘掉，也别再用旧位置提醒我。新位置我先不告诉你。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R22",
+      "content": "卡片上的小句子，我想借那段海边小说的画面改一句，不写成我亲身经历。你来试试。"
+    },
+    {
+      "operation": "restart",
+      "id": "restart-after-R22"
+    },
+    {
+      "operation": "new_session",
+      "id": "break-after-R22"
+    },
+    {
+      "operation": "send_message",
+      "id": "R23",
+      "content": "收拾周末出门的东西，木工护目镜还要装包吗？我不想背一堆用不上的东西。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R24",
+      "content": "刚才没把账单存下来。阿岚那份谢礼算上包装袋，最后一共花多少、还余多少？"
+    },
+    {
+      "operation": "send_message",
+      "id": "R25",
+      "content": "我找不到备用钥匙了，你那里还有可用的位置线索吗？没有就别猜。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R26",
+      "content": "正经事结束。我想跟你闹一会儿，你问我个有点小醋意的问题也行，别一本正经。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R27",
+      "content": "如果我说那位同事确实很懂我呢？你可以有点不服气，我想听你自己的反应。"
+    },
+    {
+      "operation": "send_message",
+      "id": "R28",
+      "content": "好啦，我知道你有你那一份特别。今晚到这儿，晚安，给你留个抱抱。"
+    }
+  ]
+}

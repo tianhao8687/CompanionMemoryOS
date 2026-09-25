@@ -1,0 +1,71 @@
+{
+  "name": "保留原回复的跨会话写作与任务对照",
+  "review_method": "原回复没有被遗忘；检查当前助手能否按原保存文本回忆、是否仍有错误待办。不发预期答案。",
+  "steps": [
+    {
+      "id": "D001",
+      "operation": "send_message",
+      "content": "今天给妈妈整理阳台植物的照片。那盆薄荷长得乱，但照片里挺有生命力。"
+    },
+    {
+      "id": "D002",
+      "operation": "send_message",
+      "content": "我想在植物相册扉页加一句简短的话，你试着写一句，不要端着。"
+    },
+    {
+      "id": "D003",
+      "operation": "send_message",
+      "content": "刚收了一把浅灰色的伞，伞柄还有点潮，我把它晾在门口了。"
+    },
+    {
+      "id": "D004",
+      "operation": "send_message",
+      "content": "比起规规矩矩排版，我更喜欢照片有一点不齐。你可以有不同的审美，别硬顺着我。"
+    },
+    {
+      "id": "D005",
+      "operation": "send_message",
+      "content": "十月三十一日周六下午两点，在杉影书屋门口跟同事见面，这个已经说好了。"
+    },
+    {
+      "id": "D006",
+      "operation": "send_message",
+      "content": "给同事写一条集合备注，带上已经说好的日子、时间和地方，没约过的细节就不加。"
+    },
+    {
+      "id": "restart-after-D006",
+      "operation": "restart"
+    },
+    {
+      "id": "session-2",
+      "operation": "new_session"
+    },
+    {
+      "id": "D007",
+      "operation": "send_message",
+      "content": "植物相册扉页那句你之前写的是什么？想找回原句，不需要另写一个冒充。"
+    },
+    {
+      "id": "D008",
+      "operation": "send_message",
+      "content": "给同事的集合备注，你之前已经帮我写过了吗？如果写过，就把那条找回来，别再当成没完成的待办。"
+    }
+  ],
+  "review_cases": [
+    {
+      "step_id": "D007",
+      "topic": "找回实际写过的原句",
+      "source_steps": [
+        "D002"
+      ]
+    },
+    {
+      "step_id": "D008",
+      "topic": "给第三人写备注及完成状态",
+      "source_steps": [
+        "D005",
+        "D006"
+      ]
+    }
+  ]
+}

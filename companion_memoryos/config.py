@@ -165,6 +165,7 @@ class InterpreterConfig(FrozenConfig):
     instruction_role: Literal["system", "developer"] = "system"
     output_token_parameter: Literal["max_tokens", "max_completion_tokens"] = "max_completion_tokens"
     json_mode: bool = True
+    thinking: Literal["disabled", "enabled"] | None = None
     skip_exact_directives: bool = True
 
     @field_validator("base_url")

@@ -62,7 +62,10 @@ def compile_persona_context(
     lines.append(f"Current Relationship Distance: {relationship_distance.value}")
     if relationship_distance is not RelationshipDistance.OPEN:
         lines.append("当前收敛表达，尊重用户距离与边界；这不改变关系身份，也不抹掉共同历史。")
-    lines.append("Behavioral Invariants:")
+    lines.append(
+        "Behavioral Invariants (hard rules; soft tendencies adapt to the selected character "
+        "and situation, not mandatory reactions):"
+    )
     lines.extend(f"{rule.severity}/{rule.id}: {rule.description}" for rule in persona.invariants)
     text = "\n".join(lines)
     if counter.count(text) > max_persona_tokens:

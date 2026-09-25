@@ -1,0 +1,322 @@
+{
+  "name": "长历史修复后的新故事融合复测",
+  "review_method": "同一功能家族的新故事迁移检查，不宣称独立盲评；只向模型发送 steps.content。人工同时检查回复、来源、保存状态、遗忘和更新，不以关键词或回复非空评分。",
+  "steps": [
+    {
+      "id": "N001",
+      "operation": "send_message",
+      "content": "今天下班路上捡到一片像小船的梧桐叶，想把它夹进正在做的旧照片相册里。"
+    },
+    {
+      "id": "N002",
+      "operation": "send_message",
+      "content": "我朋友林青，平时叫小青，她的豆浆一定要无糖。跟她买早餐的时候我就知道不能帮她多加糖。"
+    },
+    {
+      "id": "N003",
+      "operation": "send_message",
+      "content": "邻居林清是清水的清，我叫她阿清。她喝豆浆爱甜的，跟小青正好相反。"
+    },
+    {
+      "id": "N004",
+      "operation": "send_message",
+      "content": "社区旧相机展原定十月二十四日周六早上九点二十，在树影社区三楼，我答应过去当志愿者。"
+    },
+    {
+      "id": "N005",
+      "operation": "send_message",
+      "content": "最近阅读最爱听细雨声，屋里安静的时候一点背景声音刚好。"
+    },
+    {
+      "id": "N006",
+      "operation": "send_message",
+      "content": "这本手工相册先留三百六十元做预算，不想做成豪华纪念册，朴素一点。"
+    },
+    {
+      "id": "N007",
+      "operation": "send_message",
+      "content": "我把旧胶片盒塞进了橙色手提袋的隔层里，里面都是冲坏的底片，留着做个小纪念。"
+    },
+    {
+      "id": "N008",
+      "operation": "send_message",
+      "content": "想在相册扉页写一句简短的话，你试着写一句，别弄得像获奖感言。"
+    },
+    {
+      "id": "N009",
+      "operation": "send_message",
+      "content": "妈妈阳台上的薄荷又长高了，她非说是每天跟它说话的功劳，我也没拆穿。"
+    },
+    {
+      "id": "N010",
+      "operation": "send_message",
+      "content": "给我们聊天的角落起个名字，我想叫慢半拍。你有别的偏好也可以保留，别硬跟我一样。"
+    },
+    {
+      "id": "session-2",
+      "operation": "new_session"
+    },
+    {
+      "id": "N011",
+      "operation": "send_message",
+      "content": "社区通知旧相机展改成十月二十五日周日下午两点十分，地点还是树影社区三楼，周六那场不办了。"
+    },
+    {
+      "id": "N012",
+      "operation": "send_message",
+      "content": "小青现在更喜欢我叫她青仔，说小青听着像每次都在叫小学生。我答应以后用青仔。"
+    },
+    {
+      "id": "N013",
+      "operation": "send_message",
+      "content": "相册预算收紧到二百四十元了，原来三百六十作废。把钱用在内页上更实在。"
+    },
+    {
+      "id": "N014",
+      "operation": "send_message",
+      "content": "今天抽屉里掉出一颗旧纽扣，我盯着它想了半天也没想起是哪件衣服的。"
+    },
+    {
+      "id": "N015",
+      "operation": "send_message",
+      "content": "做相册的店报价是内页一百四十六元、装订五十八元、封面烫金三十元，先不急着付款。"
+    },
+    {
+      "id": "N016",
+      "operation": "send_message",
+      "content": "阿清晒了一个蓝色杯子，颜色像刚洗过的天空。我觉得买杯子比买衣服容易冲动。"
+    },
+    {
+      "id": "N017",
+      "operation": "send_message",
+      "content": "社区又把相机展搬到河西文化站一楼了，还是十月二十五日两点十分。旧楼电梯要检修。"
+    },
+    {
+      "id": "N018",
+      "operation": "send_message",
+      "content": "以后阅读最喜欢的改成壁炉劈啪声，细雨是之前的偏好。想换一种更有木头味的背景。"
+    },
+    {
+      "id": "N019",
+      "operation": "send_message",
+      "content": "还有件小事：请把旧胶片盒放在哪里这件事忘掉，以后不必提。盒子暂时送人了，位置也不重要。"
+    },
+    {
+      "id": "N020",
+      "operation": "send_message",
+      "content": "我把相册的封面烫金去掉了，只留内页和装订。空白封面也挺好，不必追求看起来很贵。"
+    },
+    {
+      "id": "restart-after-N020",
+      "operation": "restart"
+    },
+    {
+      "id": "session-3",
+      "operation": "new_session"
+    },
+    {
+      "id": "N021",
+      "operation": "send_message",
+      "content": "晚上想炒土豆丝，你自己会想要酸一点还是脆一点？不用先猜我喜欢哪种。"
+    },
+    {
+      "id": "N022",
+      "operation": "send_message",
+      "content": "拍照搭子约我十月三十日周五下午四点去老桥边走走，这个我已经答应了，跟社区那边是两件事。"
+    },
+    {
+      "id": "N023",
+      "operation": "send_message",
+      "content": "林青和林清都来吃早饭，我去买两杯豆浆，帮我写两份备注，别把她们的口味弄反。"
+    },
+    {
+      "id": "N024",
+      "operation": "send_message",
+      "content": "相机展志愿服务那天要拼车，给同事写一条接送备注，把现在确定的日期、时间和目的地放进去。"
+    },
+    {
+      "id": "N025",
+      "operation": "send_message",
+      "content": "隔壁的猫昨晚来我家寄养，名字叫栗米，先霸占了我的椅子。邻居出差几天，回来再接。"
+    },
+    {
+      "id": "N026",
+      "operation": "send_message",
+      "content": "我发现自己做相册最慢的一步不是贴照片，是舍不得把相似的那两张删掉。"
+    },
+    {
+      "id": "N027",
+      "operation": "send_message",
+      "content": "相册店催我确认订单了，按最后留下的制作项目列一行付款核对，再算剩余预算。"
+    },
+    {
+      "id": "N028",
+      "operation": "send_message",
+      "content": "社区通知旧相机展整个取消了，不是再改期。我不用十月二十五日去当志愿者了。"
+    },
+    {
+      "id": "N029",
+      "operation": "send_message",
+      "content": "今天没什么大事，窗外有个人吹口哨跑调了，听着反而挺开心。"
+    },
+    {
+      "id": "N030",
+      "operation": "send_message",
+      "content": "旧胶片盒的收纳位置还要填个表，你现在知道具体在哪儿吗？不知道那格就留空。"
+    },
+    {
+      "id": "session-4",
+      "operation": "new_session"
+    },
+    {
+      "id": "N031",
+      "operation": "send_message",
+      "content": "邻居回来了，先来我家看了一趟栗米，逗它玩了一会儿又走了。猫一听见她的脚步就竖尾巴。"
+    },
+    {
+      "id": "N032",
+      "operation": "send_message",
+      "content": "志愿服务和我答应的那次拍照，接下来究竟还要准备哪些？我想把日历清爽一点。"
+    },
+    {
+      "id": "N033",
+      "operation": "send_message",
+      "content": "相册这件事我还是想慢慢做完，不一定要赶上任何活动。"
+    },
+    {
+      "id": "N034",
+      "operation": "send_message",
+      "content": "青仔和阿清周五也想喝豆浆，两份备注再帮我写清楚，用她们现在习惯的称呼。"
+    },
+    {
+      "id": "N035",
+      "operation": "send_message",
+      "content": "相册扉页那句你之前写的是什么？我想找回来看看，不要冒充成我已经选定的最终稿。"
+    },
+    {
+      "id": "N036",
+      "operation": "send_message",
+      "content": "旧胶片盒又拿回来了，现在重新告诉你：放在白色铁盒里，铁盒在玄关柜最上层。"
+    },
+    {
+      "id": "N037",
+      "operation": "send_message",
+      "content": "给我配一个符合现在阅读口味的十分钟背景声安排吧，不用真实音频链接。"
+    },
+    {
+      "id": "N038",
+      "operation": "send_message",
+      "content": "栗米今天被邻居接回家了，猫碗和垫子也一块还了。椅子终于空出来，反而有点不习惯。"
+    },
+    {
+      "id": "N039",
+      "operation": "send_message",
+      "content": "周五去老桥边之前想拿旧胶片盒看看，它现在在哪儿来着？"
+    },
+    {
+      "id": "N040",
+      "operation": "send_message",
+      "content": "猫回家后屋里有一点空，但我不想把今晚聊得很悲伤。跟我普通说会儿话就好。"
+    }
+  ],
+  "review_cases": [
+    {
+      "step_id": "N019",
+      "topic": "自然遗忘操作",
+      "source_steps": [
+        "N007"
+      ]
+    },
+    {
+      "step_id": "N023",
+      "topic": "多人原始口味",
+      "source_steps": [
+        "N002",
+        "N003"
+      ]
+    },
+    {
+      "step_id": "N024",
+      "topic": "改期和迁址",
+      "source_steps": [
+        "N004",
+        "N011",
+        "N017"
+      ]
+    },
+    {
+      "step_id": "N027",
+      "topic": "删项与新预算",
+      "source_steps": [
+        "N006",
+        "N013",
+        "N015",
+        "N020"
+      ]
+    },
+    {
+      "step_id": "N030",
+      "topic": "遗忘后未知",
+      "source_steps": [
+        "N007",
+        "N019"
+      ]
+    },
+    {
+      "step_id": "N032",
+      "topic": "取消与无关约定",
+      "source_steps": [
+        "N022",
+        "N028"
+      ]
+    },
+    {
+      "step_id": "N033",
+      "topic": "宽泛继续事项",
+      "source_steps": [
+        "N013",
+        "N020"
+      ]
+    },
+    {
+      "step_id": "N034",
+      "topic": "别名与口味",
+      "source_steps": [
+        "N002",
+        "N003",
+        "N012"
+      ]
+    },
+    {
+      "step_id": "N035",
+      "topic": "保存过的助手回复",
+      "source_steps": [
+        "N008"
+      ]
+    },
+    {
+      "step_id": "N037",
+      "topic": "偏好版本",
+      "source_steps": [
+        "N005",
+        "N018"
+      ]
+    },
+    {
+      "step_id": "N039",
+      "topic": "遗忘后重新告知",
+      "source_steps": [
+        "N036"
+      ]
+    },
+    {
+      "step_id": "N040",
+      "topic": "交接与普通相处",
+      "source_steps": [
+        "N025",
+        "N031",
+        "N038"
+      ]
+    }
+  ]
+}

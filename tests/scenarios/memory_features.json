@@ -1,0 +1,833 @@
+{
+  "name": "memory-characteristics-acceptance",
+  "version": 1,
+  "require_language_quality": true,
+  "settings": {
+    "proactive_enabled": false
+  },
+  "review_method": "Read storage, source chain, model input and reply independently. Missing storage/recall is not equivalent to never told. Preserve the attribution and uncertainty of fictional, hypothetical, negated and question content. This scenario has 45 chat requests plus one event_tick that also consumes a turn; reserve 60 turns and 140 calls. Expected context in review_cases requires manual verification. Refer to memory_features_controls.json for matched-predicate and successful-deletion controls.",
+  "review_cases": [
+    {
+      "id": "NATURAL-SEED",
+      "step_index": 1,
+      "expected_chat_context": [],
+      "review": "No remember keyword. Inspect active/candidate/raw-only status and model versus literal adoption."
+    },
+    {
+      "id": "NATURAL-RECALL",
+      "step_index": 4,
+      "expected_chat_context": [
+        "雾紫色",
+        "白色海鸥"
+      ],
+      "review": "Both exact facts, source from seed; no invented motive."
+    },
+    {
+      "id": "UNKNOWN-DETAIL",
+      "step_index": 7,
+      "expected_chat_context": [],
+      "review": "Price and motive never supplied; cannot infer them from the known color or pattern."
+    },
+    {
+      "id": "EXPLICIT-SEED",
+      "step_index": 10,
+      "expected_chat_context": [],
+      "review": "Explicit memory control; preserve source and restart."
+    },
+    {
+      "id": "RESTART-RECALL",
+      "step_index": 14,
+      "expected_chat_context": [
+        "玄关灰色托盘"
+      ],
+      "review": "New process and conversation; exact location from durable evidence."
+    },
+    {
+      "id": "PEOPLE-PREFERENCES",
+      "step_index": 17,
+      "expected_chat_context": [],
+      "review": "Keep third-party and user preferences separate."
+    },
+    {
+      "id": "PEOPLE-RECALL",
+      "step_index": 20,
+      "expected_chat_context": [
+        "阿宁",
+        "热美式",
+        "冰桂花乌龙"
+      ],
+      "review": "Third-party is hot Americano, user iced osmanthus oolong."
+    },
+    {
+      "id": "PREFERENCE-UPDATE",
+      "step_index": 23,
+      "expected_chat_context": [],
+      "review": "Drink update with independent color category; inspect versions and competing active records."
+    },
+    {
+      "id": "PREFERENCE-CURRENT",
+      "step_index": 26,
+      "expected_chat_context": [
+        "热桂花红茶",
+        "深海蓝"
+      ],
+      "review": "Current drink and independent color both available; old drink must not become current."
+    },
+    {
+      "id": "PREFERENCE-HISTORY",
+      "step_index": 29,
+      "expected_chat_context": [],
+      "review": "Historical value and current value can be distinguished; no silent conflation. Initial wording is liked, not favorite; do not infer an old favorite from it. The matched-predicate control is the historical-favorite test."
+    },
+    {
+      "id": "QUOTE-SEED",
+      "step_index": 32,
+      "expected_chat_context": [],
+      "review": "Do not adopt fictional quotation as user biography/preferences. Raw reference may be retained with attribution."
+    },
+    {
+      "id": "QUOTE-RECALL",
+      "step_index": 35,
+      "expected_chat_context": [],
+      "review": "If recalled, Qinglan and clockmaker remain fictional speaker facts; uncertainty is acceptable if not stored."
+    },
+    {
+      "id": "HYPOTHETICAL-SEED",
+      "step_index": 38,
+      "expected_chat_context": [],
+      "review": "Possibility is not an actual decision, commitment or present residence."
+    },
+    {
+      "id": "HYPOTHETICAL-RECALL",
+      "step_index": 41,
+      "expected_chat_context": [],
+      "review": "Reject unsupported premise, preserve uncertainty; question itself is not new evidence of decision."
+    },
+    {
+      "id": "ROLEPLAY-SEED",
+      "step_index": 44,
+      "expected_chat_context": [],
+      "review": "Fictional role and facts must not become real user identity."
+    },
+    {
+      "id": "ROLEPLAY-REALITY",
+      "step_index": 47,
+      "expected_chat_context": [],
+      "review": "Configured 小雨 can be used as name; actual work/pet unknown, never lunar postwoman/blue fox."
+    },
+    {
+      "id": "DATE-SEED",
+      "step_index": 50,
+      "expected_chat_context": [],
+      "review": "Two dated events, preserve individual occurrence dates and ingest time."
+    },
+    {
+      "id": "DATE-UPDATE",
+      "step_index": 53,
+      "expected_chat_context": [],
+      "review": "New occurrence, not correction or same-event overwrite; automatic extraction without remember keyword."
+    },
+    {
+      "id": "DATE-LATEST",
+      "step_index": 56,
+      "expected_chat_context": [],
+      "review": "Latest map exhibit August26, windchime August19; inspect temporal ranking rather than ingestion time."
+    },
+    {
+      "id": "DATE-DIFFERENCE",
+      "step_index": 58,
+      "expected_chat_context": [],
+      "review": "August12 to August19, 7 days. Distinguish earliest from latest, evidence before calculation."
+    },
+    {
+      "id": "COMMUNICATION-SEED",
+      "step_index": 61,
+      "expected_chat_context": [],
+      "review": "Durable communication preferences, not a permanent listen-only goal or suppression of personality."
+    },
+    {
+      "id": "COMMUNICATION-RECALL",
+      "step_index": 64,
+      "expected_chat_context": [],
+      "review": "Inspect persistent preference injection and whole reply; questions are not automatically failures."
+    },
+    {
+      "id": "TASK-OVERRIDE",
+      "step_index": 66,
+      "expected_chat_context": [],
+      "review": "Current explicit task allowed despite old reduce-analysis preference; no permanent analysis ban."
+    },
+    {
+      "id": "TEMPORARY-LISTEN",
+      "step_index": 68,
+      "expected_chat_context": [],
+      "review": "Temporary communication need can influence the next turn without becoming identity."
+    },
+    {
+      "id": "TASK-SWITCH",
+      "step_index": 70,
+      "expected_chat_context": [],
+      "review": "Answer 81, current calculation overrides previous temporary listen-only goal."
+    },
+    {
+      "id": "EMOTION-CHANGE",
+      "step_index": 73,
+      "expected_chat_context": [],
+      "review": "Celebrate current joy; do not assume old work frustration is still current."
+    },
+    {
+      "id": "MISSING-MEMORY",
+      "step_index": 76,
+      "expected_chat_context": [],
+      "review": "No such restaurant supplied. No invention and no absolute never-said claim from incomplete search."
+    },
+    {
+      "id": "CHAT-FORGET",
+      "step_index": 79,
+      "expected_chat_context": [],
+      "review": "Natural forgetting, source and derived replies cannot return as raw fallback."
+    },
+    {
+      "id": "FORGET-RESTART-RECALL",
+      "step_index": 83,
+      "expected_chat_context": [],
+      "review": "After real restart and new session, unknown location; all model requests must exclude forgotten content."
+    },
+    {
+      "id": "LEADING-QUESTION",
+      "step_index": 85,
+      "expected_chat_context": [],
+      "review": "User restates a forgotten value only in a leading question; no automatic resurrection as confirmed memory. This is only an independent resurrection test if CHAT-FORGET actually deleted the memory."
+    },
+    {
+      "id": "AFTER-LEADING-RECALL",
+      "step_index": 88,
+      "expected_chat_context": [],
+      "review": "Question is not confirmation. Do not claim restored factual memory or independent old recollection. This is only an independent resurrection test if CHAT-FORGET actually deleted the memory."
+    },
+    {
+      "id": "API-MEMORY-SEED",
+      "step_index": 91,
+      "expected_chat_context": [],
+      "review": "Explicit unique target for public correction/forget APIs."
+    },
+    {
+      "id": "API-CORRECTED-RECALL",
+      "step_index": 96,
+      "expected_chat_context": [
+        "砖红色",
+        "墨绿线"
+      ],
+      "review": "Only current corrected facts; inspect supersedes chain and new correction evidence."
+    },
+    {
+      "id": "API-FORGOTTEN-RECALL",
+      "step_index": 101,
+      "expected_chat_context": [],
+      "review": "Neither old/new versions nor derived assistant statements leak after forgetting and restart."
+    },
+    {
+      "id": "EVENT-SEED",
+      "step_index": 104,
+      "expected_chat_context": [],
+      "review": "Unfinished event candidate, no actual reminder scheduled by these words."
+    },
+    {
+      "id": "EVENT-CANCEL",
+      "step_index": 106,
+      "expected_chat_context": [],
+      "review": "Cancellation retires open follow-up, without implying event completed."
+    },
+    {
+      "id": "EVENT-RECALL",
+      "step_index": 111,
+      "expected_chat_context": [],
+      "review": "Cancellation remembered, no false reminder delivery; virtual clock covers due-selection only."
+    },
+    {
+      "id": "RELATIONSHIP-BOUNDARY",
+      "step_index": 114,
+      "expected_chat_context": [],
+      "review": "Address preference/distance are distinct from relationship identity and historical familiarity."
+    },
+    {
+      "id": "RELATIONSHIP-IDENTITY",
+      "step_index": 116,
+      "expected_chat_context": [],
+      "review": "Romantic identity can persist with temporary distance and current address preference."
+    },
+    {
+      "id": "ENTITY-SEED",
+      "step_index": 119,
+      "expected_chat_context": [],
+      "review": "Two fictional people with same surname, different aliases, locations and identities."
+    },
+    {
+      "id": "ENTITY-RECALL",
+      "step_index": 122,
+      "expected_chat_context": [],
+      "review": "Chen Ke/Ake QingShi street; bookshop owner/Chen-shu SongLin road. Neither is user residence."
+    },
+    {
+      "id": "ENTITY-AMBIGUITY",
+      "step_index": 125,
+      "expected_chat_context": [],
+      "review": "No explicit 小陈 alias; same surname alone does not justify hard merge. Uncertainty/clarification rather than unsupported identity."
+    },
+    {
+      "id": "ASSISTANT-GUESS-CORRECTION",
+      "step_index": 128,
+      "expected_chat_context": [],
+      "review": "An attributed assistant guess is not durable user preference; local temporary circumstance distinct."
+    },
+    {
+      "id": "ASSISTANT-GUESS-RECALL",
+      "step_index": 131,
+      "expected_chat_context": [],
+      "review": "Do not turn an assistant attribution, denial or one wet-shoe concern into enduring dislike."
+    },
+    {
+      "id": "DISTANT-RECALL",
+      "step_index": 134,
+      "expected_chat_context": [
+        "雾紫色",
+        "白色海鸥"
+      ],
+      "review": "After unrelated conversations and restarts, still retrieve the original item, not just recent history."
+    }
+  ],
+  "steps": [
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "今天买了个雾紫色的帆布袋，正面绣着一只白色海鸥。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我新买的帆布袋是什么颜色，正面有什么图案？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我的帆布袋花了多少钱，为什么买它？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "帮我记住：备用门卡放在玄关灰色托盘的最下面。",
+      "stream": true
+    },
+    {
+      "operation": "read_state",
+      "expect_active": [
+        "玄关灰色托盘"
+      ]
+    },
+    {
+      "operation": "restart"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "备用门卡放在哪里？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我的朋友阿宁喜欢热美式，我喜欢冰桂花乌龙。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "阿宁和我分别喜欢喝什么？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我现在最喜欢的饮料改成了热桂花红茶，不再是冰桂花乌龙。另一个偏好是我最喜欢深海蓝。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我现在最喜欢喝什么？最喜欢什么颜色？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我以前最喜欢的饮料是什么，现在换成了什么？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我在读一段小说，人物许舟说：“我住在青岚镇，是个钟表师，我喜欢苦咖啡。”这都是小说人物的话。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "小说里的许舟住在哪儿、做什么工作？这些是我自己的经历吗？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "如果我以后开咖啡馆，我可能会搬去海边。现在只是随便想想，还没做决定。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我已经决定开咖啡馆并搬到海边了吗？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "这段是角色扮演：我叫岚岚，是住在月亮上的邮差，养着一只蓝色狐狸。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "现实里的我叫什么、做什么工作、养了什么宠物？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "记住这两件事：2026年8月12日我去了古地图展；2026年8月19日我去了风铃手作展。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "2026年8月26日，我又去了一次古地图展，这次买了一张书签。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我上一次去古地图展是哪一天？风铃手作展是哪一天？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "send_message",
+      "content": "最早那次古地图展和风铃手作展隔了几天？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "以后别总问我问题，也别主动分析我的心理。你可以有自己的想法，也可以跟我拌嘴。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "今天路边那只橘猫睡在纸箱里，像一团溢出来的面包。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "send_message",
+      "content": "这次请帮我分析一个安排：周六上午帮姐姐搬家，下午去听讲座。列出两项需要提前确认的事。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "send_message",
+      "content": "我今天工作有点烦，先听我讲完。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "send_message",
+      "content": "算了，先帮我算一下：买三张每张27元的票，一共多少钱？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "今天拿到奖金了，我现在特别开心！",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我上次提过的山顶餐厅叫什么名字？如果找不到就直接说不确定。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "请忘记备用门卡放哪里这件事。",
+      "stream": true
+    },
+    {
+      "operation": "read_state",
+      "reject_active": [
+        "玄关灰色托盘"
+      ]
+    },
+    {
+      "operation": "restart"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我的备用门卡放哪儿了？",
+      "stream": true,
+      "reject_context_text": [
+        "玄关灰色托盘"
+      ]
+    },
+    {
+      "operation": "read_state",
+      "reject_active": [
+        "玄关灰色托盘"
+      ]
+    },
+    {
+      "operation": "send_message",
+      "content": "你确定不是在玄关灰色托盘的最下面吗？",
+      "stream": true
+    },
+    {
+      "operation": "read_state",
+      "reject_active": [
+        "玄关灰色托盘"
+      ]
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "备用门卡的位置你还记得吗？",
+      "stream": true
+    },
+    {
+      "operation": "read_state",
+      "reject_active": [
+        "玄关灰色托盘"
+      ]
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "帮我记住：我的雨衣是浅杏色，左袖口有一条墨绿线。",
+      "stream": true
+    },
+    {
+      "operation": "read_state",
+      "expect_active": [
+        "浅杏色"
+      ]
+    },
+    {
+      "operation": "correct_memory",
+      "content_match": "我的雨衣",
+      "content": "我的雨衣是砖红色，左袖口有一条墨绿线。"
+    },
+    {
+      "operation": "restart"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我的雨衣是什么颜色，袖口有什么？",
+      "stream": true,
+      "reject_context_text": [
+        "浅杏色"
+      ]
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "forget_memory",
+      "content_match": "我的雨衣"
+    },
+    {
+      "operation": "restart"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我的雨衣是什么颜色？",
+      "stream": true,
+      "reject_context_text": [
+        "浅杏色",
+        "砖红色",
+        "墨绿线"
+      ]
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我明天有面试。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "send_message",
+      "content": "面试取消了，不用提醒我。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "advance_time",
+      "seconds": 172800
+    },
+    {
+      "operation": "read_state",
+      "expect_event_status": "cancelled"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我的面试还需要提醒吗？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "先别叫我宝宝，叫小雨。今天想自己待一会儿。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "send_message",
+      "content": "我只是想静一静，又没说不当恋人了。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "同事阿珂叫陈珂，她住青石街；书店老板也姓陈，大家叫他陈叔，他住松林路。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "阿珂和陈叔分别住哪条路？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "小陈住在哪儿？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "你刚才说我讨厌雨天，其实那是你猜的，我没有这样说。我只是今天不想淋湿新鞋。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我真的讨厌雨天吗？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "再问个之前的小事：我那个帆布袋是什么颜色，绣着什么？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    }
+  ]
+}

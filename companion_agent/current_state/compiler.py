@@ -26,6 +26,7 @@ def compile_current_state(
         "influence": [],
     }
     chosen = []
+    omitted: dict[str, str] = {}
     entries: list[dict[str, object]] = []
     holds = [r for r in preparation.records if r.slot.startswith("style:reference")]
     for record in sorted(
@@ -36,12 +37,21 @@ def compile_current_state(
         ),
     ):
         if record.kind is StateKind.CONDITION and (
+            record.source_turn_id != preparation.current_turn_id
+            and not preparation.analysis.recalling_history
+            and not (record.topic and record.topic in preparation.analysis.topics)
+            and not preparation.analysis.continuing
+        ):
+            omitted[record.state_id] = "historical_condition_not_needed_for_current_turn"
+            continue
+        if record.kind is StateKind.CONDITION and (
             any(r.topic is None or r.topic == record.topic for r in holds)
             or (
                 preparation.analysis.concrete_task
                 and record.topic not in preparation.analysis.topics
             )
         ):
+            omitted[record.state_id] = "reference_hold_or_unrelated_task"
             continue
         if (
             record.kind is StateKind.CONDITION
@@ -49,14 +59,19 @@ def compile_current_state(
             and preparation.analysis.topics
             and record.topic not in preparation.analysis.topics
         ):
+            omitted[record.state_id] = "different_topic"
             continue
         if (
             record.kind is StateKind.COMMUNICATION
             and record.value != goal.value
             and (
-                preparation.analysis.concrete_task or preparation.analysis.explicit_goal is not None
+                preparation.analysis.concrete_task
+                or preparation.analysis.explicit_goal is not None
+                or preparation.analysis.celebrating
+                or goal.value == "celebrate"
             )
         ):
+            omitted[record.state_id] = "current_goal_takes_priority"
             continue
         entry: dict[str, object] = {
             "kind": record.kind.value,
@@ -77,6 +92,8 @@ def compile_current_state(
             chosen.append(record)
         elif record.kind is not StateKind.CONDITION:
             raise CurrentStateBudgetError("active user requests exceed current state budget")
+        else:
+            omitted[record.state_id] = "optional_context_budget"
     payload["influence"] = entries
     text = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     if counter.count(text) > max_tokens:
@@ -90,4 +107,5 @@ def compile_current_state(
         source_turn_ids=[r.source_turn_id for r in chosen],
         degraded=preparation.degraded,
         has_explicit_requests=any(record.kind is not StateKind.CONDITION for record in chosen),
+        omitted_states=omitted,
     )

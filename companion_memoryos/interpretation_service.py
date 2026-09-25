@@ -25,6 +25,7 @@ from companion_memoryos.schemas import (
     EvidenceActor,
     FollowUpMode,
     MemoryInput,
+    MemoryKind,
     OpenLoopInput,
     ResolutionStatus,
     TurnDeletionState,
@@ -32,6 +33,7 @@ from companion_memoryos.schemas import (
     TurnInterpretationRequest,
 )
 from companion_memoryos.store import MemoryStore, datetime_to_text, utc_now
+from companion_memoryos.temporal import literal_event_day
 
 if TYPE_CHECKING:
     from companion_memoryos.service import CompanionMemoryService
@@ -113,6 +115,15 @@ def apply_interpretation(
             kind = candidate.epistemic_kind
             if kind in {EpistemicKind.DIRECT_SELF_REPORT, EpistemicKind.RELATIONSHIP_CONTRACT}:
                 kind = EpistemicKind.OBSERVATION
+            event_day = (
+                literal_event_day(
+                    candidate.content,
+                    turn.occurred_at,
+                    request.processing_metadata.get("calendar_timezone", "UTC"),
+                )
+                if candidate.kind is MemoryKind.SHARED_MOMENT and candidate.content in turn.content
+                else None
+            )
             memory_inputs.append(
                 MemoryInput(
                     user_id=turn.user_id,
@@ -144,7 +155,8 @@ def apply_interpretation(
                         if kind is EpistemicKind.INTERPRETATION_HYPOTHESIS
                         else ResolutionStatus.RESOLVED
                     ),
-                    event_at=turn.occurred_at,
+                    event_at=(event_day.start if event_day is not None else None)
+                    or turn.occurred_at,
                     valid_time_start=candidate.valid_time_start,
                     valid_time_end=candidate.valid_time_end,
                     evidence_turn_ids=[turn.id],
@@ -158,6 +170,15 @@ def apply_interpretation(
                         "proposed_epistemic_kind": candidate.epistemic_kind.value,
                         "evidence_span_indices": candidate.evidence_span_indices,
                         "interpretation_key": request.idempotency_key,
+                        **(
+                            {
+                                "event_time_precision": "day",
+                                "event_time_basis": "literal_source_date",
+                                "source_occurred_at": turn.occurred_at.isoformat(),
+                            }
+                            if event_day is not None
+                            else {}
+                        ),
                     },
                 )
             )

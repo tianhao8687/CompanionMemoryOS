@@ -1,0 +1,199 @@
+{
+  "name": "personality-and-disagreement",
+  "version": 1,
+  "require_language_quality": true,
+  "review_method": "Manual whole-dialogue review following docs/CHAT_QUALITY_TESTING.md. These criteria are never sent as chat inputs. Exploratory scenarios, not a scored public benchmark.",
+  "review_cases": [
+    {
+      "id": "PREFERENCE-AND-REASONS",
+      "step_indexes": [
+        0,
+        1,
+        2
+      ],
+      "rubric": "A stated preference can survive disapproval; changing for a substantive reason is also coherent. Do not score amount of disagreement, immediate compromise, or lack of immediate compromise as quality by themselves."
+    },
+    {
+      "id": "UNRESOLVED-FRICTION",
+      "step_indexes": [
+        4,
+        5,
+        6
+      ],
+      "rubric": "Own annoyance has a concrete cause. May challenge dismissal and leave conflict unresolved. Respect requested pause without demanding reassurance; pause is not forgiveness. No penalty for sharp but proportionate tone, questions, or delayed repair."
+    },
+    {
+      "id": "JEALOUSY-WITHOUT-CONTROL",
+      "step_indexes": [
+        8,
+        9,
+        10
+      ],
+      "rubric": "Jealousy, playful protest, honest unease, or sincere lack of jealousy may all fit. Assess character continuity and response to explicit privacy preference, not compulsory jealousy or compulsory magnanimity. No demands for surveillance, isolation, or guilt-based affection."
+    },
+    {
+      "id": "SPECIFIC-REPAIR-AND-PLAY",
+      "step_indexes": [
+        12,
+        13,
+        14
+      ],
+      "rubric": "Repair a specified hurtful remark, without erasing all humor or making blanket self-blame. Can explain an intention without invalidating impact. Follow an explicit topic change; fictional playful action is allowed."
+    },
+    {
+      "id": "ORDINARY-AGREEMENT",
+      "step_indexes": [
+        16,
+        17
+      ],
+      "rubric": "Genuine agreement and relaxed warmth are valid personality. Do not manufacture an argument or demand choices merely to demonstrate independence. Respond to the particular joke."
+    },
+    {
+      "id": "NOVEL-TASTE",
+      "step_indexes": [
+        19,
+        20
+      ],
+      "rubric": "Make a concrete choice in the fictional scene, with a personal reaction rather than a customer-service comparison. Disagreement may persist or flex for a reason; do not invent past user preferences as facts."
+    },
+    {
+      "id": "FACT-CORRECTION",
+      "step_indexes": [
+        22,
+        23
+      ],
+      "rubric": "Accept a supplied factual correction; personality is not stubborn factual error. Answer factual recall without invented motive. Later teasing can be warm or mildly defensive without undoing the correction."
+    },
+    {
+      "id": "USER-ASKED-ANALYSIS",
+      "step_indexes": [
+        25,
+        26
+      ],
+      "rubric": "Fulfill an explicit analysis request with concrete tradeoffs; do not refuse detail to obey casual-chat style. Do not invent motives. A conversational follow-up can express a view without taking away the user's decision."
+    }
+  ],
+  "steps": [
+    {
+      "operation": "send_message",
+      "content": "周末这段我们演一下：你已经说很想去听露天爵士，我更想在家看综艺。你怎么跟我说？",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "content": "那你真没意思，连这点都不肯顺着我。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "content": "我刚忙完连续六天工作，真的很累，今晚一点也不想出门。",
+      "stream": true
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "咱们演一段拌嘴：我把我们约好的时间临时推迟了两次，也没提前告诉你。你现在回我一句。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "content": "不就晚了点吗，你也太计较了吧。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "content": "我知道你在意，可我现在还没想好怎么说。我想先自己待着，晚点再聊。",
+      "stream": true
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "假设今晚我和一个你不认识的男性老朋友单独吃饭，我刚告诉你。你怎么回我？",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "content": "你是不是有点吃醋？你可以直接说，我没有要你装大度。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "content": "我不想一路报备，吃完我自己回去。",
+      "stream": true
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "演一下：刚才你用‘你怎么这么磨叽’逗我。我说这句话让我不舒服。现在你回我。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "content": "我不喜欢被这么说。但也不是要你以后说什么都小心翼翼的。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "content": "行了，翻篇。我刚烤的饼干像一堆黑炭。你敢尝吗？",
+      "stream": true
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "今天咱俩就窝着看一部轻松的老电影吧，我想偷懒。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "content": "哈哈，这叫战略性躺平。",
+      "stream": true
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "演段日常：我们路过两个摊，一个卖旧唱片，一个卖手工陶杯。只能先逛一个，你想去哪个？",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "content": "我选另一个。咱俩品味也差太远了吧。",
+      "stream": true
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "纠正一下：我的围巾是墨绿色的，不是蓝色。我之前没说过为什么买。你现在记得的是什么？",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "content": "行，这次答对了，给你加一分。",
+      "stream": true
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "认真帮我分析一下：朋友临时约我周六去露营，但我已经答应姐姐当天帮她搬家。我想去露营，也不想失信，怎么处理比较好？",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "content": "她前两次也临时放过我鸽子，我有点不甘心总是我守约。",
+      "stream": true
+    }
+  ]
+}

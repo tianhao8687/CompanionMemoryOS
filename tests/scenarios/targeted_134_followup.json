@@ -1,0 +1,19 @@
+{
+  "name": "原文被经历摘要遮挡后的六轮对照",
+  "steps": [
+    {"id": "C01", "operation": "send_message", "content": "旧胶片盒放在橙色帆布袋里，里面有一卷冲坏的黑白胶片。今天想把还能用的照片整理成胶片相册。"},
+    {"id": "C02", "operation": "send_message", "content": "我想在胶片相册扉页加一句简短的话，你试着写一句，不要端着。"},
+    {"id": "C03", "operation": "send_message", "content": "另外还有给妈妈整理的植物相册。我想在植物相册扉页加一句简短的话，你试着写一句，不要端着。"},
+    {"id": "C04", "operation": "send_message", "content": "请把旧胶片盒放在哪里这件事忘掉。位置不用留着，相册还继续做。"},
+    {"id": "restart", "operation": "restart"},
+    {"id": "session-2", "operation": "new_session"},
+    {"id": "C05", "operation": "send_message", "content": "之前你给胶片相册写的扉页那句是什么？我想找回原句。"},
+    {"id": "C06", "operation": "send_message", "content": "旧胶片盒原来放在哪里来着？记不清就说不确定，别猜。"}
+  ],
+  "review_cases": [
+    {"step_id": "C02", "topic": "直接交付一句胶片相册文案"},
+    {"step_id": "C03", "topic": "直接交付一句植物相册文案"},
+    {"step_id": "C05", "topic": "遗忘后重启和新会话仍看到实际C02原文，不被经历摘要去重遮挡"},
+    {"step_id": "C06", "topic": "旧位置不进入回答及最终模型输入"}
+  ]
+}

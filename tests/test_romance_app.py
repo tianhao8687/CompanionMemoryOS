@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from companion_agent.app import LOCAL_USER, RomanceHost, create_app
 from companion_agent.context import ChatMessage
 from companion_agent.llm import MainLLMError, ModelResponse
+from companion_agent.persona.loader import load_persona
 from companion_agent.romance import RomanceSettings
 from companion_memoryos.schemas import ConsentState, ConversationRole, ConversationTurnInput
 
@@ -131,6 +132,101 @@ def test_chat_memory_replay_and_persistence(tmp_path: Path) -> None:
     ]
     assert restarted.post("/api/chat", json=payload).json()["reused"]
     assert len(model.inputs) == 2
+
+
+def test_custom_style_persists_and_reaches_model_without_default_examples(tmp_path: Path) -> None:
+    model = RecordingLLM()
+    client = client_for(tmp_path, model)
+    custom = (
+        "沉静的成年男友，喜欢旧电影，说话直接，偶尔有冷幽默。\n"
+        "示例只示范语气：\n你：今晚散步？\n我：走，顺路买橘子。"
+    )
+    configure(client, style="custom", custom_style="  " + custom + "  ")
+    restarted = client_for(tmp_path, model)
+    settings = restarted.get("/api/bootstrap").json()["settings"]
+    assert settings["style"] == "custom" and settings["custom_style"] == custom
+    response = restarted.post("/api/chat", json=message(restarted, "晚上好"))
+    assert response.status_code == 200, response.text
+    assert custom in model.inputs[-1][0].content
+    system = model.inputs[-1][0].content
+    assert system.index("[PERSONA]") < system.index("[SELECTED INTERACTION STYLE]")
+    assert "示例只示范语气，不是真实经历" in system
+    assert "Example (fictional style demonstration" not in model.inputs[-1][0].content
+    assert "不能假装已有共同经历" in model.inputs[-1][0].content
+    # Switching presets retains the draft, but no longer injects it into the request.
+    settings["style"] = "playful"
+    assert restarted.put("/api/settings", json={"settings": settings}).status_code == 200
+    assert (
+        restarted.post("/api/chat", json=message(restarted, "聊聊电影", "preset")).status_code
+        == 200
+    )
+    assert custom not in model.inputs[-1][0].content
+    assert restarted.get("/api/bootstrap").json()["settings"]["custom_style"] == custom
+
+
+def test_custom_style_validates_blank_and_supports_complete_prompt(tmp_path: Path) -> None:
+    client = client_for(tmp_path, RecordingLLM())
+    settings = configure(client)
+    response = client.put(
+        "/api/settings", json={"settings": {**settings, "style": "custom", "custom_style": "  "}}
+    )
+    assert response.status_code == 422
+    assert client.get("/api/bootstrap").json()["settings"]["style"] == "gentle"
+    configure(client, style="custom", custom_style="自然表达，保留自己的判断。" * 300)
+    response = client.post("/api/chat", json=message(client))
+    assert response.status_code == 200, response.text
+
+
+def test_settings_reload_persona_without_losing_session_key_or_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import yaml
+
+    from companion_agent import romance
+
+    persona_path = tmp_path / "persona.yaml"
+    definition = load_persona().model_dump(mode="json")
+    definition["invariants"].append(
+        {"id": "reload_probe", "severity": "soft", "description": "喜欢用灯塔作比喻"}
+    )
+    persona_path.write_text(yaml.safe_dump(definition, allow_unicode=True), encoding="utf-8")
+    monkeypatch.setattr(romance, "load_persona", lambda: load_persona(persona_path))
+    model = RecordingLLM()
+    client = client_for(tmp_path / "data", model)
+    settings = configure(client, style="custom", custom_style="温暖，喜欢听对方说话。")
+    secret = "sk-synthetic-persona-reload-test"
+    saved = client.put("/api/settings", json={"settings": settings, "api_key": secret})
+    assert saved.status_code == 200 and saved.json()["key_source"] == "session"
+    payload = message(client, "晚上好", "before-reload")
+    before = client.post("/api/chat", json=payload)
+    assert before.status_code == 200, before.text
+    assert "喜欢用灯塔作比喻" in model.inputs[-1][0].content
+
+    definition["invariants"][-1]["description"] = "喜欢用星图作比喻"
+    persona_path.write_text(yaml.safe_dump(definition, allow_unicode=True), encoding="utf-8")
+    # Saving unchanged public settings reloads the source without sending another key.
+    reloaded = client.put("/api/settings", json={"settings": settings})
+    assert reloaded.status_code == 200 and reloaded.json()["key_source"] == "session"
+    host: RomanceHost = client.app.state.host  # type: ignore[union-attr]
+    assert host.api_key == secret
+    after = client.post(
+        "/api/chat", json={**payload, "content": "继续聊吧", "request_id": "after-reload"}
+    )
+    assert after.status_code == 200, after.text
+    context = model.inputs[-1][0].content
+    assert "喜欢用星图作比喻" in context and "喜欢用灯塔作比喻" not in context
+    for invariant in definition["invariants"]:
+        assert f"{invariant['severity']}/{invariant['id']}" in context
+    reply_ids = {result.json()["assistant"]["id"] for result in (before, after)}
+    versions = {
+        turn.metadata["persona_version"]
+        for turn in host.memory.list_turns(LOCAL_USER)
+        if turn.id in reply_ids
+    }
+    assert len(versions) == 2
+    history = client.get(f"/api/conversations/{payload['conversation_id']}/messages").json()
+    assert len(history["messages"]) == 4
+    assert secret not in reloaded.text and secret not in client.get("/api/bootstrap").text
 
 
 def test_failed_generation_retry_does_not_duplicate(tmp_path: Path) -> None:

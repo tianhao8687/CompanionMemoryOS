@@ -1412,6 +1412,105 @@ class MemoryStore:
             raise KeyError(turn_id)
         return self._row_to_turn(row)
 
+    def redact_turn(
+        self, turn_id: str, user_id: str, ranges: list[tuple[int, int]]
+    ) -> ConversationTurnRecord:
+        """Remove exact spans while retaining the identity and remaining dialogue.
+
+        Old semantic projections are invalidated, not silently reinterpreted as
+        supporting the retained fragment. Speech attribution is remapped rather
+        than turning quotations into direct user facts.
+        """
+        now = utc_now()
+        with self.database.atomic() as connection:
+            source = self.get_turn(turn_id, user_id)
+            if source.deletion_state is not TurnDeletionState.ACTIVE:
+                raise ValueError("cannot redact an unavailable turn")
+            ordered = sorted(ranges)
+            cursor = 0
+            kept: list[tuple[int, int]] = []
+            for start, end in ordered:
+                if start < cursor or start < 0 or end <= start or end > len(source.content):
+                    raise ValueError("invalid or overlapping redaction spans")
+                if cursor < start:
+                    kept.append((cursor, start))
+                cursor = end
+            if not ordered:
+                return source
+            if cursor < len(source.content):
+                kept.append((cursor, len(source.content)))
+            self._require_source_policy_revocation_ack(connection, turn_id, user_id, now, False)
+            content = "".join(source.content[start:end] for start, end in kept)
+            spans = []
+            offset = 0
+            for start, end in kept:
+                for span in source.speech_spans:
+                    left, right = max(start, span.start_offset), min(end, span.end_offset)
+                    if left < right:
+                        spans.append(
+                            span.model_copy(
+                                update={
+                                    "start_offset": offset + left - start,
+                                    "end_offset": offset + right - start,
+                                }
+                            ).model_dump(mode="json")
+                        )
+                offset += end - start
+            # Metadata can contain interpretation text. Retain only provenance,
+            # never old lexical keys or source-derived free text.
+            metadata = {
+                key: value
+                for key, value in source.metadata.items()
+                if key in {"context_turn_ids", "process_reality_layer", "persona_id", "model"}
+            }
+            metadata["content_redacted_at"] = datetime_to_text(now)
+            if not content.strip():
+                content, spans = "[已遗忘指定位置]", []
+                metadata["content_redacted_empty"] = True
+            self._invalidate_turn_descendants(
+                connection, turn_id, user_id, now, purge_descendants=False
+            )
+            span_json = json.dumps(spans, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            metadata_json = json.dumps(
+                metadata, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            )
+            digest = exact_payload_digest(
+                user_id,
+                *(value or "" for value in scope_values(source.scope)),
+                source.actor_id,
+                source.role.value,
+                datetime_to_text(source.occurred_at) or "",
+                content,
+                source.consent.value,
+                source.sensitivity.value,
+                source.modality.value,
+                source.language or "",
+                source.reply_to_turn_id or "",
+                source.supersedes_turn_id or "",
+                source.episode_id or "",
+                source.source_ref,
+                span_json,
+                "[]",
+                "",
+                "null",
+                metadata_json,
+            )
+            connection.execute(
+                "UPDATE conversation_turns SET content=?, content_hash=?, speech_spans_json=?, "
+                "retrieval_keys_json='[]', embedding_space=NULL, metadata_json=? "
+                "WHERE id=? AND user_id=?",
+                (
+                    content,
+                    digest,
+                    span_json,
+                    metadata_json,
+                    turn_id,
+                    user_id,
+                ),
+            )
+            self._audit(connection, turn_id, user_id, "conversation_turn.redacted", {}, now)
+            return self.get_turn(turn_id, user_id)
+
     def forget_turn(
         self,
         turn_id: str,
@@ -1496,6 +1595,7 @@ class MemoryStore:
         event_after: datetime | None = None,
         event_before: datetime | None = None,
         reality_layer: RealityLayer | None = None,
+        include_relationship_turns: bool = False,
     ) -> list[TurnSearchCandidate]:
         clauses = [
             "conversation_turns.user_id = ?",
@@ -1507,7 +1607,9 @@ class MemoryStore:
             TurnDeletionState.ACTIVE.value,
             datetime_to_text(as_of),
         ]
-        scope_clauses, scope_parameters = self._exact_turn_scope_filter(scope)
+        scope_clauses, scope_parameters = self._exact_turn_scope_filter(
+            scope, relationship_wide=include_relationship_turns
+        )
         clauses.extend(scope_clauses)
         parameters.extend(scope_parameters)
         if exclude_turn_ids:
@@ -1556,6 +1658,7 @@ class MemoryStore:
             if query_embedding is not None and embedding_space is not None:
                 semantic_query = SemanticQuery(
                     kind=SemanticKind.TURN,
+                    include_relationship_turns=include_relationship_turns,
                     reality_layer=reality_layer,
                     user_id=user_id,
                     scope=scope,
@@ -2084,7 +2187,7 @@ class MemoryStore:
                 SET status = ?, follow_up_after = ?, resolution_summary = ?,
                     last_followed_up_at = ?, follow_up_count = ?,
                     last_response_group_id = ?, revision = revision + 1,
-                    updated_at = ?, resolved_at = ?
+                    updated_at = ?, resolved_at = ?, metadata_json = ?
                 WHERE id = ? AND user_id = ?
                 """,
                 (
@@ -2096,6 +2199,17 @@ class MemoryStore:
                     response_group_id,
                     datetime_to_text(request.as_of),
                     datetime_to_text(resolved_at),
+                    json.dumps(
+                        {
+                            **current.metadata,
+                            **(
+                                {"last_update_source_turn_id": request.source_turn_id}
+                                if request.source_turn_id
+                                else {}
+                            ),
+                        },
+                        ensure_ascii=False,
+                    ),
                     open_loop_id,
                     request.user_id,
                 ),
@@ -3655,10 +3769,16 @@ class MemoryStore:
         raise ValueError("unknown evidence table")
 
     @staticmethod
-    def _exact_turn_scope_filter(scope: MemoryScope) -> tuple[list[str], list[Any]]:
+    def _exact_turn_scope_filter(
+        scope: MemoryScope, *, relationship_wide: bool = False
+    ) -> tuple[list[str], list[Any]]:
+        if relationship_wide and (not scope.companion_id or not scope.relationship_id):
+            raise ValueError("relationship turn recall requires a companion and relationship")
         clauses: list[str] = []
         parameters: list[Any] = []
         for column in SCOPE_COLUMNS:
+            if relationship_wide and column == "conversation_id":
+                continue
             value = getattr(scope, column)
             clauses.append(f"conversation_turns.{column} IS ?")
             parameters.append(value)

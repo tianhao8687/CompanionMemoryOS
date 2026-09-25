@@ -5,8 +5,10 @@ from uuid import uuid4
 
 from companion_memoryos.config import CompanionConfig
 from companion_memoryos.schemas import (
+    AnswerCardinality,
     BeatReleaseCondition,
     CompanionContext,
+    ConversationRole,
     ExperienceEvidenceKind,
     ExperienceEvidenceRef,
     FollowUpAction,
@@ -281,6 +283,25 @@ def plan_memory_use(
                 ),
                 mode=mode,
                 reasons=["raw_turn_evidence", *reasons],
+                usage_scope=(
+                    "retrieved_evidence"
+                    if (
+                        mode is MemoryReferenceMode.SUPPRESS
+                        and not reasons
+                        and (
+                            (
+                                turn_item.turn.role is ConversationRole.ASSISTANT
+                                and request.scope.conversation_id is not None
+                                and turn_item.turn.scope == request.scope
+                            )
+                            or (
+                                context.answer_cardinality is AnswerCardinality.OPEN
+                                and turn_item.use_mode is RecallUseMode.DO_NOT_ASSERT
+                            )
+                        )
+                    )
+                    else "all_context"
+                ),
             )
         )
 
@@ -502,6 +523,8 @@ def _memory_mode(
                 "user_requested_memory_but_evidence_uncertain"
             ]
         return MemoryReferenceMode.SUPPRESS, ["evidence_not_assertable"]
+    if context.answer_cardinality is AnswerCardinality.OPEN:
+        return MemoryReferenceMode.SOFT_REFERENCE, ["relevant_conversation_evidence"]
     if kind in SILENT_MEMORY_KINDS:
         return MemoryReferenceMode.SILENT_INFLUENCE, [
             "relationship_context_should_not_be_announced"
@@ -536,6 +559,8 @@ def _fallback_mode(
         )
     if request.current_turn_requires_full_attention:
         return MemoryReferenceMode.SILENT_INFLUENCE
+    if context.answer_cardinality is AnswerCardinality.OPEN:
+        return MemoryReferenceMode.SOFT_REFERENCE
     if recall_mode is RecallUseMode.NATURAL and context.intent in NATURAL_CALLBACK_INTENTS:
         return MemoryReferenceMode.SOFT_REFERENCE
     return MemoryReferenceMode.SILENT_INFLUENCE

@@ -232,6 +232,8 @@ class RecallRequest(StrictModel):
     limit: int | None = Field(default=None, gt=0)
     event_limit: int | None = Field(default=None, ge=0)
     turn_limit: int | None = Field(default=None, ge=0)
+    include_turn_evidence: bool = False
+    include_relationship_turns: bool = False
     max_characters: int | None = Field(default=None, gt=0)
     max_tokens: int | None = Field(default=None, gt=0)
     event_after: datetime | None = None
@@ -291,6 +293,10 @@ class RecallRequest(StrictModel):
 
     @model_validator(mode="after")
     def valid_filters(self) -> RecallRequest:
+        if self.include_relationship_turns and (
+            not self.scope.companion_id or not self.scope.relationship_id
+        ):
+            raise ValueError("relationship turn recall requires a companion and relationship")
         _validate_embedding(self.query_embedding, self.embedding_space)
         if (
             self.event_after is not None

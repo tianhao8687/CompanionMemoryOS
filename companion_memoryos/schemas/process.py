@@ -124,6 +124,7 @@ class InterpreterOutput(StrictModel):
     interpretation: TurnInterpretation
     model_fingerprint: str = Field(min_length=1, max_length=500)
     usage: InterpreterUsage | None = None
+    validation_issues: list[str] = Field(default_factory=list, max_length=512)
 
 
 class ProcessTurnResult(StrictModel):

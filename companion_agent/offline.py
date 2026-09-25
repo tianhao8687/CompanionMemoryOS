@@ -11,6 +11,7 @@ from companion_agent.automation.loop import ModelStep, ToolCall
 from companion_agent.context import ChatMessage
 from companion_agent.llm import ModelResponse
 from companion_agent.memory_language import forget_target
+from companion_memoryos.diagnostics import model_call
 
 
 class OfflineModel:
@@ -21,6 +22,16 @@ class OfflineModel:
         return ModelResponse(text=step.text, model=self.name)
 
     def generate_step(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], timeout: float
+    ) -> ModelStep:
+        with model_call(
+            "offline", {"model": self.name, "messages": messages, "tools": tools}, live=False
+        ) as call:
+            result = self._generate_step(messages, tools, timeout)
+            call["response"] = result.model_dump(mode="json")
+            return result
+
+    def _generate_step(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], timeout: float
     ) -> ModelStep:
         del timeout
@@ -35,11 +46,18 @@ class OfflineModel:
         )
         evidence: list[dict[str, Any]] = []
         actions: dict[str, int] = {}
-        if "[CURRENT USER TURN]\n" in user:
-            data = user
-            user = str(json.loads(data.rsplit("[CURRENT USER TURN]\n", 1)[1])["content"])
+        data = next(
+            (
+                str(item.get("content", ""))
+                for item in messages
+                if item["role"] == "user"
+                and str(item.get("content", "")).startswith("[APPLICATION CONTEXT]\n")
+            ),
+            "",
+        )
+        if data:
             memory_json = data.split("[RELEVANT MEMORY]\n", 1)[1].split(
-                "\n\n[RECENT CONVERSATION]", 1
+                "\n\n[CONVERSATION ATTRIBUTION]", 1
             )[0]
             memory_data = json.loads(memory_json)
             evidence = memory_data.get("evidence", [])
@@ -55,10 +73,10 @@ class OfflineModel:
                 if (payload.get("status") == "succeeded" and payload.get("job_id"))
                 else "工具返回的结果：" + json.dumps(payload, ensure_ascii=False)[:1500]
             )
-        elif (
-            messages
-            and str(messages[-1].get("content", "")).startswith("本地工具记录")
-            and ("continuation" in json.dumps(messages[-1], ensure_ascii=False))
+        elif any(
+            item["role"] == "user"
+            and str(item.get("content", "")).startswith("本地工具记录（continuation：")
+            for item in messages[:-1]
         ):
             text = "已收到确认后的成功执行记录，这次操作已完成，可以在能力面板查看结果。"
         elif "待关心的事件资料" in user:

@@ -16,6 +16,7 @@ from companion_agent.experience.models import (
     ExperienceType,
 )
 from companion_agent.relationship.models import RelationshipKey
+from companion_memoryos.discourse import fact_recall_clauses
 from companion_memoryos.schemas import (
     ConversationRole,
     ConversationTurnRecord,
@@ -55,7 +56,7 @@ def topic_for(text: str) -> tuple[str | None, str | None]:
 
 
 def is_recall_question(text: str) -> bool:
-    return any(
+    return bool(fact_recall_clauses(text)) or any(
         phrase in text for phrase in ("还记得", "记不记得", "记得我之前", "记得我们", "回忆一下")
     )
 

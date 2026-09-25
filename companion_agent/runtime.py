@@ -5,24 +5,26 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from contextlib import suppress
 from threading import RLock
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
 from companion_agent.character_memory import CharacterMemoryStore
+from companion_agent.communication import project_preferences
 from companion_agent.context import ComposedContext, compose_context
 from companion_agent.current_state import CurrentStateConfig, CurrentStateService
 from companion_agent.current_state.compiler import CurrentStateBudgetError, compile_current_state
 from companion_agent.current_state.evaluator import analyze_current_turn
 from companion_agent.current_state.models import CurrentStateAnalysis, StatePreparation
 from companion_agent.current_state.service import choose_response_goal
-from companion_agent.evidence_policy import filter_recent_turns
+from companion_agent.evidence_policy import filter_recent_turns, filter_superseded_context
 from companion_agent.experience import ExperienceConfig
 from companion_agent.experience.compiler import compile_experience_context
 from companion_agent.experience.evaluator import is_recall_question
-from companion_agent.llm import MainLLM
+from companion_agent.llm import MainLLM, MainLLMError
 from companion_agent.persona import PersonaDefinition, RelationshipStage, compile_persona_context
 from companion_agent.persona.models import PersonaModel
 from companion_agent.relationship import RelationshipConfig, RelationshipKey, RelationshipService
@@ -34,6 +36,8 @@ from companion_agent.relationship.models import (
     now_utc,
 )
 from companion_agent.semantics import RelationshipDistance, RelationshipIdentityType
+from companion_agent.streaming import cancelled
+from companion_memoryos.diagnostics import record
 from companion_memoryos.schemas import (
     ConsentState,
     ConversationRole,
@@ -88,6 +92,7 @@ class CompanionAgent:
         experience_config: ExperienceConfig | None = None,
         initial_relationship_identity: RelationshipIdentityType | None = None,
         current_state_config: CurrentStateConfig | None = None,
+        context_variant: Literal["full", "no_examples", "no_history", "no_old_conditions"] = "full",
     ) -> None:
         if min(max_persona_tokens, max_context_tokens, recent_turn_limit) < 1:
             raise ValueError("agent budgets and history limit must be positive")
@@ -98,6 +103,7 @@ class CompanionAgent:
         self.max_context_tokens = max_context_tokens
         self.recent_turn_limit = recent_turn_limit
         self.application_rules = application_rules
+        self.context_variant = context_variant
         self.characters = CharacterMemoryStore(memory.store.database)
         self.relationships = RelationshipService(memory, relationship_config)
         self.relationship_evaluator = relationship_evaluator or LocalRelationshipEvaluator()
@@ -196,7 +202,9 @@ class CompanionAgent:
                         or (
                             not state_preparation.analysis.concrete_task
                             and any(
-                                r.slot == "communication:need" and r.value == "listen"
+                                r.slot == "communication:need"
+                                and r.value == "listen"
+                                and chosen_goal is ResponseGoal.LISTEN
                                 for r in state_preparation.records
                             )
                         )
@@ -252,6 +260,11 @@ class CompanionAgent:
             )
             == request.reality_layer.value
         ]
+        answered_turn_ids = {
+            item.reply_to_turn_id
+            for item in recent
+            if item.role is ConversationRole.ASSISTANT and item.reply_to_turn_id
+        }
         recent = filter_recent_turns(
             self.memory,
             relationship_key,
@@ -260,7 +273,26 @@ class CompanionAgent:
             now_utc(),
             allow_sensitive=request.allow_sensitive_model_input,
         )
+        if not re.search(r"以前|曾经|当时|过去|原来|上次.*(?:说|喜欢)", request.content):
+            recent = filter_superseded_context(self.memory, relationship_key, request.scope, recent)
         recent = list(reversed(recent[: self.recent_turn_limit]))
+        recent_candidates = [item.id for item in recent]
+        if self.context_variant == "no_history":
+            recent = []
+        preferences = (
+            project_preferences(
+                self.memory,
+                self.relationships,
+                relationship_key,
+                request.scope,
+                turn.occurred_at,
+                current_turn_id=turn.id,
+                current_text=self.memory._direct_user_discourse_text(turn),
+                allow_sensitive=request.allow_sensitive_model_input,
+            )
+            if request.reality_layer is RealityLayer.REAL_WORLD
+            else []
+        )
         characters = self.characters.recall(
             self.persona.persona_id,
             self.persona.version,
@@ -363,6 +395,7 @@ class CompanionAgent:
                 token_counter=self.memory.token_counter,
                 relationship_identity=compiled_relationship.identity.type,
                 relationship_distance=distance,
+                max_examples=0 if self.context_variant == "no_examples" else 2,
             )
             recalled_experiences = (
                 self.experiences.recall(
@@ -387,9 +420,16 @@ class CompanionAgent:
             compiled_state = None
             if self.current_state_config.enabled:
                 try:
+                    compile_preparation = state_preparation.model_copy(deep=True)
+                    if self.context_variant == "no_old_conditions":
+                        compile_preparation.records = [
+                            r
+                            for r in compile_preparation.records
+                            if r.kind.value != "condition" or r.source_turn_id == turn.id
+                        ]
                     compiled_state = compile_current_state(
                         relationship_key,
-                        state_preparation,
+                        compile_preparation,
                         goal,
                         self.memory.token_counter,
                         max_tokens=self.current_state_config.max_context_tokens,
@@ -398,6 +438,21 @@ class CompanionAgent:
                     raise
                 except Exception:
                     logger.warning("current_state_context_unavailable")
+            omitted_emotion_sources = {
+                state.source_turn_id
+                for state in state_preparation.records
+                if compiled_state
+                and compiled_state.omitted_states.get(state.state_id)
+                == "historical_condition_not_needed_for_current_turn"
+            }
+            # Keep history in storage; omit irrelevant emotional context from this request.
+            recent = [
+                item
+                for item in recent
+                if item.id not in omitted_emotion_sources
+                and item.reply_to_turn_id not in omitted_emotion_sources
+            ]
+            context_tokens_before_trimming: int | None = None
             while True:
                 context = compose_context(
                     persona=compiled,
@@ -407,15 +462,19 @@ class CompanionAgent:
                     memory_context=result.response_context,
                     memory_use_plan=plan.memory_use_plan,
                     recent_conversation=recent,
+                    answered_turn_ids=answered_turn_ids,
                     character_memories=characters,
                     application_rules=self.application_rules,
                     relationship_context=compiled_relationship,
                     experience_context=compiled_experiences,
                     current_state_context=compiled_state,
+                    communication_preferences=preferences,
                 )
                 serialized = json.dumps(
                     [m.model_dump() for m in context.messages], ensure_ascii=False
                 )
+                if context_tokens_before_trimming is None:
+                    context_tokens_before_trimming = self.memory.token_counter.count(serialized)
                 if self.memory.token_counter.count(serialized) <= self.max_context_tokens:
                     break
                 if recent:
@@ -431,6 +490,43 @@ class CompanionAgent:
         except Exception:
             self.memory.cancel_response_plan(plan.id, request.user_id, "composition_failed")
             raise
+        record(
+            "prepared",
+            {
+                "user_turn_id": turn.id,
+                "base_goal": base_goal.value,
+                "final_goal": goal.value,
+                "analysis": state_preparation.analysis.model_dump(mode="json"),
+                "state_candidates": [r.model_dump(mode="json") for r in state_preparation.records],
+                "state_injected": compiled_state.state_ids if compiled_state else [],
+                "state_suppressed": compiled_state.omitted_states if compiled_state else {},
+                "history_emotion_sources_suppressed": sorted(omitted_emotion_sources),
+                "preferences": preferences,
+                "goal_reason": "current_explicit_goal"
+                if state_preparation.analysis.explicit_goal
+                else "current_task"
+                if state_preparation.analysis.concrete_task
+                else "current_celebration"
+                if state_preparation.analysis.celebrating
+                else "history_override"
+                if goal != base_goal
+                else "base_goal",
+                "memory_use_plan": plan.memory_use_plan.model_dump(mode="json"),
+                "selected_examples": compiled.selected_example_indices,
+                "persona_omissions": compiled.omitted_items,
+                "context_turn_ids": [item.id for item in recent],
+                "history_trimmed_ids": [
+                    identifier
+                    for identifier in recent_candidates
+                    if identifier not in {item.id for item in recent}
+                ],
+                "context_tokens": self.memory.token_counter.count(serialized),
+                "context_tokens_before_trimming": context_tokens_before_trimming,
+                "context_limit": self.max_context_tokens,
+                "persona_version": compiled.persona_version,
+                "context_variant": self.context_variant,
+            },
+        )
         return PreparedResponse(
             context=context,
             plan=plan,
@@ -462,7 +558,7 @@ class CompanionAgent:
         if continuation_key:
             delivery_key += ":continuation:" + continuation_key
         response_key = "agent:" + hashlib.sha256(delivery_key.encode()).hexdigest()
-        with self._lock:
+        with self._lock, self.memory.store.database.session():
             turns = self.memory.list_turns(request.user_id, request.scope)
             for turn in turns:
                 if (
@@ -485,8 +581,27 @@ class CompanionAgent:
                         raise ValueError("cached conversation no longer available")
                     return AgentResponse(turn=turn, reused=True)
             prepared = self.prepare(request, relationship_stage, response_goal=response_goal)
+            source_ids = {prepared.user_turn.id, *prepared.context_turn_ids}
+            for decision in prepared.plan.memory_use_plan.decisions:
+                if decision.mode in {MemoryReferenceMode.SUPPRESS, MemoryReferenceMode.CLARIFY}:
+                    continue
+                if decision.evidence.kind is ExperienceEvidenceKind.TURN:
+                    source_ids.add(decision.evidence.id)
+                elif decision.evidence.kind is ExperienceEvidenceKind.MEMORY:
+                    source_ids.update(
+                        self.memory.store.get(
+                            decision.evidence.id, request.user_id
+                        ).evidence_turn_ids
+                    )
+            source_hashes = {
+                identifier: self.memory.store.get_turn(identifier, request.user_id).content_hash
+                for identifier in source_ids
+            }
             try:
                 output = self.main_llm.generate(prepared.context.messages)
+                cancellation = cancelled.get()
+                if cancellation is not None and cancellation.is_set():
+                    raise MainLLMError("main_llm_cancelled")
                 compiled = prepared.context.persona
                 metadata: dict[str, Any] = {
                     "persona_id": compiled.persona_id,
@@ -517,6 +632,11 @@ class CompanionAgent:
                         dict.fromkeys(
                             [
                                 *prepared.context_turn_ids,
+                                *(
+                                    identifier
+                                    for setting in prepared.context.communication_preferences
+                                    for identifier in setting["source_turn_ids"]
+                                ),
                                 *(
                                     prepared.context.current_state.source_turn_ids
                                     if prepared.context.current_state
@@ -551,6 +671,12 @@ class CompanionAgent:
                 # Sending acknowledgment and persistence commit together. A newer user turn,
                 # deletion or policy update during generation invalidates the old response.
                 with self.memory.store.database.atomic():
+                    if any(
+                        self.memory.store.get_turn(identifier, request.user_id).content_hash
+                        != digest
+                        for identifier, digest in source_hashes.items()
+                    ):
+                        raise ValueError("context source changed during generation")
                     current = self.memory.store.get_turn(prepared.user_turn.id, request.user_id)
                     if (
                         current.deletion_state is not TurnDeletionState.ACTIVE

@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from importlib.resources import files
 from pathlib import Path
 from threading import RLock
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
@@ -30,6 +30,7 @@ from companion_agent.channels import ChannelConfig, Channels, IncomingMessage
 from companion_agent.cognition import ApplicationMemory
 from companion_agent.context import ChatMessage
 from companion_agent.continuity import Continuity
+from companion_agent.credentials import CredentialStore, CredentialStoreError
 from companion_agent.deepseek import DeepSeekConfig, DeepSeekLLM
 from companion_agent.directives import directive_recall
 from companion_agent.llm import MainLLM, MainLLMError
@@ -62,6 +63,8 @@ from companion_memoryos.schemas import (
 from companion_memoryos.store import MemoryStore
 
 logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from companion_agent.testing.control import TestControl
 LOCAL_USER = "romance-user"
 LOCAL_COMPANION = "romance-companion"
 LOCAL_RELATIONSHIP = "romance-relationship"
@@ -121,7 +124,10 @@ def public_turn(turn: ConversationTurnRecord) -> dict[str, Any]:
 
 
 class RomanceHost:
-    def __init__(self, data_dir: Path, llm: MainLLM | None = None) -> None:
+    def __init__(
+        self, data_dir: Path, llm: MainLLM | None = None, *, testing: TestControl | None = None
+    ) -> None:
+        self.testing = testing
         config = load_config()
         config = config.model_copy(
             update={
@@ -144,10 +150,15 @@ class RomanceHost:
         database = Database(data_dir, config)
         database.initialize()
         self.memory = ApplicationMemory(MemoryStore(database), config)
+        if testing:
+            self.memory.on_memory_changed = testing.invalidate
         self.database = database
         self.lock = RLock()
         self.session = secrets.token_urlsafe(32)
         self.api_key: str | None = None
+        self.credential_store = CredentialStore(data_dir, enabled=testing is None)
+        self.key_persisted = False
+        self.credential_store_error = False
         self.injected_llm = llm
         self.key = RelationshipKey(
             user_id=LOCAL_USER, companion_id=LOCAL_COMPANION, relationship_id=LOCAL_RELATIONSHIP
@@ -182,6 +193,11 @@ class RomanceHost:
                 )
             )
         )
+        try:
+            self.api_key = self.credential_store.load(self.settings.deepseek.base_url)
+            self.key_persisted = self.api_key is not None
+        except CredentialStoreError:
+            self.credential_store_error = True
         self.tools = ToolHub(database)
         self.tools.available = lambda: self.settings.storage_consent
         self.agent = self.make_agent(self.settings, self.api_key)
@@ -191,6 +207,8 @@ class RomanceHost:
         self.tools.scheduler.on_tick = self.continuity.tick
         if not self.conversations():
             self.new_conversation()
+        if testing:
+            testing.allowed.update(item["id"] for item in self.conversations())
 
     @staticmethod
     def resolved_key(settings: RomanceSettings, api_key: str | None) -> str | None:
@@ -204,6 +222,19 @@ class RomanceHost:
         return None
 
     def make_agent(self, settings: RomanceSettings, api_key: str | None) -> CompanionAgent:
+        if self.testing:
+            if settings.model_mode == "api" and not self.testing.marker["allow_live"]:
+                raise problem(403, "test_live_not_authorized", "此测试实例未授权真实模型调用。")
+            if (
+                settings.cognition.embedding_backend == "api"
+                and not self.testing.allows_local_embedding(settings.cognition.embedding.base_url)
+            ):
+                raise problem(
+                    403, "test_embedding_not_authorized", "此测试实例未授权该向量服务地址。"
+                )
+            resolved = self.resolved_key(settings, api_key)
+            if resolved:
+                self.testing.secrets.append(resolved)
         self.memory.configure(
             settings.cognition,
             offline=settings.model_mode == "offline",
@@ -230,6 +261,7 @@ class RomanceHost:
             self.loop,
             application_rules=romantic_rules(settings),
             max_persona_tokens=1600,
+            context_variant=self.testing.marker.get("variant", "full") if self.testing else "full",
             initial_relationship_identity=(
                 RelationshipIdentityType.ROMANTIC_PARTNER
                 if settings.romance_consent
@@ -262,7 +294,10 @@ class RomanceHost:
             ),
             "embedding_status": self.memory.embedding_status,
             "embedding_backend": self.memory.embeddings.backend,
-            "key_source": "session"
+            "credential_persistence_supported": self.credential_store.available,
+            "credential_store_error": self.credential_store_error,
+            "key_persisted": self.key_persisted,
+            "key_source": ("credential_store" if self.key_persisted else "session")
             if self.api_key
             else ("environment" if self.resolved_key(self.settings, self.api_key) else "missing"),
         }
@@ -281,6 +316,8 @@ class RomanceHost:
             connection.execute(
                 "INSERT INTO romance_conversations VALUES (?, ?, ?, ?)", tuple(item.values())
             )
+        if self.testing:
+            self.testing.allowed.add(item["id"])
         return item
 
     def scope(self, conversation_id: str) -> MemoryScope:
@@ -314,6 +351,28 @@ class RomanceHost:
                 raise problem(
                     400, "endpoint_key_required", "更换 API 地址时请重新输入该服务的 Key。"
                 )
+            remember = (
+                update.remember_api_key
+                if update.remember_api_key is not None
+                else self.key_persisted and not endpoint_changed
+            ) and not update.clear_api_key
+            if remember:
+                if not self.credential_store.available:
+                    raise problem(400, "credential_store_unavailable", "此环境不支持安全保存 Key。")
+                proposed_key = self.resolved_key(update.settings, proposed_key)
+                if not proposed_key:
+                    raise problem(400, "key_required", "请先填写需要记住的 Key。")
+            try:
+                if remember and proposed_key:
+                    self.credential_store.save(update.settings.deepseek.base_url, proposed_key)
+                elif self.credential_store.available and (
+                    update.clear_api_key or update.remember_api_key is False
+                ):
+                    self.credential_store.delete(before.deepseek.base_url)
+            except CredentialStoreError:
+                raise problem(
+                    503, "credential_store_failed", "系统凭据管理器操作失败，设置尚未保存。"
+                ) from None
             candidate = self.make_agent(update.settings, proposed_key)
             with self.database.atomic() as connection:
                 connection.execute(
@@ -335,10 +394,21 @@ class RomanceHost:
                     )
             self.settings = update.settings.model_copy(deep=True)
             self.api_key = proposed_key
+            self.key_persisted = bool(remember and proposed_key)
+            self.credential_store_error = False
             self.agent = candidate
             return self.public_settings()
 
     def chat(self, item: ChatInput) -> dict[str, Any]:
+        if self.testing:
+            with self.testing.turn(item) as trace:
+                result = self._chat(item)
+                result["trace_id"] = trace["trace_id"]
+                self.testing.event("result", result)
+                return result
+        return self._chat(item)
+
+    def _chat(self, item: ChatInput) -> dict[str, Any]:
         with self.exclusive():
             scope = self.scope(item.conversation_id)
             if not item.content.strip():
@@ -368,7 +438,7 @@ class RomanceHost:
                         idempotency_key=item.request_id,
                         consent=ConsentState.GRANTED,
                         model_consent=ConsentState.GRANTED,
-                        calendar_timezone="Asia/Shanghai",
+                        calendar_timezone=self.settings.calendar_timezone,
                         recall_request=directive_recall(LOCAL_USER, scope, item.content),
                     )
                 )
@@ -503,7 +573,7 @@ class RomanceHost:
                             idempotency_key=source.idempotency_key,
                             consent=ConsentState.GRANTED,
                             model_consent=ConsentState.GRANTED,
-                            calendar_timezone="Asia/Shanghai",
+                            calendar_timezone=self.settings.calendar_timezone,
                             recall_request=directive_recall(
                                 LOCAL_USER, source.scope, source.content
                             ),
@@ -568,14 +638,20 @@ class RomanceHost:
 
 
 def create_app(
-    data_dir: Path | str = ".agent-data/romance", *, llm: MainLLM | None = None
+    data_dir: Path | str = ".agent-data/romance",
+    *,
+    llm: MainLLM | None = None,
+    testing: TestControl | None = None,
 ) -> FastAPI:
-    host = RomanceHost(Path(data_dir), llm)
+    if testing and Path(data_dir).resolve() != testing.directory / "data":
+        raise ValueError("testing requires the owned run's isolated data directory")
+    host = RomanceHost(Path(data_dir), llm, testing=testing)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        host.tools.scheduler.start()
-        host.channels.start()
+        if testing is None:
+            host.tools.scheduler.start()
+            host.channels.start()
         try:
             yield
         finally:
@@ -595,6 +671,19 @@ def create_app(
 
     @app.middleware("http")
     async def local_security(request: Request, call_next: Any) -> Response:
+        if (
+            testing
+            and request.method in {"POST", "PUT", "PATCH", "DELETE"}
+            and (
+                request.url.path.startswith("/api/channels")
+                or (
+                    request.url.path.startswith("/api/automation/")
+                    and not request.url.path.startswith("/api/automation/cancel/")
+                )
+                or request.url.path == "/api/connection"
+            )
+        ):
+            return JSONResponse({"detail": "external actions disabled in test instance"}, 403)
         origin = request.headers.get("origin")
         expected = str(request.base_url).rstrip("/")
         if origin and origin != expected:
@@ -808,6 +897,8 @@ def create_app(
     @app.put("/api/memories/{memory_id}", dependencies=[Depends(authorized)])
     def correct_memory(memory_id: str, item: MemoryEdit) -> dict[str, Any]:
         with host.exclusive():
+            if testing:
+                testing.invalidate()
             if not host.settings.storage_consent:
                 raise problem(403, "consent_required", "请先允许本地保存。")
             record = host.memory.store.get(memory_id, LOCAL_USER)
@@ -971,6 +1062,10 @@ def create_app(
             "tools": {},
         }
 
+    if testing:
+        from companion_agent.testing.control import install_routes
+
+        install_routes(app, host, testing, authorized)
     app.mount("/static", StaticFiles(directory=static), name="static")
     return app
 

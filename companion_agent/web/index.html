@@ -92,7 +92,8 @@
       <div class="settings-body">
         <div class="form-section" id="settings-persona" data-settings-panel="persona" role="tabpanel" aria-labelledby="tab-persona"><h3>从认识彼此开始</h3>
           <div class="two-columns"><label>TA 的名字<input id="companion-name" maxlength="24" required autocomplete="off"></label><label>希望怎么称呼你<input id="user-name" maxlength="24" placeholder="随你喜欢，也可以先不填" autocomplete="off"></label></div>
-          <fieldset class="style-field"><legend>相处的感觉</legend><div class="style-options"><label><input type="radio" name="style" value="gentle"><span>温柔细腻<small>把偏爱放在小事里</small></span></label><label><input type="radio" name="style" value="playful"><span>轻快俏皮<small>一起发现日常的有趣</small></span></label><label><input type="radio" name="style" value="steady"><span>沉稳坦诚<small>话不多，回应很认真</small></span></label></div></fieldset>
+          <fieldset class="style-field"><legend>相处的感觉</legend><div class="style-options"><label><input type="radio" name="style" value="gentle"><span>温柔细腻<small>把偏爱放在小事里</small></span></label><label><input type="radio" name="style" value="playful"><span>轻快俏皮<small>一起发现日常的有趣</small></span></label><label><input type="radio" name="style" value="steady"><span>沉稳坦诚<small>话不多，回应很认真</small></span></label><label><input type="radio" name="style" value="custom" aria-controls="custom-style-field"><span>自定义<small>写下你喜欢的相处方式</small></span></label></div></fieldset>
+          <label id="custom-style-field" hidden>自定义相处风格<textarea id="custom-style" maxlength="6000" rows="5" aria-describedby="custom-style-hint" placeholder="可以写性格、语气、相处习惯，也可以粘贴完整的角色提示词。例如：幽默坦率，有自己的想法，关心具体小事，像熟悉的恋人一样自然聊天。"></textarea><small class="field-hint" id="custom-style-hint">描述 TA 怎样与你相处，最多 6000 字。切换到其他风格后，这段文字仍会保留。</small></label>
           <label>还想赋予 TA 的特点 <span class="optional">选填</span><textarea id="persona-notes" maxlength="1000" rows="2" placeholder="例如：喜欢音乐，偶尔讲冷笑话，表达直接一点。"></textarea></label>
           <label class="check-label"><input id="romance-consent" type="checkbox"><span>我希望以恋人设定与 AI 相处<small>可以随时改为普通陪伴，也可以在聊天中调整亲密边界。</small></span></label>
         </div>
@@ -100,14 +101,16 @@
           <label>运行方式<select id="model-mode"><option value="offline">离线演示 · 不调用 DeepSeek</option><option value="api">API 模型 · 手动配置后连接</option></select></label>
           <p class="field-hint" id="model-mode-hint">离线模式用固定规则演示记忆、提醒和工具流程，不能代表真实模型的聊天质量。</p>
           <div id="api-settings" hidden><label>API Key<input id="api-key" type="password" autocomplete="off" maxlength="512" placeholder="sk-…"></label>
-          <p class="field-hint">Key 仅保存在服务端本次运行的内存中，重启后需重填。也可通过 DEEPSEEK_API_KEY 环境变量配置。</p>
+          <label class="check-label"><input id="remember-key" type="checkbox"><span>在这台电脑记住 Key<small id="remember-key-hint">使用 Windows 凭据管理器保存，重启后自动读取。取消勾选并保存可移除保存的 Key。</small></span></label>
+          <p class="field-hint">未勾选时仅在本次运行中使用。也可通过 DEEPSEEK_API_KEY 环境变量配置。</p>
           <div class="two-columns"><label>模型名称<input id="model" list="model-options" required maxlength="128"><datalist id="model-options"><option value="deepseek-flash"><option value="deepseek-v4-pro"><option value="deepseek-chat"><option value="deepseek-reasoner"></datalist></label><label>思考模式<select id="thinking"><option value="disabled">关闭 · 适合日常聊天</option><option value="enabled">开启 · 需要更长时间</option></select></label></div>
-          <details class="advanced"><summary>高级连接设置</summary><label>API 地址<input id="base-url" type="url" required placeholder="https://api.deepseek.com"></label><div class="two-columns"><label>输出 Token 上限<input id="max-tokens" type="number" min="128" max="32768" required></label><label>温度 · 0 到 2<input id="temperature" type="number" min="0" max="2" step="0.1" required></label></div><button type="button" class="text-button" id="clear-key">清除本次输入的 Key</button></details></div>
+          <details class="advanced"><summary>高级连接设置</summary><label>API 地址<input id="base-url" type="url" required placeholder="https://api.deepseek.com"></label><div class="two-columns"><label>输出 Token 上限<input id="max-tokens" type="number" min="128" max="32768" required></label><label>温度 · 0 到 2<input id="temperature" type="number" min="0" max="2" step="0.1" required></label></div><button type="button" class="text-button" id="clear-key">清除当前 Key 与保存的凭据</button></details></div>
         </div>
         <div class="form-section consent-section" id="settings-memory" data-settings-panel="memory" role="tabpanel" aria-labelledby="tab-memory" hidden><h3>把相处，留在日常里</h3><label class="check-label"><input id="storage-consent" type="checkbox"><span>在这台设备保存对话与记忆<small>延续称呼、偏好、共同经历和相处边界。</small></span></label><label class="check-label"><input id="model-consent" type="checkbox"><span>允许当前对话模式处理聊天与相关记忆<small>离线模式只在本机处理；API 模式会发送到你配置的服务并使用额度。</small></span></label>
           <p class="field-hint">聊天中的明确喜好和相处方式会自动记住。直接说出变化或“忘掉咖啡的喜好”即可调整，不需要逐条确认。</p>
           <label class="check-label"><input id="proactive-enabled" type="checkbox"><span>允许对手札中安排的事件主动关心一次<small>至少空闲 4 小时、两次间隔 12 小时、每天最多 2 次；未回应时暂停主动联系。</small></span></label>
           <div class="two-columns"><label>安静开始（小时）<input id="quiet-start" type="number" min="0" max="23"></label><label>安静结束（小时）<input id="quiet-end" type="number" min="0" max="23"></label></div>
+          <label>所在地时区<input id="calendar-timezone" required maxlength="128" placeholder="Asia/Shanghai"></label><p class="field-hint">例如 Asia/Shanghai 或 America/New_York，用于理解日期和安排安静时段。</p>
           <details class="advanced"><summary>记忆提取与检索</summary>
             <label class="check-label"><input id="extract-memory" type="checkbox"><span>自动整理聊天记忆</span></label>
             <label class="check-label"><input id="model-extraction" type="checkbox"><span>API 模式下启用模型语义提取<small>证据充分的明确偏好自动生效，模糊信息暂不采用；增加一次模型调用。离线模式不会调用。</small></span></label>

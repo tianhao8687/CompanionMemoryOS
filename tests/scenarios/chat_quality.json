@@ -1,0 +1,18 @@
+{
+  "name": "chat-quality-development",
+  "version": 3,
+  "require_language_quality": true,
+  "steps": [
+    {"operation": "send_message", "content": "今天工作压力很大，先听我讲完。"},
+    {"operation": "send_message", "content": "我不喜欢被分析，你能像朋友一样聊天吗？", "expect_preferences": ["psychological_analysis"]},
+    {"operation": "send_message", "content": "我今天拿到奖金啦，现在特别开心！", "stream": true, "expect_goal": "celebrate", "expect_preferences": ["psychological_analysis"]},
+    {"operation": "send_message", "content": "以后不要总是反问我。", "expect_preferences": ["questions"]},
+    {"operation": "send_message", "content": "刚吃了个烤红薯，特别甜。", "expect_goal": "direct_answer", "expect_preferences": ["questions", "psychological_analysis"]},
+    {"operation": "send_message", "content": "不要主动给建议。", "expect_preferences": ["advice"]},
+    {"operation": "send_message", "content": "这次帮我分析报告，列出三条修改建议。", "expect_goal": "direct_answer"},
+    {"operation": "restart"},
+    {"operation": "new_session"},
+    {"operation": "send_message", "content": "今天阳光很好。", "expect_goal": "direct_answer", "expect_preferences": ["psychological_analysis", "questions", "advice"]},
+    {"operation": "read_state"}
+  ]
+}

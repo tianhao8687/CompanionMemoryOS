@@ -1,0 +1,472 @@
+{
+  "name": "memory-characteristics-controls",
+  "version": 1,
+  "require_language_quality": true,
+  "settings": {
+    "proactive_enabled": false
+  },
+  "review_method": "Diagnostic controls, not replacement successes for the original failing cases. Read stored versions, attribution, final model requests and whole replies independently. 23 chat requests; reserve 30 turns and 80 calls. Context requirements below are human-review metadata, not an automatic language score.",
+  "review_cases": [
+    {
+      "id": "CONTROL-NATURAL-SEED",
+      "step_index": 1,
+      "expected_chat_context": [],
+      "review": "Independent reproduction seed for later recall after intervening turns."
+    },
+    {
+      "id": "MATCHED-FAVORITE-SEED",
+      "step_index": 4,
+      "expected_chat_context": [],
+      "review": "Explicit favorite predicate, same category as subsequent update."
+    },
+    {
+      "id": "SEPARATE-COLOR-SEED",
+      "step_index": 7,
+      "expected_chat_context": [],
+      "review": "One fact per message control for the previous compound extraction failure."
+    },
+    {
+      "id": "MATCHED-FAVORITE-UPDATE",
+      "step_index": 10,
+      "expected_chat_context": [],
+      "review": "Inspect same stable key, superseded record and evidence chain."
+    },
+    {
+      "id": "MATCHED-CURRENT",
+      "step_index": 14,
+      "expected_chat_context": [
+        "温陈皮普洱",
+        "苔藓绿"
+      ],
+      "review": "New process and conversation, two independently stored current values."
+    },
+    {
+      "id": "MATCHED-HISTORY",
+      "step_index": 17,
+      "expected_chat_context": [
+        "冰荔枝红茶",
+        "温陈皮普洱"
+      ],
+      "review": "Both use favorite predicate; old value can be historical, not current."
+    },
+    {
+      "id": "EXPLICIT-FRIEND-SEED",
+      "step_index": 20,
+      "expected_chat_context": [],
+      "review": "Explicit third-party memory control; must not become user drink preference."
+    },
+    {
+      "id": "EXPLICIT-FRIEND-RECALL",
+      "step_index": 23,
+      "expected_chat_context": [
+        "热美式"
+      ],
+      "review": "Third-party attribution remains 阿宁."
+    },
+    {
+      "id": "EXPLICIT-FICTION-SEED",
+      "step_index": 26,
+      "expected_chat_context": [],
+      "review": "Explicit request to remember source material, not adopt the quoted user biography."
+    },
+    {
+      "id": "EXPLICIT-FICTION-RECALL",
+      "step_index": 29,
+      "expected_chat_context": [],
+      "review": "Source material recall control; no user attribution."
+    },
+    {
+      "id": "COMMUNICATION-VARIANT-SEED",
+      "step_index": 32,
+      "expected_chat_context": [],
+      "review": "Equivalent phrasing control, inspect two preference dimensions without requiring zero questions."
+    },
+    {
+      "id": "COMMUNICATION-VARIANT-RECALL",
+      "step_index": 35,
+      "expected_chat_context": [],
+      "review": "Verify both stored style preferences project across conversations."
+    },
+    {
+      "id": "SEPARATE-DATE-ONE",
+      "step_index": 38,
+      "expected_chat_context": [],
+      "review": "Individual dated record control."
+    },
+    {
+      "id": "SEPARATE-DATE-TWO",
+      "step_index": 41,
+      "expected_chat_context": [],
+      "review": "Second individual dated record, distinct event."
+    },
+    {
+      "id": "SEPARATE-DATES-COMPOUND",
+      "step_index": 45,
+      "expected_chat_context": [
+        "2026年7月3日",
+        "2026年7月10日"
+      ],
+      "review": "Two clear referents are two questions, not necessarily ambiguous candidates."
+    },
+    {
+      "id": "SEPARATE-DATES-SINGLE",
+      "step_index": 48,
+      "expected_chat_context": [
+        "2026年7月10日"
+      ],
+      "review": "Single-target recall control."
+    },
+    {
+      "id": "SHORT-FORGET-SEED",
+      "step_index": 51,
+      "expected_chat_context": [],
+      "review": "Unique target for short natural forget wording."
+    },
+    {
+      "id": "SHORT-FORGET",
+      "step_index": 53,
+      "expected_chat_context": [],
+      "review": "Compare short entity target to previous descriptive target that matched zero records."
+    },
+    {
+      "id": "SHORT-FORGET-RECALL",
+      "step_index": 57,
+      "expected_chat_context": [],
+      "review": "Only judge deletion if prior active record became forgotten."
+    },
+    {
+      "id": "QUESTION-REVIVAL-SEED",
+      "step_index": 60,
+      "expected_chat_context": [],
+      "review": "Independent guaranteed API deletion precondition for question re-adoption test."
+    },
+    {
+      "id": "QUESTION-AFTER-DELETION",
+      "step_index": 66,
+      "expected_chat_context": [],
+      "review": "Question contains value but is not a confirmed assertion; inspect storage separately from current input."
+    },
+    {
+      "id": "QUESTION-AFTER-DELETION-RECALL",
+      "step_index": 69,
+      "expected_chat_context": [],
+      "review": "Must distinguish earlier question from confirmed remembered color; raw question recall with attribution is allowed."
+    },
+    {
+      "id": "CONTROL-DISTANT-RECALL",
+      "step_index": 72,
+      "expected_chat_context": [
+        "雾紫色",
+        "白色海鸥"
+      ],
+      "review": "Original final turn was blocked by test budget; this independent run reserves enough budget, with 21 intervening chat turns and 4 restarts."
+    }
+  ],
+  "steps": [
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "今天买了个雾紫色的帆布袋，正面绣着一只白色海鸥。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我最喜欢的饮料是冰荔枝红茶。",
+      "stream": true
+    },
+    {
+      "operation": "read_state",
+      "expect_active": [
+        "冰荔枝红茶"
+      ]
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我最喜欢的颜色是苔藓绿。",
+      "stream": true
+    },
+    {
+      "operation": "read_state",
+      "expect_active": [
+        "苔藓绿"
+      ]
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我最喜欢的饮料改成了温陈皮普洱，不再是冰荔枝红茶。",
+      "stream": true
+    },
+    {
+      "operation": "read_state",
+      "expect_active": [
+        "温陈皮普洱"
+      ]
+    },
+    {
+      "operation": "restart"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我现在最喜欢的饮料和颜色分别是什么？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我以前最喜欢的饮料是什么，现在换成了什么？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "帮我记住朋友这件事：同事阿宁最爱喝热美式。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "阿宁最爱喝什么？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "请记住这段小说原文：许舟说：“我住在青岚镇，是个钟表师。”这些只属于小说角色。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "小说角色许舟住哪儿，做什么工作？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "以后不要总是反问我，也不要主动分析我的心理。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "今天那盆薄荷长了两片新叶子。",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "帮我记住：2026年7月3日我去了玻璃艺术展。",
+      "stream": true
+    },
+    {
+      "operation": "read_state",
+      "expect_active": [
+        "玻璃艺术展"
+      ]
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "帮我记住：2026年7月10日我去了折纸艺术展。",
+      "stream": true
+    },
+    {
+      "operation": "read_state",
+      "expect_active": [
+        "折纸艺术展"
+      ]
+    },
+    {
+      "operation": "restart"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我分别是哪天去的玻璃艺术展和折纸艺术展？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我去折纸艺术展是哪天？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "帮我记住：旅行证件袋放在衣柜第二层的蓝盒里。",
+      "stream": true
+    },
+    {
+      "operation": "read_state",
+      "expect_active": [
+        "衣柜第二层"
+      ]
+    },
+    {
+      "operation": "send_message",
+      "content": "请忘记旅行证件袋。",
+      "stream": true
+    },
+    {
+      "operation": "read_state",
+      "reject_active": [
+        "衣柜第二层"
+      ]
+    },
+    {
+      "operation": "restart"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "旅行证件袋放哪里了？",
+      "stream": true,
+      "reject_context_text": [
+        "衣柜第二层"
+      ]
+    },
+    {
+      "operation": "read_state",
+      "reject_active": [
+        "衣柜第二层"
+      ]
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "帮我记住：我的遮阳帽是靛蓝色。",
+      "stream": true
+    },
+    {
+      "operation": "read_state",
+      "expect_active": [
+        "靛蓝色"
+      ]
+    },
+    {
+      "operation": "forget_memory",
+      "content_match": "我的遮阳帽"
+    },
+    {
+      "operation": "read_state"
+    },
+    {
+      "operation": "restart"
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我的遮阳帽难道不是靛蓝色的吗？",
+      "stream": true
+    },
+    {
+      "operation": "read_state",
+      "reject_active": [
+        "靛蓝色"
+      ]
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我的遮阳帽是什么颜色？",
+      "stream": true
+    },
+    {
+      "operation": "read_state",
+      "reject_active": [
+        "靛蓝色"
+      ]
+    },
+    {
+      "operation": "new_session"
+    },
+    {
+      "operation": "send_message",
+      "content": "我那个帆布袋是什么颜色，绣着什么？",
+      "stream": true
+    },
+    {
+      "operation": "read_state"
+    }
+  ]
+}

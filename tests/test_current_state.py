@@ -91,11 +91,7 @@ def test_listening_survives_history_window_restart_and_switches_now(
     for index in range(3):
         reply = agent.chat(request(f"接着还有第{index}件事想说。", f"follow-{index}"))
         assert reply.turn.metadata["response_goal"] == "listen"
-    recent = (
-        model.messages[-1][1]
-        .content.split("[RECENT CONVERSATION]\n")[1]
-        .split("[CURRENT USER TURN]")[0]
-    )
+    recent = "\n".join(message.content for message in model.messages[-1][2:-1])
     assert opening not in recent
     restarted = CompanionAgent(service, load_persona(), model, recent_turn_limit=1)
     assert (

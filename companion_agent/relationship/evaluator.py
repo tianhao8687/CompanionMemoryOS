@@ -408,7 +408,7 @@ class LocalRelationshipEvaluator:
                 {
                     "id": f"loop-{loop.id}",
                     "topic": loop.summary,
-                    "summary": loop.summary,
+                    "summary": loop.resolution_summary or loop.summary,
                     "topic_keys": loop.topic_keys,
                     "open_loop_id": loop.id,
                     "status": status,

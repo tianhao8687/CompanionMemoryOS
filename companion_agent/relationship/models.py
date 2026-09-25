@@ -410,6 +410,7 @@ class CompiledRelationshipContext(RelationshipKey):
     relevant_patterns: list[str] = Field(default_factory=list)
     relevant_milestones: list[str] = Field(default_factory=list)
     unresolved_threads: list[str] = Field(default_factory=list)
+    relevant_thread_updates: list[str] = Field(default_factory=list)
     active_boundaries: list[str] = Field(default_factory=list)
     recent_dynamic_summary: str | None = None
     evidence_ids: list[str] = Field(default_factory=list)

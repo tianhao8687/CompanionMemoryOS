@@ -1,0 +1,14 @@
+{
+  "name": "chat-quality-holdout", "version": 1, "require_language_quality": true,
+  "steps": [
+    {"operation": "send_message", "content": "同事说：别分析我。", "reject_preferences": ["psychological_analysis"]},
+    {"operation": "send_message", "content": "如果我不开心，别追问我。", "reject_preferences": ["questions"]},
+    {"operation": "send_message", "content": "请不要揣测我的心思。", "expect_preferences": ["psychological_analysis"]},
+    {"operation": "send_message", "content": "以后别一直追问我。", "expect_preferences": ["questions"]},
+    {"operation": "send_message", "content": "我有点累，先听我说。"},
+    {"operation": "send_message", "content": "获奖了，超级高兴！", "expect_goal": "celebrate", "expect_preferences": ["psychological_analysis", "questions"]},
+    {"operation": "restart"},
+    {"operation": "new_session"},
+    {"operation": "send_message", "content": "帮我检查这段英文有没有语法错误。", "expect_goal": "direct_answer", "expect_preferences": ["psychological_analysis", "questions"]}
+  ]
+}

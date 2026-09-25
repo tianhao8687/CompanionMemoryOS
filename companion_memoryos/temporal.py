@@ -15,6 +15,7 @@ from companion_memoryos.constants import (
 
 _CHINESE_DATE = re.compile(r"(?P<year>\d{4})年(?P<month>\d{1,2})月(?P<day>\d{1,2})日?")
 _ISO_DATE = re.compile(r"(?P<date>\d{4}-\d{1,2}-\d{1,2})")
+_EVENT_DAY = re.compile(rf"{_CHINESE_DATE.pattern}|{_ISO_DATE.pattern}|前天|昨天|昨日|今天|今日")
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,22 @@ def extract_temporal_hint(
         end=hint.end.astimezone(UTC) if hint.end is not None else None,
         prefer_recent=hint.prefer_recent,
     )
+
+
+def literal_event_day(
+    text: str, recorded_at: datetime, calendar_timezone: str = "UTC"
+) -> TemporalHint | None:
+    """Ground one past/current day in source text, without inventing a clock time.
+
+    Multiple dates may describe different events. Keep their observation time until
+    they are separated; do not silently assign the entire statement to its first date.
+    Future plans likewise retain their observation time rather than hiding until due.
+    """
+    markers = list(_EVENT_DAY.finditer(text))
+    if len(markers) != 1:
+        return None
+    hint = extract_temporal_hint(markers[0].group(), recorded_at, calendar_timezone)
+    return hint if hint.start is not None and hint.start <= recorded_at else None
 
 
 def _extract_local_temporal_hint(query: str, as_of: datetime) -> TemporalHint:

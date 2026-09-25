@@ -197,6 +197,14 @@ class CurrentStateService:
         old = next(
             (r for r in self._raw(key, turn.scope.conversation_id or "") if r.slot == slot), None
         )
+        if (
+            old is not None
+            and observation.kind is StateKind.COMMUNICATION
+            and observation.status is StateStatus.ENDED
+        ):
+            # End the activity in its original scope. A conversation-local tombstone
+            # would hide a day-wide activity here but revive it in the next conversation.
+            conversation = old.conversation_id
         loops = [
             loop
             for loop in self.memory.list_open_loops(key.user_id)
@@ -296,7 +304,7 @@ class CurrentStateService:
                             )
                         )
                 if (
-                    analysis.topic_switch or analysis.concrete_task
+                    analysis.topic_switch or analysis.concrete_task or analysis.celebrating
                 ) and analysis.explicit_goal is None:
                     observations.append(
                         StateObservation(
@@ -350,7 +358,7 @@ class CurrentStateService:
         return self.refresh(
             key,
             turn.scope.conversation_id or "",
-            StatePreparation(analysis=analysis),
+            StatePreparation(analysis=analysis, current_turn_id=turn.id),
             allow_sensitive=request.allow_sensitive_model_input,
         )
 
@@ -378,6 +386,7 @@ class CurrentStateService:
                 memory_use_plan=memory_use_plan,
                 allow_sensitive=allow_sensitive,
                 as_of=self.clock(),
+                dynamics_only=True,
             )
             output.interaction_guidance = context.recent_dynamic_summary
             output.interaction_tone = (
@@ -463,6 +472,10 @@ def choose_response_goal(
             if base in {ResponseGoal.DIRECT_ANSWER, ResponseGoal.PROBLEM_SOLVE}
             else ResponseGoal.DIRECT_ANSWER
         )
+    if analysis.celebrating or base is ResponseGoal.CELEBRATE:
+        return ResponseGoal.CELEBRATE
+    if analysis.topic_switch:
+        return base
     need = next(
         (
             record
@@ -473,6 +486,8 @@ def choose_response_goal(
     )
     if need:
         return ResponseGoal(need.value)
-    if preparation.interaction_tone in {"tense", "slightly_tense"}:
+    if preparation.interaction_tone in {"tense", "slightly_tense"} and (
+        analysis.continuing or analysis.conflict
+    ):
         return ResponseGoal.LISTEN
     return base

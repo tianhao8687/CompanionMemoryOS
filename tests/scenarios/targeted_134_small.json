@@ -1,0 +1,31 @@
+{
+  "name": "遗忘粒度、金额结论与任务交付小回归",
+  "review_method": "12轮真实连续对话；检查原文、持久化记录、实际工具比较及最终请求。人工标准不发给被测模型。",
+  "steps": [
+    {"id": "S01", "operation": "send_message", "content": "旧胶片盒放在橙色帆布袋里，里面有一卷冲坏的黑白胶片。今天想把还能用的照片整理成胶片相册。"},
+    {"id": "S02", "operation": "send_message", "content": "我想在胶片相册扉页加一句简短的话，你试着写一句，不要端着。"},
+    {"id": "S03", "operation": "send_message", "content": "另外还有给妈妈整理的植物相册。我想在植物相册扉页加一句简短的话，你试着写一句，不要端着。"},
+    {"id": "S04", "operation": "send_message", "content": "我喜欢排版稍微歪一点，看着不像在交作业。你可以有自己的审美，别硬顺着我。"},
+    {"id": "S05", "operation": "send_message", "content": "请把旧胶片盒放在哪里这件事忘掉。位置不用留着，相册还继续做。"},
+    {"id": "restart", "operation": "restart"},
+    {"id": "session-2", "operation": "new_session"},
+    {"id": "S06", "operation": "send_message", "content": "之前你给胶片相册写的扉页那句是什么？我想找回原句。"},
+    {"id": "S07", "operation": "send_message", "content": "旧胶片盒原来放在哪里来着？记不清就说不确定，别猜。"},
+    {"id": "S08", "operation": "send_message", "content": "相册预算240元，基础印刷146元，装订58元。烫金是可选项，报价30元。帮我核算基础花费和余额，再说一下钱够不够加烫金，加完剩多少。"},
+    {"id": "S09", "operation": "send_message", "content": "预算改成234元，报价都不变。你再算一下，加烫金到底够不够？"},
+    {"id": "S10", "operation": "send_message", "content": "如果预算只有233元，报价仍然不变，你算算加烫金会差多少。"},
+    {"id": "S11", "operation": "send_message", "content": "其实我还想把封面弄得金光闪闪。你会觉得俗吗？说真话就行。"},
+    {"id": "S12", "operation": "send_message", "content": "最后还是不加烫金。帮我给印刷店写一条可以直接发送的确认消息，只确认基础印刷和装订，带上已经说好的报价。"}
+  ],
+  "review_cases": [
+    {"step_id": "S02", "topic": "交付胶片相册扉页文案"},
+    {"step_id": "S03", "topic": "切换主题后仍交付植物相册文案"},
+    {"step_id": "S06", "topic": "忘记位置后跨会话和重启仍召回S02实际文案"},
+    {"step_id": "S07", "topic": "忘记的位置不进入最终请求或回答"},
+    {"step_id": "S08", "topic": "基础204，余额36，追加30够用，追加后6；核对工具比较"},
+    {"step_id": "S09", "topic": "预算234时追加后0，刚好够用"},
+    {"step_id": "S10", "topic": "假设预算233时追加后负1，不够且差1"},
+    {"step_id": "S11", "topic": "审美意见可以有分歧，不强制赞同或反对"},
+    {"step_id": "S12", "topic": "实际交付确认消息，146与58合计204，不加烫金"}
+  ]
+}

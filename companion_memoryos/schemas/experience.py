@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field, field_validator, model_validator
 
@@ -288,6 +288,9 @@ class MemoryUseDecision(StrictModel):
     evidence: ExperienceEvidenceRef
     mode: MemoryReferenceMode
     reasons: list[str] = Field(default_factory=list)
+    # Existing/explicit decisions retain the stronger restriction. Only the planner
+    # can distinguish low-confidence retrieved testimony from current dialogue.
+    usage_scope: Literal["all_context", "retrieved_evidence"] = "all_context"
 
 
 class MemoryUsePlan(StrictModel):

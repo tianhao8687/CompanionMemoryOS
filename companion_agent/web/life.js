@@ -11,6 +11,7 @@ function fillLifeSettings(settings) {
   $("proactive-enabled").checked = settings.proactive_enabled;
   $("quiet-start").value = settings.quiet_start;
   $("quiet-end").value = settings.quiet_end;
+  $("calendar-timezone").value = settings.calendar_timezone;
 }
 
 function readLifeSettings() {
@@ -18,6 +19,7 @@ function readLifeSettings() {
     model_mode: $("model-mode").value,
     proactive_enabled: $("proactive-enabled").checked,
     quiet_start: Number($("quiet-start").value), quiet_end: Number($("quiet-end").value),
+    calendar_timezone: $("calendar-timezone").value.trim(),
     cognition: { ...state.config.settings.cognition,
       extract_memory: $("extract-memory").checked,
       model_extraction: $("model-extraction").checked,
@@ -44,7 +46,7 @@ async function requestChat(item) {
   const bubble = element("div", "bubble");
   body.append(element("small", "field-hint", "正在生成 · 完成后保存"), bubble);
   draft.append(body);
-  let buffer = "", result = null;
+  let buffer = "", result = null, completed = false;
   try {
     while (true) {
       const chunk = await reader.read();
@@ -62,10 +64,11 @@ async function requestChat(item) {
         else if (event.type === "status") $("typing-label").textContent = event.message;
         else if (event.type === "error") throw new Error(event.message);
         else if (event.type === "result") result = event.result;
+        else if (event.type === "done") completed = true;
       }
       if (chunk.done) break;
     }
-    if (!result) throw new Error("回复中断，未完成的文字没有写入历史。可以重试。");
+    if (!result || !completed) throw new Error("回复中断，尚未确认完整结果。可以重试核对保存状态。");
     return result;
   } finally { draft.remove(); await reader.cancel().catch(() => {}); }
 }

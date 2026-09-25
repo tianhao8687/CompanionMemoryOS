@@ -59,6 +59,7 @@ class SemanticQuery:
     actor_id: str | None = None
     exclude_ids: list[str] = field(default_factory=list)
     reality_layer: RealityLayer | None = None
+    include_relationship_turns: bool = False
 
 
 @dataclass(frozen=True)
@@ -147,7 +148,9 @@ class SQLiteSemanticIndex:
                 "conversation_turns.occurred_at <= ?",
             ]
             parameters = [query.user_id, datetime_to_text(query.as_of)]
-            scope_clauses, scope_parameters = MemoryStore._exact_turn_scope_filter(query.scope)
+            scope_clauses, scope_parameters = MemoryStore._exact_turn_scope_filter(
+                query.scope, relationship_wide=query.include_relationship_turns
+            )
             clauses.extend(scope_clauses)
             parameters.extend(scope_parameters)
             if query.actor_id is not None:

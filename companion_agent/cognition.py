@@ -13,18 +13,34 @@ import re
 import urllib.error
 import urllib.request
 from collections.abc import Callable
+from dataclasses import replace
+from datetime import datetime
 from itertools import pairwise
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, model_validator
 
+from companion_agent.communication import communication_preferences
 from companion_agent.deepseek import DeepSeekConfig
 from companion_agent.directives import remember_directive
-from companion_agent.memory_language import SENSITIVE, UNCERTAIN, forget_target, literal_memories
+from companion_agent.evidence_policy import filter_recent_turns, filter_superseded_context
+from companion_agent.memory_language import (
+    SENSITIVE,
+    LiteralMemory,
+    forget_target,
+    literal_memories,
+    memory_note,
+    shared_material,
+    supported_literal,
+)
 from companion_agent.persona.models import PersonaModel
+from companion_agent.relationship.models import RelationshipKey
 from companion_memoryos.config import InterpreterConfig
+from companion_memoryos.diagnostics import model_call
 from companion_memoryos.interpreter import OpenAICompatibleInterpreter
 from companion_memoryos.schemas import (
+    AnswerCardinality,
     ConsentState,
     ConversationRole,
     ConversationTurnRecord,
@@ -33,7 +49,9 @@ from companion_memoryos.schemas import (
     MemoryKind,
     MemoryRecord,
     MemoryReferenceFeedbackInput,
+    MemoryScope,
     MemoryStatus,
+    MemoryUsePlan,
     ProcessTurnRequest,
     ProcessTurnResult,
     RealityLayer,
@@ -43,6 +61,7 @@ from companion_memoryos.schemas import (
     ReviewDecision,
     Sensitivity,
     TurnDeletionState,
+    TurnRecallItem,
 )
 from companion_memoryos.semantic_index import (
     SemanticDocument,
@@ -50,6 +69,7 @@ from companion_memoryos.semantic_index import (
     SQLiteSemanticIndex,
 )
 from companion_memoryos.service import CompanionMemoryService
+from companion_memoryos.temporal import TemporalHint
 
 
 class CognitionSettings(PersonaModel):
@@ -133,6 +153,17 @@ class Embeddings:
             return [value / norm for value in vector]
         if self.backend == "off":
             return []
+        config = self.settings.embedding
+        with model_call(
+            "embedding",
+            {"model": config.model, "input": text, "space": self.space},
+            live=urlsplit(config.base_url).hostname not in {"127.0.0.1", "::1", "localhost"},
+        ) as call:
+            vector = self._encode_api(text)
+            call["vector_dimensions"] = len(vector)
+            return vector
+
+    def _encode_api(self, text: str) -> list[float]:
         import os
 
         config = self.settings.embedding
@@ -163,6 +194,7 @@ class Embeddings:
 
 class ApplicationMemory(CompanionMemoryService):
     on_user_turn: Callable[[ConversationTurnRecord], None] | None = None
+    on_memory_changed: Callable[[], None] | None = None
 
     def configure(
         self,
@@ -183,6 +215,13 @@ class ApplicationMemory(CompanionMemoryService):
                 model=model.model,
                 api_key_env="COMPANION_EXPLICIT_INTERPRETER_KEY",
                 output_token_parameter="max_tokens",
+                max_output_tokens=min(model.max_tokens, 4096),
+                timeout_seconds=model.timeout_seconds,
+                thinking=(
+                    "disabled"
+                    if model.model not in {"deepseek-chat", "deepseek-reasoner"}
+                    else None
+                ),
             )
             self.turn_interpreter = OpenAICompatibleInterpreter(config, api_key=key)
         with self.store.database.connection() as db:
@@ -210,11 +249,17 @@ class ApplicationMemory(CompanionMemoryService):
                 prior = db.execute("SELECT id FROM agent_learned_turns WHERE id=?", (turn.id,))
                 if prior.fetchone() is None:
                     direct = self._direct_user_discourse_text(turn).strip()
+                    from companion_agent.memory_lifecycle import (
+                        reconcile_open_loops,
+                        reconcile_preference_correction,
+                    )
+
+                    reconciled = reconcile_open_loops(self, turn, direct)
+                    if reconciled:
+                        actions["updated_open_loops"] = reconciled
                     target = forget_target(direct)
                     if target is not None:
                         actions["forgotten"] = self._forget_from_chat(turn, target)
-                    else:
-                        remember_directive(self, turn)
                     learned = (
                         literal_memories(direct)
                         if self.learning.extract_memory
@@ -222,14 +267,44 @@ class ApplicationMemory(CompanionMemoryService):
                         and target is None
                         else []
                     )
+                    note = memory_note(direct)
+                    # A structured preference already retains the full assertion. Avoid
+                    # a second free-text copy that could keep a superseded value alive.
+                    preference_note = len(learned) == 1 and note == learned[0].content
+                    if (
+                        target is None
+                        and not preference_note
+                        and remember_directive(self, turn, request.calendar_timezone)
+                    ):
+                        actions["learned"] = actions.get("learned", 0) + 1
                     for fact in learned:
+                        fact = self._resolve_favorite(fact, turn, direct)
                         stable_key = (
-                            "natural:" + hashlib.sha256(fact.subject.encode()).hexdigest()[:24]
+                            "natural:"
+                            + hashlib.sha256(
+                                (
+                                    fact.subject
+                                    + (
+                                        ":" + fact.behavior.lifetime
+                                        if fact.behavior and fact.behavior.lifetime != "durable"
+                                        else ""
+                                    )
+                                ).encode()
+                            ).hexdigest()[:24]
                         )
                         decision = self.remember(
                             MemoryInput(
                                 user_id=turn.user_id,
-                                scope=turn.scope.model_copy(update={"conversation_id": None}),
+                                scope=turn.scope.model_copy(
+                                    update={
+                                        "conversation_id": (
+                                            turn.scope.conversation_id
+                                            if fact.behavior
+                                            and fact.behavior.lifetime in {"turn", "conversation"}
+                                            else None
+                                        )
+                                    }
+                                ),
                                 kind=MemoryKind.PREFERENCE,
                                 title="相处方式" if fact.reflection else "日常偏好",
                                 content=fact.content,
@@ -241,20 +316,62 @@ class ApplicationMemory(CompanionMemoryService):
                                 source_excerpt=fact.content,
                                 evidence_turn_ids=[turn.id],
                                 event_at=turn.occurred_at,
+                                valid_time_end=fact.behavior.valid_until(
+                                    turn.occurred_at, request.calendar_timezone
+                                )
+                                if fact.behavior
+                                else None,
                                 metadata={
                                     "extractor": "bounded-local-v2",
                                     "reflection": fact.reflection,
                                     "subject": fact.subject,
+                                    "favorite": fact.favorite,
+                                    "preference_category": fact.category,
+                                    "preference_value": fact.value,
+                                    "behavior_lifetime": fact.behavior.lifetime
+                                    if fact.behavior
+                                    else None,
                                 },
                             )
                         )
                         if decision.memory:
                             record = decision.memory
                             if record.status is MemoryStatus.CANDIDATE:
-                                self._adopt(record, "literal_user_statement")
+                                self._adopt(
+                                    record,
+                                    "literal_user_statement",
+                                    promote=not (
+                                        fact.behavior
+                                        and fact.behavior.lifetime in {"turn", "conversation"}
+                                    ),
+                                )
                             actions["learned"] = actions.get("learned", 0) + 1
                     if self.learning.extract_memory and target is None:
-                        self._adopt_model_candidates(turn, direct)
+                        corrected = reconcile_preference_correction(self, turn, direct)
+                        if corrected:
+                            actions["corrected"] = corrected
+                        adopted = self._adopt_model_candidates(turn, direct)
+                        if adopted:
+                            actions["learned"] = actions.get("learned", 0) + adopted
+                        if turn.sensitivity is Sensitivity.NORMAL and shared_material(turn.content):
+                            decision = self.remember(
+                                MemoryInput(
+                                    user_id=turn.user_id,
+                                    scope=turn.scope.model_copy(update={"conversation_id": None}),
+                                    kind=MemoryKind.SHARED_MOMENT,
+                                    title="分享过的原文（引文人物不代表用户）",
+                                    content=turn.content,
+                                    consent=turn.consent,
+                                    sensitivity=turn.sensitivity,
+                                    evidence_turn_ids=[turn.id],
+                                    source_ref=f"turn:{turn.id}",
+                                    event_at=turn.occurred_at,
+                                    metadata={"quoted_material_reference": True},
+                                )
+                            )
+                            if decision.memory:
+                                self._adopt(decision.memory, "attributed_shared_material")
+                                actions["learned"] = actions.get("learned", 0) + 1
                     db.execute("INSERT INTO agent_learned_turns VALUES (?)", (turn.id,))
                     db.execute(
                         "INSERT INTO agent_memory_actions VALUES (?, ?)",
@@ -275,10 +392,20 @@ class ApplicationMemory(CompanionMemoryService):
             calendar_timezone=request.calendar_timezone,
             state_reality_layer=request.reality_layer,
             exclude_turn_ids=[turn.id],
+            include_turn_evidence=True,
+            include_relationship_turns=bool(
+                request.scope.companion_id and request.scope.relationship_id
+            ),
+            answer_cardinality=AnswerCardinality.OPEN,
+            limit=4,
+            turn_limit=6,
+            max_tokens=2500,
+            max_characters=12000,
         )
         if self.embeddings.backend != "off":
             try:
                 self.index_active(request.user_id, request.scope)
+                self.index_turns(request.user_id, request.scope, recall.as_of)
                 recall = recall.model_copy(
                     update={
                         "query_embedding": self.embeddings.encode(recall.query),
@@ -294,42 +421,211 @@ class ApplicationMemory(CompanionMemoryService):
             result.response_context.guidance.append("application_memory:" + json.dumps(actions))
         return result
 
-    def _adopt(self, record: MemoryRecord, reason: str) -> None:
+    def _resolve_favorite(
+        self, fact: LiteralMemory, turn: ConversationTurnRecord, direct: str
+    ) -> LiteralMemory:
+        if (
+            not fact.favorite
+            or fact.category
+            or not any(cue in direct for cue in ("更新", "更正", "改", "以前", "旧", "现在"))
+        ):
+            return fact
+        # Resolve "my favourite is now ..." by the explicitly named old value,
+        # never by replacing every preference or guessing a domain from a new noun.
+        candidates = [
+            record
+            for record in self.store.list_memories(
+                turn.user_id, {MemoryStatus.ACTIVE}, scope=turn.scope
+            )
+            if record.metadata.get("favorite")
+            and record.metadata.get("preference_category")
+            and isinstance(record.metadata.get("preference_value"), str)
+            and record.metadata["preference_value"] != fact.value
+            and record.metadata["preference_value"] in direct
+            and record.subject_actor_id in {None, turn.user_id}
+        ]
+        if len(candidates) != 1:
+            return fact
+        category = str(candidates[0].metadata["preference_category"])
+        return replace(fact, subject=f"favorite:{category}", category=category)
+
+    def _recall_turns(
+        self,
+        request: RecallRequest,
+        temporal_hint: TemporalHint,
+        fts_query: str,
+        event_after: datetime | None,
+        event_before: datetime | None,
+        turn_limit: int,
+        has_cues: bool,
+    ) -> list[TurnRecallItem]:
+        if not turn_limit:
+            return []
+        items = super()._recall_turns(
+            request,
+            temporal_hint,
+            fts_query,
+            event_after,
+            event_before,
+            self.config.retrieval.turn_candidate_pool,
+            has_cues,
+        )
+        from companion_agent.recall_completion import complete_candidates, dialogue_replies
+
+        items = complete_candidates(self, request, temporal_hint, items)
+        # Apply the same source/dependency restrictions as recent conversation.
+        # A forgotten fact's later acknowledgement is not independent new evidence.
+        key = RelationshipKey(
+            user_id=request.user_id,
+            companion_id=request.scope.companion_id or "",
+            relationship_id=request.scope.relationship_id or "",
+        )
+        eligible = filter_recent_turns(
+            self, key, [item.turn for item in items], MemoryUsePlan(), request.as_of
+        )
+        if not re.search(r"以前|曾经|最初|原来|改过|变过|变化|历史", request.query):
+            eligible = filter_superseded_context(self, key, request.scope, eligible)
+            # A current, explicitly versioned favourite already has a complete
+            # structured value. Its correction's quoted old answer adds no detail
+            # to this slot and can otherwise reintroduce the superseded value.
+            covered_favorites = {
+                source
+                for record in self.store.list_memories(
+                    request.user_id, {MemoryStatus.ACTIVE}, scope=request.scope
+                )
+                if record.metadata.get("favorite")
+                and record.metadata.get("preference_category")
+                and str(record.metadata["preference_category"]) in request.query
+                and re.search(r"最喜欢|最爱", request.query)
+                for source in record.evidence_turn_ids
+            }
+            eligible = [item for item in eligible if item.id not in covered_favorites]
+        allowed = {turn.id for turn in eligible if turn.role is ConversationRole.USER}
+        retained = [item for item in items if item.turn.id in allowed]
+        from companion_agent.memory_lifecycle import has_dated_plan, is_planning_overview
+
+        if is_planning_overview(request.query):
+            # Prior appointments matter more than moods that happen to resemble
+            # wanting an easy weekend. Original evidence and scores stay visible.
+            for item in retained:
+                if has_dated_plan(self._direct_user_discourse_text(item.turn)):
+                    item.reasons.append("dated_plan_for_overview")
+            retained.sort(key=lambda item: "dated_plan_for_overview" not in item.reasons)
+        selected = retained[:turn_limit]
+        replies = dialogue_replies(self, request, temporal_hint, selected)
+        reply_sources = (
+            filter_recent_turns(
+                self, key, [item.turn for item in replies], MemoryUsePlan(), request.as_of
+            )
+            if replies
+            else []
+        )
+        allowed_replies = {turn.id for turn in reply_sources}
+        # Stay in the requested evidence limit. Actual assistant words retain
+        # their role and normal use-plan validation; they are not user facts.
+        for reply in replies:
+            if reply.turn.id in allowed_replies:
+                selected.insert(min(1, len(selected)), reply)
+        return selected[:turn_limit]
+
+    def _adopt(self, record: MemoryRecord, reason: str, *, promote: bool = True) -> None:
         # Keep the original evidence and attribution; adoption is an application decision.
         with self.store.database.atomic() as db:
             metadata = {**record.metadata, "automatic_adoption": reason}
             db.execute(
-                "UPDATE memories SET conversation_id=NULL, metadata_json=? "
-                "WHERE id=? AND user_id=?",
-                (json.dumps(metadata, ensure_ascii=False), record.id, record.user_id),
+                "UPDATE memories SET conversation_id=?, metadata_json=? WHERE id=? AND user_id=?",
+                (
+                    None if promote else record.scope.conversation_id,
+                    json.dumps(metadata, ensure_ascii=False),
+                    record.id,
+                    record.user_id,
+                ),
             )
             self.review(record.id, record.user_id, ReviewDecision.CONFIRM)
 
-    def _adopt_model_candidates(self, turn: ConversationTurnRecord, direct: str) -> None:
-        if UNCERTAIN.search(direct) or SENSITIVE.search(direct):
-            return
+    def _adopt_model_candidates(self, turn: ConversationTurnRecord, direct: str) -> int:
+        if SENSITIVE.search(direct):
+            return 0
+        adopted = 0
+        active_from_turn = [
+            record
+            for record in self.store.list_memories(
+                turn.user_id, {MemoryStatus.ACTIVE}, scope=turn.scope
+            )
+            if record.evidence_turn_ids == [turn.id]
+        ]
         for record in self.store.list_memories(
             turn.user_id, {MemoryStatus.CANDIDATE}, scope=turn.scope
         ):
+            # The local projection already owns temporary communication requests.
+            # Another classification must not turn a pause into a lasting rule.
+            if any(
+                setting.lifetime != "durable" and setting.original in record.content
+                for setting in communication_preferences(direct)
+            ):
+                continue
             if (
                 record.evidence_turn_ids == [turn.id]
                 and record.metadata.get("interpretation_model")
-                and record.content in direct
-                and "我" in record.content
+                and supported_literal(record.content, memory_note(direct) or direct)
+                and supported_literal(record.content, memory_note(turn.content) or turn.content)
                 and record.confidence >= 0.85
-                and record.subject_actor_id in {None, turn.user_id}
-                and record.kind in {MemoryKind.PREFERENCE, MemoryKind.SUPPORT_STRATEGY}
+                and (
+                    record.subject_actor_id in {None, turn.user_id}
+                    or record.kind is MemoryKind.SHARED_MOMENT
+                    or any(
+                        entity.id == record.subject_actor_id
+                        and any(
+                            name and name in record.content
+                            for name in [entity.name, *entity.aliases]
+                        )
+                        for entity in record.entities
+                    )
+                )
+                and record.kind
+                in {
+                    MemoryKind.PREFERENCE,
+                    MemoryKind.SUPPORT_STRATEGY,
+                    MemoryKind.SHARED_MOMENT,
+                    MemoryKind.IDENTITY,
+                    MemoryKind.RITUAL,
+                }
                 and record.sensitivity is Sensitivity.NORMAL
                 and record.reality_layer is RealityLayer.REAL_WORLD
                 and record.resolution_status is ResolutionStatus.RESOLVED
                 and record.quote_depth == 0
+                # Keep one version chain for an assertion already learned locally.
+                # A second model copy with a different predicate can outlive updates.
+                and not any(
+                    record.content.strip("。.!！ \n") in active.content
+                    or (
+                        record.kind is MemoryKind.PREFERENCE
+                        and active.kind is MemoryKind.PREFERENCE
+                        and active.content in record.content
+                    )
+                    for active in active_from_turn
+                )
             ):
                 self._adopt(record, "validated_literal_model_proposal")
+                adopted += 1
+                active_from_turn.append(record)
+        return adopted
 
     def _forget_from_chat(self, turn: ConversationTurnRecord, target: str) -> int:
+        if target.startswith("@location:"):
+            from companion_agent.memory_redaction import forget_location
+
+            count = forget_location(self, turn, target.removeprefix("@location:"))
+            self._hide_forgetting_request(turn)
+            return count
+
+        def matches(content: str) -> bool:
+            return target in content
+
         records = self.store.list_memories(
             turn.user_id, {MemoryStatus.ACTIVE, MemoryStatus.CANDIDATE}, scope=turn.scope
         )
+        recent_source: str | None = None
         if target == "@recent":
             previous = [
                 item
@@ -340,16 +636,64 @@ class ApplicationMemory(CompanionMemoryService):
                 and item.deletion_state is TurnDeletionState.ACTIVE
             ]
             previous.sort(key=lambda item: item.server_sequence, reverse=True)
+            recent_source = previous[0].id if previous else None
             targets = [r for r in records if previous and previous[0].id in r.evidence_turn_ids]
         else:
             targets = [
-                r for r in records if target in r.content or target == r.metadata.get("subject")
+                r for r in records if matches(r.content) or target == r.metadata.get("subject")
             ]
         for record in targets:
             self.forget(record.id, turn.user_id)
-        return len(targets)
+        # Raw evidence still exists when extraction failed. Forget its source and
+        # derived replies too; otherwise newly enabled turn retrieval revives it.
+        source_ids = {source for record in targets for source in record.evidence_turn_ids}
+        if recent_source is not None:
+            source_ids.add(recent_source)
+        turns = self.store.list_turns(turn.user_id)
+        for source in sorted(turns, key=lambda item: item.server_sequence):
+            if (
+                source.scope.companion_id != turn.scope.companion_id
+                or source.scope.relationship_id != turn.scope.relationship_id
+                or source.scope.group_id != turn.scope.group_id
+                or source.server_sequence >= turn.server_sequence
+                or source.deletion_state is not TurnDeletionState.ACTIVE
+            ):
+                continue
+            if (
+                target != "@recent"
+                and source.role is ConversationRole.USER
+                and matches(source.content)
+            ):
+                source_ids.add(source.id)
+            if source.role is ConversationRole.ASSISTANT and (
+                source.reply_to_turn_id in source_ids
+                or source_ids.intersection(source.metadata.get("context_turn_ids", []))
+            ):
+                source_ids.add(source.id)
+            if source.id in source_ids:
+                self.forget_turn(source.id, turn.user_id)
+        if source_ids and self.on_memory_changed:
+            self.on_memory_changed()
+        # The forgetting request itself can repeat the private fact. It must not
+        # become a fresh route for recalling the same text on a later turn.
+        self._hide_forgetting_request(turn)
+        return len(targets) + len(source_ids)
+
+    def _hide_forgetting_request(self, turn: ConversationTurnRecord) -> None:
+        self.record_reference_feedback(
+            MemoryReferenceFeedbackInput(
+                user_id=turn.user_id,
+                scope=turn.scope.model_copy(update={"conversation_id": None}),
+                evidence_kind=ExperienceEvidenceKind.TURN,
+                evidence_id=turn.id,
+                kind=ReferenceFeedbackKind.DO_NOT_REFERENCE,
+                note="memory_forgetting_request",
+            )
+        )
 
     def forget(self, memory_id: str, user_id: str) -> MemoryRecord:
+        if self.on_memory_changed:
+            self.on_memory_changed()
         with self.store.database.atomic() as db:
             current = self.store.get(memory_id, user_id)
             versions = [current]
@@ -423,14 +767,17 @@ class ApplicationMemory(CompanionMemoryService):
 
         assert isinstance(scope, MemoryScope)
         index = SQLiteSemanticIndex(self.store.database)
+        with self.store.database.connection() as db:
+            cached = {
+                row["id"]: row["digest"]
+                for row in db.execute(
+                    "SELECT id, digest FROM agent_embedding_cache WHERE space=?",
+                    (self.embeddings.space,),
+                )
+            }
         for record in self.store.list_memories(user_id, {MemoryStatus.ACTIVE}, scope=scope):
             digest = hashlib.sha256(record.content.encode()).hexdigest()
-            with self.store.database.connection() as db:
-                cached = db.execute(
-                    "SELECT digest FROM agent_embedding_cache WHERE id=? AND space=?",
-                    (record.id, self.embeddings.space),
-                ).fetchone()
-            if cached and cached["digest"] == digest:
+            if cached.get(record.id) == digest:
                 continue
             vector = self.embeddings.encode(record.content)
             index.upsert(
@@ -447,4 +794,56 @@ class ApplicationMemory(CompanionMemoryService):
                 db.execute(
                     "INSERT OR REPLACE INTO agent_embedding_cache VALUES (?, ?, ?)",
                     (record.id, self.embeddings.space, digest),
+                )
+
+    def index_turns(self, user_id: str, scope: MemoryScope, as_of: datetime) -> None:
+        """Index original user evidence, independently of successful fact extraction.
+
+        Backfill is bounded per chat. Retrieval rechecks scope, consent, realm and
+        source restrictions; an embedding is never authority to assert a fact.
+        """
+        if not scope.companion_id or not scope.relationship_id:
+            return
+        domain = scope.model_copy(update={"conversation_id": None})
+        with self.store.database.connection() as db:
+            cached = {
+                row["id"]: row["digest"]
+                for row in db.execute(
+                    "SELECT c.id, c.digest FROM agent_embedding_cache c JOIN turn_embeddings e "
+                    "ON e.turn_id=c.id AND e.space=c.space WHERE c.space=?",
+                    (self.embeddings.space,),
+                )
+            }
+        turns = [
+            turn
+            for turn in self.store.list_turns(user_id, domain)
+            if turn.role is ConversationRole.USER
+            and turn.scope.group_id == scope.group_id
+            and cached.get(turn.id) != hashlib.sha256(turn.content[:16000].encode()).hexdigest()
+        ]
+        turns = filter_recent_turns(
+            self,
+            RelationshipKey(
+                user_id=user_id,
+                companion_id=scope.companion_id,
+                relationship_id=scope.relationship_id,
+            ),
+            turns,
+            MemoryUsePlan(),
+            as_of,
+        )
+        index = SQLiteSemanticIndex(self.store.database)
+        for turn in turns[:32]:
+            text = turn.content[:16000]
+            digest = hashlib.sha256(text.encode()).hexdigest()
+            vector = self.embeddings.encode(text)
+            index.upsert(
+                SemanticDocument(
+                    SemanticKind.TURN, turn.id, user_id, turn.scope, self.embeddings.space, vector
+                )
+            )
+            with self.store.database.connection() as db:
+                db.execute(
+                    "INSERT OR REPLACE INTO agent_embedding_cache VALUES (?, ?, ?)",
+                    (turn.id, self.embeddings.space, digest),
                 )

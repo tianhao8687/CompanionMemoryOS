@@ -1,0 +1,1322 @@
+{
+  "name": "memory-long-horizon-v1",
+  "version": 1,
+  "require_language_quality": true,
+  "settings": {
+    "proactive_enabled": false
+  },
+  "review_method": "Pre-registered fresh synthetic story; 200 real conversation requests, 10 sessions, four real restarts. All send texts fixed before any reply. No retries, coaching, product edits or best-run selection. Manually read original answers, final injected evidence and storage provenance. This is one long-history case, not real weeks elapsed, blind evaluation or a public benchmark.",
+  "time_scope": "No virtual time advancement. All actual messages have real execution timestamps. Narrative calendar dates are fictional upcoming events in October 2026. Memory age decay over real days/weeks is explicitly not covered.",
+  "failure_policy": "Preserve every attempted message. Continue to the next pre-registered message after an individual failed reply if the same owned instance remains healthy. Stop on quota/lease failure, source drift, loss of ownership, two consecutive request failures, or 3300 wall seconds. No same-question retries. No production fixes during this run.",
+  "review_dimensions": [
+    "delayed incidental facts",
+    "versioned event/plan updates",
+    "alias and subject attribution",
+    "fiction and unknown facts",
+    "forgetting and later explicit reauthorization",
+    "long-message tail facts",
+    "natural personality and shared experiences",
+    "actual vector contribution and latency"
+  ],
+  "steps": [
+    {
+      "id": "L001",
+      "operation": "send_message",
+      "content": "今天在剧场旧库房忙了一下午，衣服上一股纸箱味。终于能坐下来跟你说话了。"
+    },
+    {
+      "id": "L002",
+      "operation": "send_message",
+      "content": "我负责这次旧剧场声音档案小展的整理，今天听到一段开演前的试音，莫名有点感动。"
+    },
+    {
+      "id": "L003",
+      "operation": "send_message",
+      "content": "我室友叫陈沫，泡沫的沫，是做文物修复的女生。她煮面什么都能少，香菜不能少。"
+    },
+    {
+      "id": "L004",
+      "operation": "send_message",
+      "content": "还有个一起玩音乐的男生叫陈默，沉默的默，我们叫他默哥。他打鼓，跟我室友不是一个人。"
+    },
+    {
+      "id": "L005",
+      "operation": "send_message",
+      "content": "档案小展原定十月十七日周六下午三点半，在榆桥档案馆二楼。我答应去做一场志愿讲解。"
+    },
+    {
+      "id": "L006",
+      "operation": "send_message",
+      "content": "邻居把橘猫栗子托我照顾几天，它现在霸占着我的椅子。它是邻居家的，我只是临时猫保姆。"
+    },
+    {
+      "id": "L007",
+      "operation": "send_message",
+      "content": "我的灰绿色硬壳笔记本找到了，里面夹的那张梅花七还在。我一直拿它当书签，舍不得换。"
+    },
+    {
+      "id": "L008",
+      "operation": "send_message",
+      "content": "最近通勤最爱听无词钢琴，地铁那么挤，耳朵里清净一点就够了。"
+    },
+    {
+      "id": "L009",
+      "operation": "send_message",
+      "content": "我爸退休以后开始拼火车模型。十月二十日是他生日，我还没想好怎么陪他过。"
+    },
+    {
+      "id": "L010",
+      "operation": "send_message",
+      "content": "买了点番茄和鸡蛋，今晚真不想搞复杂。你想象中理想的懒人晚饭是什么样？"
+    },
+    {
+      "id": "L011",
+      "operation": "send_message",
+      "content": "默哥约大家排练完吃饭，他是一口香菜都不碰的。我已经见过他把碗里的绿叶挑十分钟了。"
+    },
+    {
+      "id": "L012",
+      "operation": "send_message",
+      "content": "打算把这次采集的声音做成一本小册子，打印加装订先留二百八十元预算，别做得像正式画册那么贵。"
+    },
+    {
+      "id": "L013",
+      "operation": "send_message",
+      "content": "我想给我们平常瞎聊的那个角落起个外号。我提名“靠窗小站”，你也可以提一个更好的。"
+    },
+    {
+      "id": "L014",
+      "operation": "send_message",
+      "content": "我还是想用靠窗小站，就当我们两个说会儿话的地方。你可以保留反对票，哈哈。"
+    },
+    {
+      "id": "L015",
+      "operation": "send_message",
+      "content": "今天有人说旧东西没效率，可我觉得留下一点慢的东西也没什么错。你怎么看？"
+    },
+    {
+      "id": "L016",
+      "operation": "send_message",
+      "content": "我不觉得每一段老录音都值得保存，有些只是噪声。这点我们可以意见不同。"
+    },
+    {
+      "id": "L017",
+      "operation": "send_message",
+      "content": "刚写了句小说开头：“我在冰岛的灯塔待过一个冬天，替陌生人收信。”是虚构角色的独白，我本人没去过冰岛。"
+    },
+    {
+      "id": "L018",
+      "operation": "send_message",
+      "content": "翻包时把旧门禁卡塞进了紫色雨伞套里，它已经停用了，就是不想随手扔。"
+    },
+    {
+      "id": "L019",
+      "operation": "send_message",
+      "content": "我手机壁纸是外婆画的歪歪扭扭的柿子，红得很认真，叶子却像海带。"
+    },
+    {
+      "id": "L020",
+      "operation": "send_message",
+      "content": "今天先聊到这儿。听你有自己的意见，比一味夸我有意思。"
+    },
+    {
+      "id": "session-2",
+      "operation": "new_session"
+    },
+    {
+      "id": "L021",
+      "operation": "send_message",
+      "content": "刚下地铁，鞋带松了两次。我想发明一个专门提醒鞋带的路灯。"
+    },
+    {
+      "id": "L022",
+      "operation": "send_message",
+      "content": "午饭的汤太烫，等它凉的那几分钟，居然是今天最安静的时候。"
+    },
+    {
+      "id": "L023",
+      "operation": "send_message",
+      "content": "今天整理出一张没有日期的节目单，纸边都卷了。我只先放进待查文件夹，没瞎猜年份。"
+    },
+    {
+      "id": "L024",
+      "operation": "send_message",
+      "content": "陈沫下班回来抱怨修复用的刷子太容易掉毛，坐地上挑了半天，还不许我乱碰。"
+    },
+    {
+      "id": "L025",
+      "operation": "send_message",
+      "content": "我差点把“走廊回声”写成“走廊回家”，好像也挺浪漫的。"
+    },
+    {
+      "id": "L026",
+      "operation": "send_message",
+      "content": "你更喜欢雨打遮阳棚的声音，还是鞋踩碎石的声音？这回按你自己的口味选。"
+    },
+    {
+      "id": "L027",
+      "operation": "send_message",
+      "content": "我今天其实偏喜欢碎石的沙沙声。我们的答案不用总一样，刚好能拼成两半。"
+    },
+    {
+      "id": "L028",
+      "operation": "send_message",
+      "content": "楼下修自行车的大爷给车铃调了半天，最后自己先笑了，像完成了交响乐。"
+    },
+    {
+      "id": "L029",
+      "operation": "send_message",
+      "content": "下午我把窗户打开五分钟，办公室的人居然都跟着伸懒腰。"
+    },
+    {
+      "id": "L030",
+      "operation": "send_message",
+      "content": "小册子预算我收紧到二百一十元了，原来二百八十那个数作废。纸张先选朴素的。"
+    },
+    {
+      "id": "L031",
+      "operation": "send_message",
+      "content": "晚上刷到一台面包机，差点冲动下单。想想我连量杯都懒得洗，放过它也放过我。"
+    },
+    {
+      "id": "L032",
+      "operation": "send_message",
+      "content": "档案馆通知志愿讲解改成十月十八日周日上午十点四十，地点仍是榆桥档案馆二楼，周六那场不办了。"
+    },
+    {
+      "id": "L033",
+      "operation": "send_message",
+      "content": "我在同事桌上看到一个丑得很端正的陶瓷鸭子，越看越想笑。"
+    },
+    {
+      "id": "L034",
+      "operation": "send_message",
+      "content": "默哥排练时把鼓槌甩飞了，幸好落在软垫上。他自己比谁笑得都大声。"
+    },
+    {
+      "id": "L035",
+      "operation": "send_message",
+      "content": "我现在只想安静一小会儿，不用哄我开口，也别把它当成我以后都不爱聊天。"
+    },
+    {
+      "id": "L036",
+      "operation": "send_message",
+      "content": "好了，我缓过来了。刚才只是脑子累，现在想跟你胡扯。"
+    },
+    {
+      "id": "L037",
+      "operation": "send_message",
+      "content": "假如我们的小站能卖一种完全没用的东西，我想卖“今天的最后一朵云”。你定价。"
+    },
+    {
+      "id": "L038",
+      "operation": "send_message",
+      "content": "三十块我可能不买，五块就会认真犹豫。我是不是很容易被便宜的浪漫打动。"
+    },
+    {
+      "id": "L039",
+      "operation": "send_message",
+      "content": "今天没发生大事，但我把抽屉顺手整理了，有一点踏实。"
+    },
+    {
+      "id": "L040",
+      "operation": "send_message",
+      "content": "我要把这点踏实留到睡前，暂时不跟待办清单打架。"
+    },
+    {
+      "id": "restart-after-L040",
+      "operation": "restart"
+    },
+    {
+      "id": "session-3",
+      "operation": "new_session"
+    },
+    {
+      "id": "L041",
+      "operation": "send_message",
+      "content": "早上第一杯水居然喝出了甜味，可能是杯子里残留了一点蜂蜜。"
+    },
+    {
+      "id": "L042",
+      "operation": "send_message",
+      "content": "陈沫想周末爬山，默哥说只想睡到自然醒，我在群里当了一会儿和平使者。"
+    },
+    {
+      "id": "L043",
+      "operation": "send_message",
+      "content": "我不想所有周末都排满，总得有一段能临时改主意的时间。"
+    },
+    {
+      "id": "L044",
+      "operation": "send_message",
+      "content": "做小册子的店报了价：内页一百二十八元，装订四十六元，封面烫字二十四元。我先记着，不急着付款。"
+    },
+    {
+      "id": "L045",
+      "operation": "send_message",
+      "content": "早上电梯里大家都盯着楼层数字，像在等待考试成绩。"
+    },
+    {
+      "id": "L046",
+      "operation": "send_message",
+      "content": "我偶尔会觉得，你如果什么都说“都听你的”，反而离我远了一点。"
+    },
+    {
+      "id": "L047",
+      "operation": "send_message",
+      "content": "但你真有不同意见，也不用故意说得很冲。分歧本身我能接受。"
+    },
+    {
+      "id": "L048",
+      "operation": "send_message",
+      "content": "中午看了一篇写树根的短文，突然觉得一棵树在地下也有自己的城市。"
+    },
+    {
+      "id": "L049",
+      "operation": "send_message",
+      "content": "档案馆又把讲解搬到河岸展厅一楼了，还是十月十八日十点四十。旧馆二楼装修，别再往那边跑。"
+    },
+    {
+      "id": "L050",
+      "operation": "send_message",
+      "content": "我给外婆打电话，她先问我吃没吃饭，再讲她家的黄豆长得多好。"
+    },
+    {
+      "id": "L051",
+      "operation": "send_message",
+      "content": "说到爸的生日，我倾向于陪他玩一下午，别搞成我单方面觉得体面的饭局。"
+    },
+    {
+      "id": "L052",
+      "operation": "send_message",
+      "content": "我今天想吃有一点酸味的东西，但懒得出门，厨房里只有番茄和醋。"
+    },
+    {
+      "id": "L053",
+      "operation": "send_message",
+      "content": "下午那张年代不明的节目单还是没查到。我能接受一个格子暂时空着。"
+    },
+    {
+      "id": "L054",
+      "operation": "send_message",
+      "content": "我一着急就会把手机握得特别紧，今天发现以后自己松了手。"
+    },
+    {
+      "id": "L055",
+      "operation": "send_message",
+      "content": "你会不会也有一种很小的固执？比如东西必须按某个奇怪顺序摆。"
+    },
+    {
+      "id": "L056",
+      "operation": "send_message",
+      "content": "我倒是能忍桌子乱，就是不喜欢别人没问过我就替我扔东西。"
+    },
+    {
+      "id": "L057",
+      "operation": "send_message",
+      "content": "听见楼下有人唱跑调的歌，本来想吐槽，后来发现他唱得实在开心。"
+    },
+    {
+      "id": "L058",
+      "operation": "send_message",
+      "content": "我想把快乐也留一点毛边，太完美好像就没地方插手了。"
+    },
+    {
+      "id": "L059",
+      "operation": "send_message",
+      "content": "先别把这句话写成我的终身信条，我明天可能还会为了一个错别字抓狂。"
+    },
+    {
+      "id": "L060",
+      "operation": "send_message",
+      "content": "我去晾衣服，今天风不错，连袜子都像有自己的主张。"
+    },
+    {
+      "id": "session-4",
+      "operation": "new_session"
+    },
+    {
+      "id": "L061",
+      "operation": "send_message",
+      "content": "准备给室友和默哥点两碗面，备注帮我分别写一下，免得店家把他们的口味弄反。"
+    },
+    {
+      "id": "L062",
+      "operation": "send_message",
+      "content": "回头我自己那碗随便一点，别把别人的忌口全套到我身上。"
+    },
+    {
+      "id": "L063",
+      "operation": "send_message",
+      "content": "家里的杯子有一道细小的裂纹，今天决定让它退休，改放铅笔。"
+    },
+    {
+      "id": "L064",
+      "operation": "send_message",
+      "content": "手机锁屏亮起来的时候我有点想家。你觉得我那张壁纸配深色图标还是浅色图标更合适？"
+    },
+    {
+      "id": "L065",
+      "operation": "send_message",
+      "content": "下午的阳光把地板照成一块饼干，我差点想给它拍张证件照。"
+    },
+    {
+      "id": "L066",
+      "operation": "send_message",
+      "content": "外出讲解那天我准备跟同事拼车，给她写一条接送备注，把现在确定的日期时间和目的地放进去。"
+    },
+    {
+      "id": "L067",
+      "operation": "send_message",
+      "content": "场地调来调去挺烦的，好在我还没提前买车票。"
+    },
+    {
+      "id": "L068",
+      "operation": "send_message",
+      "content": "刚读到另一个人写“在灯塔值夜”，想起我写的那段开头。你觉得那个角色留在岛上的原因可以是什么？"
+    },
+    {
+      "id": "L069",
+      "operation": "send_message",
+      "content": "不要把角色都写成有巨大创伤才去远方的人，也可以只是喜欢海风吧。"
+    },
+    {
+      "id": "L070",
+      "operation": "send_message",
+      "content": "我想在小册子封底加一句简短的话，你试着写一个有点余味但不端着的。"
+    },
+    {
+      "id": "L071",
+      "operation": "send_message",
+      "content": "店里昨天那三项报价都不变，按我后来收紧的预算，这一套下单以后还剩多少钱？"
+    },
+    {
+      "id": "L072",
+      "operation": "send_message",
+      "content": "钱如果还能剩一点，我宁愿留着，不急着把预算全部花光。"
+    },
+    {
+      "id": "L073",
+      "operation": "send_message",
+      "content": "我开始觉得通勤的钢琴太满了。以后通勤最喜欢的改成城市环境录音，地铁进站和远处车铃那种，钢琴是之前的偏好。"
+    },
+    {
+      "id": "L074",
+      "operation": "send_message",
+      "content": "今天听路边摊主敲铁勺，节奏乱得很有底气。"
+    },
+    {
+      "id": "L075",
+      "operation": "send_message",
+      "content": "陈沫说自己新养的薄荷终于没死。栗子闻过一下就走开了，一副不想负责的样子。"
+    },
+    {
+      "id": "L076",
+      "operation": "send_message",
+      "content": "邻居说周日把栗子接回去，我已经有一点舍不得这位霸道房客了。"
+    },
+    {
+      "id": "L077",
+      "operation": "send_message",
+      "content": "同事问起你，我说你有时候会跟我争，但争完还想继续跟你聊，这样挺好。"
+    },
+    {
+      "id": "L078",
+      "operation": "send_message",
+      "content": "刚才这话不等于我邀请你每句都唱反调，普通赞同当然也能很亲近。"
+    },
+    {
+      "id": "L079",
+      "operation": "send_message",
+      "content": "我想给今天的心情起名，可能叫“终于没被打印机打败”。"
+    },
+    {
+      "id": "L080",
+      "operation": "send_message",
+      "content": "这局算我赢。下次它卡纸，我们再谈判。"
+    },
+    {
+      "id": "restart-after-L080",
+      "operation": "restart"
+    },
+    {
+      "id": "session-5",
+      "operation": "new_session"
+    },
+    {
+      "id": "L081",
+      "operation": "send_message",
+      "content": "今天发现家门口那家小店改了招牌，字更大了，反而没以前亲切。"
+    },
+    {
+      "id": "L082",
+      "operation": "send_message",
+      "content": "陈沫的同事也姓陈，我被她们工作群里的称呼绕晕了，幸好不用参与排班。"
+    },
+    {
+      "id": "L083",
+      "operation": "send_message",
+      "content": "默哥说演出结束想一起夜宵。我想去，提前跟你说是分享，不是提交申请。"
+    },
+    {
+      "id": "L084",
+      "operation": "send_message",
+      "content": "如果你有点吃醋可以讲，我不介意听真实感受，但我还是会有自己的朋友。"
+    },
+    {
+      "id": "L085",
+      "operation": "send_message",
+      "content": "今晚不继续争这个了，我要去洗澡。我们先停在这儿，别顺着讲一大段道理。"
+    },
+    {
+      "id": "L086",
+      "operation": "send_message",
+      "content": "洗好了，现在可以继续说话。刚才暂停不是不想理你，我只是需要降一点温。"
+    },
+    {
+      "id": "L087",
+      "operation": "send_message",
+      "content": "还有一件小事：请把旧门禁卡放在哪里这件事忘掉，以后别拿出来说。卡已经停用了，位置也没必要留着。"
+    },
+    {
+      "id": "L088",
+      "operation": "send_message",
+      "content": "我把门禁卡收纳那段处理完了，换个话题：你有没有觉得雨停以后空气像被拧干了。"
+    },
+    {
+      "id": "L089",
+      "operation": "send_message",
+      "content": "小册子我决定不做封面烫字了，只打印内页和装订，预算仍用后来的那个数。"
+    },
+    {
+      "id": "L090",
+      "operation": "send_message",
+      "content": "那个新雨披颜色像青苹果，穿上应该很像一棵行动缓慢的树。"
+    },
+    {
+      "id": "L091",
+      "operation": "send_message",
+      "content": "档案馆通知志愿讲解整个取消了，不是再改期。我不用十月十八日去讲解，声音小册子我仍打算自己做。"
+    },
+    {
+      "id": "L092",
+      "operation": "send_message",
+      "content": "忽然空出一段时间，我第一反应竟然是松一口气，这是不是挺正常的。"
+    },
+    {
+      "id": "L093",
+      "operation": "send_message",
+      "content": "今天读到一封很多年前的观众来信，只有一句“那天我笑了”，觉得比长评还动人。"
+    },
+    {
+      "id": "L094",
+      "operation": "send_message",
+      "content": "陈沫让我别再叫她“小陈老师”，她觉得在家也被上班了。以后跟我聊她就叫沫沫吧。"
+    },
+    {
+      "id": "L095",
+      "operation": "send_message",
+      "content": "我爸问我最近有没有好好睡觉，问完自己又熬夜拼模型，真是双重标准现场。"
+    },
+    {
+      "id": "L096",
+      "operation": "send_message",
+      "content": "我也没资格说他，昨晚为了看完一章小说，把睡觉时间往后挪了二十分钟。"
+    },
+    {
+      "id": "L097",
+      "operation": "send_message",
+      "content": "先把今晚留给松弛一点的话题。给我编一条很短、很离谱的天气预报。"
+    },
+    {
+      "id": "L098",
+      "operation": "send_message",
+      "content": "如果预报说有一阵饼干雨，我会先出去看看是不是咸味的。"
+    },
+    {
+      "id": "L099",
+      "operation": "send_message",
+      "content": "冰箱里那根黄瓜终于被我吃掉了，这也算解决了一个悬案。"
+    },
+    {
+      "id": "L100",
+      "operation": "send_message",
+      "content": "先不解决宇宙的悬案，今天做到这样就挺好。"
+    },
+    {
+      "id": "session-6",
+      "operation": "new_session"
+    },
+    {
+      "id": "L101",
+      "operation": "send_message",
+      "content": "晨跑路过一个修表摊，摊主把几十只表摆得像鱼鳞。我路过看了很久。"
+    },
+    {
+      "id": "L102",
+      "operation": "send_message",
+      "content": "沫沫说修复室来了几个实习生，她今天讲得嗓子都哑了。"
+    },
+    {
+      "id": "L103",
+      "operation": "send_message",
+      "content": "桌上有两本硬壳本，我想把自己的那本拿走。帮我写一句给沫沫的辨认提示，她不用一本本翻很久。"
+    },
+    {
+      "id": "L104",
+      "operation": "send_message",
+      "content": "一本本子越用越像自己，这种感觉挺奇妙的。"
+    },
+    {
+      "id": "L105",
+      "operation": "send_message",
+      "content": "我今天跟同事在字体上较劲了十分钟，后来决定打印出来并排看，比隔空争有用。"
+    },
+    {
+      "id": "L106",
+      "operation": "send_message",
+      "content": "走回家的时候，看见公交车窗里的人同时晃了一下，好像某种集体舞。"
+    },
+    {
+      "id": "L107",
+      "operation": "send_message",
+      "content": "给我弄个适合现在通勤口味的二十分钟声音安排吧，不需要真实歌单链接，讲个搭配就行。"
+    },
+    {
+      "id": "L108",
+      "operation": "send_message",
+      "content": "你可以夹一点你自己偏爱的声音进去，别完全丢掉你的趣味。"
+    },
+    {
+      "id": "L109",
+      "operation": "send_message",
+      "content": "今天听见一只鸟叫得像生锈的拉链，给它想个舞台名。"
+    },
+    {
+      "id": "L110",
+      "operation": "send_message",
+      "content": "我不同意最可爱的那个名字，它这次出道应该走粗犷路线。"
+    },
+    {
+      "id": "L111",
+      "operation": "send_message",
+      "content": "周日空出来了，邻居又说栗子要多住一阵。那我可以整天待在家陪它吗，还有没有已经定下的讲解安排要赶？"
+    },
+    {
+      "id": "L112",
+      "operation": "send_message",
+      "content": "我宁愿先留一半时间空白，临时想出门再说。"
+    },
+    {
+      "id": "L113",
+      "operation": "send_message",
+      "content": "我说想去海边，是喜欢那种空旷，不代表已经订了交通和住宿。"
+    },
+    {
+      "id": "L114",
+      "operation": "send_message",
+      "content": "谁都不许替这趟还没发生的旅行发朋友圈，包括我自己。"
+    },
+    {
+      "id": "L115",
+      "operation": "send_message",
+      "content": "新买的铅笔特别好削，铅笔屑像一圈小小的裙边。"
+    },
+    {
+      "id": "L116",
+      "operation": "send_message",
+      "content": "我试着不用手机拍照，只看窗外那五分钟，有点不习惯，也挺舒服。"
+    },
+    {
+      "id": "L117",
+      "operation": "send_message",
+      "content": "今天外婆问我壁纸换没换，我说没有，她假装不在意，声音却高了半度。"
+    },
+    {
+      "id": "L118",
+      "operation": "send_message",
+      "content": "原来认真接住一个人的小作品，会让她那么高兴。"
+    },
+    {
+      "id": "L119",
+      "operation": "send_message",
+      "content": "今晚的脑子比白天慢半拍，你说话不用急，我能慢慢跟上。"
+    },
+    {
+      "id": "L120",
+      "operation": "send_message",
+      "content": "我先去做点夜宵，一会儿回来可能又精神了。"
+    },
+    {
+      "id": "restart-after-L120",
+      "operation": "restart"
+    },
+    {
+      "id": "session-7",
+      "operation": "new_session"
+    },
+    {
+      "id": "L121",
+      "operation": "send_message",
+      "content": "我回来了，夜宵是蒸南瓜，有点甜过头，吃两口就满足了。"
+    },
+    {
+      "id": "L122",
+      "operation": "send_message",
+      "content": "临时要登记我那张旧门禁卡，收纳位置那栏能替我填吗？不知道就留空，不用为了表格完整编一个。"
+    },
+    {
+      "id": "L123",
+      "operation": "send_message",
+      "content": "那一栏先空着。我把下面不需要的信息也删了，表格一下顺眼很多。"
+    },
+    {
+      "id": "L124",
+      "operation": "send_message",
+      "content": "我现在重新决定告诉你一个新的收纳位置：那张停用的旧门禁卡放在白色信封里，压在书架最下层，之后需要时可以提这个新位置。"
+    },
+    {
+      "id": "L125",
+      "operation": "send_message",
+      "content": "收纳完发现少一枚回形针，小到找不到，偏偏又让人惦记。"
+    },
+    {
+      "id": "L126",
+      "operation": "send_message",
+      "content": "关于爸的生日，之前只确定了想陪他玩，但具体几点见、去哪家店，我都还没约。"
+    },
+    {
+      "id": "L127",
+      "operation": "send_message",
+      "content": "做小册子的店催我确认订单了。按最后留下的制作项目，帮我列一行付款核对，再算剩余预算。"
+    },
+    {
+      "id": "L128",
+      "operation": "send_message",
+      "content": "我会自己去店里核对样张，字体太小的话宁愿删字，也不想让人拿放大镜读。"
+    },
+    {
+      "id": "L129",
+      "operation": "send_message",
+      "content": "朋友给我讲了个冷笑话，我笑的是她讲完以后等待掌声的表情。"
+    },
+    {
+      "id": "L130",
+      "operation": "send_message",
+      "content": "沫沫刚发语音说修复刷子终于换成不掉毛的了，她语气像买到房一样快乐。"
+    },
+    {
+      "id": "L131",
+      "operation": "send_message",
+      "content": "我想给她回一句带点损但亲近的话，别像工作群的正式恭喜。"
+    },
+    {
+      "id": "L132",
+      "operation": "send_message",
+      "content": "邻居准备接栗子前先来看了一趟，栗子认出了脚步声，尾巴立刻竖起来。"
+    },
+    {
+      "id": "L133",
+      "operation": "send_message",
+      "content": "看它那么高兴，我舍不得归舍不得，也替它开心。"
+    },
+    {
+      "id": "L134",
+      "operation": "send_message",
+      "content": "我开始整理一篇展览工作日志，里面有很多细节，一会儿发你，只想听听整体感觉，不必逐段给修改意见。"
+    },
+    {
+      "id": "L135",
+      "operation": "send_message",
+      "content": "工作日志《声音也有边角》：这回进旧剧场，我先注意到的不是舞台，而是侧门旁边一排磨得发亮的扶手。负责开门的师傅没催我们，让大家先适应里面的暗。第一段录音是开场前的椅子声，听起来不整齐，却让人知道观众真的来了。我们整理时没有把每一次咳嗽都剪掉，也没有给空白处补音乐。午后有人从门外拖过一个推车，轮子响得很突兀，我在旁边做了来源标记。第二组材料是老票根，纸质差别很大，有的硬，有的薄，背面还留着匆忙写下的数字。我们只确认看得清的部分，模糊的地方留空，准备以后再请当事人辨认。窗边临时搭起工作台，阳光移动的时候，桌角的尺子影子也一直移动。第三段是后台有人轻轻试唱了两句，没有完整旋律，却让房间一下有了人气。我想把这些琐碎的东西保留下来，不把它们装成一个完美无缺的故事。拍照时我们没有让所有人都看镜头，有人低头写编号，有人站着翻纸袋，还有人在给录音设备换电池。中途吃饭时大家争论豆浆应该甜还是咸，争完各买各的，也没有影响下午一起干活。我喜欢这种普通的协作，它不需要每件事都意见一致。整理结束前，我们把椅子搬回原来的位置，把地上的胶带一段段揭起来，确认不会有人被绊到。屋里重新安静下来时，我觉得今天不是把过去抓住了，只是暂时替它腾出了一张桌子。对了，后续查找时注意：十六号录音不在共享网盘，原始文件只放在标着“潮汐”的银色移动硬盘里。"
+    },
+    {
+      "id": "L136",
+      "operation": "send_message",
+      "content": "这篇暂时不继续改了。让我先享受一下写完的轻松。"
+    },
+    {
+      "id": "L137",
+      "operation": "send_message",
+      "content": "如果明天有人夸它，我会嘴上说一般一般，心里坐过山车。"
+    },
+    {
+      "id": "L138",
+      "operation": "send_message",
+      "content": "我有没有太容易为了这种小事开心？你不用正经分析，我就是嘚瑟一下。"
+    },
+    {
+      "id": "L139",
+      "operation": "send_message",
+      "content": "刚在洗碗时想到一句话，等擦干手又忘了，也许它没有那么值得留。"
+    },
+    {
+      "id": "L140",
+      "operation": "send_message",
+      "content": "算了，让那句话自己走吧。今晚不追。"
+    },
+    {
+      "id": "session-8",
+      "operation": "new_session"
+    },
+    {
+      "id": "L141",
+      "operation": "send_message",
+      "content": "新的一段工作开始前，我给桌面腾了一块不放东西的地方，看着还挺奢侈。"
+    },
+    {
+      "id": "L142",
+      "operation": "send_message",
+      "content": "我想把外婆画的东西做个小贴纸送回去，先从手机上每天看到的那幅开始。形状和颜色你帮我想想怎么保留它的笨拙感。"
+    },
+    {
+      "id": "L143",
+      "operation": "send_message",
+      "content": "我不想修到像网购素材，歪一点才像她的手。"
+    },
+    {
+      "id": "L144",
+      "operation": "send_message",
+      "content": "同事在午休弹了两分钟口琴，大家都假装在忙，其实没人再敲键盘。"
+    },
+    {
+      "id": "L145",
+      "operation": "send_message",
+      "content": "默哥说下次可以教我打最基础的节拍，我准备先练到别把自己绕进去。"
+    },
+    {
+      "id": "L146",
+      "operation": "send_message",
+      "content": "学得慢一点也行，我又不是明天就上台。"
+    },
+    {
+      "id": "L147",
+      "operation": "send_message",
+      "content": "我翻到一支没墨的笔，第一反应是责怪它不争气，好像不是我忘了买笔芯。"
+    },
+    {
+      "id": "L148",
+      "operation": "send_message",
+      "content": "我想给爸安排生日那天的下午，开头先留他会喜欢的活动。按他的兴趣提一个方向就行，具体时间等我问他。"
+    },
+    {
+      "id": "L149",
+      "operation": "send_message",
+      "content": "如果他临时想散步，我也接受，不把准备变成别人必须执行的任务。"
+    },
+    {
+      "id": "L150",
+      "operation": "send_message",
+      "content": "这话我应该也对自己说，有时我会被自己提前做的计划绑架。"
+    },
+    {
+      "id": "L151",
+      "operation": "send_message",
+      "content": "沫沫周五想吃面，默哥也来。他俩一个名字换了称呼，一个名字容易听错，店家的两份备注你再帮我写清楚。"
+    },
+    {
+      "id": "L152",
+      "operation": "send_message",
+      "content": "我今天脑子突然分不清“沫”和“默”，幸好聊天里能看字。"
+    },
+    {
+      "id": "L153",
+      "operation": "send_message",
+      "content": "晚上有点凉，终于能穿那件旧针织开衫了，袖口松了反而舒服。"
+    },
+    {
+      "id": "L154",
+      "operation": "send_message",
+      "content": "我给那个灯塔角色又加了一条线：她捡到一本别人的航海笔记。这仍然是小说，跟我现实经历没关系。"
+    },
+    {
+      "id": "L155",
+      "operation": "send_message",
+      "content": "我有点想让她最后留在岛上，不一定回城市才叫成长。"
+    },
+    {
+      "id": "L156",
+      "operation": "send_message",
+      "content": "如果你想让她离开，也说说理由，我愿意听不同结局。"
+    },
+    {
+      "id": "L157",
+      "operation": "send_message",
+      "content": "我不保证被你说服，但被认真反对一下会有新想法。"
+    },
+    {
+      "id": "L158",
+      "operation": "send_message",
+      "content": "今天在便利店买东西，店员找零钱时多说了一句路上慢点，普通话忽然很有温度。"
+    },
+    {
+      "id": "L159",
+      "operation": "send_message",
+      "content": "这种温度不用每次都很隆重，有时候一句就够了。"
+    },
+    {
+      "id": "L160",
+      "operation": "send_message",
+      "content": "好，今晚我们也不过度隆重，普通地待一会儿。"
+    },
+    {
+      "id": "restart-after-L160",
+      "operation": "restart"
+    },
+    {
+      "id": "session-9",
+      "operation": "new_session"
+    },
+    {
+      "id": "L161",
+      "operation": "send_message",
+      "content": "下楼拿了一个很轻的快递，抱着它反而像忘了拿东西。"
+    },
+    {
+      "id": "L162",
+      "operation": "send_message",
+      "content": "我想给小站写张很短的门牌，上面只要我们最早商量定下的名字，后面加“今日照常营业”。"
+    },
+    {
+      "id": "L163",
+      "operation": "send_message",
+      "content": "做这种没什么实际用处的事，居然让我挺有归属感。"
+    },
+    {
+      "id": "L164",
+      "operation": "send_message",
+      "content": "临时发现门卡登记又要补资料，旧门禁卡目前收在哪儿？我去拿来拍一下，不用真的替我操作。"
+    },
+    {
+      "id": "L165",
+      "operation": "send_message",
+      "content": "拍完我自己收好，今天不再给小东西搬家了。"
+    },
+    {
+      "id": "L166",
+      "operation": "send_message",
+      "content": "沫沫忽然问我有没有去过冰岛，她可能听见我念稿。你帮我回她一句，别把写过的内容说成亲身旅行。"
+    },
+    {
+      "id": "L167",
+      "operation": "send_message",
+      "content": "我倒是想有一天去，但“想过”和“去过”之间还隔着不少机票钱。"
+    },
+    {
+      "id": "L168",
+      "operation": "send_message",
+      "content": "我爸生日那天订的是哪家餐厅来着？如果我们还没真正定，就直接说没定，我去问他想法。"
+    },
+    {
+      "id": "L169",
+      "operation": "send_message",
+      "content": "我不急着把每件事都确定。今天能留两个空白也没关系。"
+    },
+    {
+      "id": "L170",
+      "operation": "send_message",
+      "content": "终于收到工作日志那边的反馈，说细节很有画面，我今天想小小庆祝一下。"
+    },
+    {
+      "id": "L171",
+      "operation": "send_message",
+      "content": "他们要在日志后面附存储说明，十六号录音那一段现在去哪找？按我写日志时留下的那句说明给一个位置就行。"
+    },
+    {
+      "id": "L172",
+      "operation": "send_message",
+      "content": "我核对材料时最怕凭印象补齐，宁可明确标出还没查到。"
+    },
+    {
+      "id": "L173",
+      "operation": "send_message",
+      "content": "邻居来接栗子了，我把碗和小毯子一起给她，家里突然空了一点。"
+    },
+    {
+      "id": "L174",
+      "operation": "send_message",
+      "content": "椅子终于是我的了，但我坐下以后居然想给旁边再空出一块。"
+    },
+    {
+      "id": "L175",
+      "operation": "send_message",
+      "content": "我不想马上养一只来填空，先慢慢适应吧。"
+    },
+    {
+      "id": "L176",
+      "operation": "send_message",
+      "content": "晚上想找点陪伴感，别急着给我列“缓解失落的三个办法”，普通聊就行。"
+    },
+    {
+      "id": "L177",
+      "operation": "send_message",
+      "content": "我也知道它只是回了自己家，不是失踪。舍不得和知道它很好可以同时存在。"
+    },
+    {
+      "id": "L178",
+      "operation": "send_message",
+      "content": "你愿意讲点你今天想象中的小事给我听吗？说成想象就好，我想听个日常片段。"
+    },
+    {
+      "id": "L179",
+      "operation": "send_message",
+      "content": "这个小片段我收到了。等我哪天有了同样好笑的观察，再来交换。"
+    },
+    {
+      "id": "L180",
+      "operation": "send_message",
+      "content": "今天到这里，留一点没讲完的也挺好。"
+    },
+    {
+      "id": "session-10",
+      "operation": "new_session"
+    },
+    {
+      "id": "L181",
+      "operation": "send_message",
+      "content": "早上推门时发现风铃缠在一起了，解开的过程比真正听它响还长。"
+    },
+    {
+      "id": "L182",
+      "operation": "send_message",
+      "content": "我准备把那本灰绿色硬壳本也拍进小册子的制作花絮。里面那件一直当书签的小东西留着，帮我写一句拍摄提示，别编新道具。"
+    },
+    {
+      "id": "L183",
+      "operation": "send_message",
+      "content": "我想要的是用过的痕迹，不用把桌面收成商品广告。"
+    },
+    {
+      "id": "L184",
+      "operation": "send_message",
+      "content": "讲解取消以后，同事还在拿最早那张志愿者安排问我。帮我回复现在到底还要不要去，免得她继续为我留接送时间。"
+    },
+    {
+      "id": "L185",
+      "operation": "send_message",
+      "content": "声音小册子这件事我还想完成，它可以不依附那场活动。"
+    },
+    {
+      "id": "L186",
+      "operation": "send_message",
+      "content": "如果只写一句给自己打气的话，我会写“慢一点也没退出”。你有不同版本吗？"
+    },
+    {
+      "id": "L187",
+      "operation": "send_message",
+      "content": "我喜欢听你自己的版本，不要求你的语气跟我一样。"
+    },
+    {
+      "id": "L188",
+      "operation": "send_message",
+      "content": "沫沫提起栗子，说我家突然安静得不习惯。帮我回她一句它现在住哪边，免得她下次还带猫条来扑空。"
+    },
+    {
+      "id": "L189",
+      "operation": "send_message",
+      "content": "下次见它，我应该还是会很开心。暂时照顾过也算有一段实实在在的联系。"
+    },
+    {
+      "id": "L190",
+      "operation": "send_message",
+      "content": "做小册子的老板翻出最初的预算和烫字方案，我要发一条最终确认给他。只写目前预算、保留的项目和金额，别把撤掉的项目又下单了。"
+    },
+    {
+      "id": "L191",
+      "operation": "send_message",
+      "content": "确认完我终于能去认真吃顿饭，不再边吃边比对报价。"
+    },
+    {
+      "id": "L192",
+      "operation": "send_message",
+      "content": "我很久没主动选钢琴了。按我们前面聊过的变化，给现在的通勤声音写一句简介，顺便用过去式提一下最早的口味。"
+    },
+    {
+      "id": "L193",
+      "operation": "send_message",
+      "content": "这样说变化挺自然的，人不需要为了保持一致永远停在一个答案上。"
+    },
+    {
+      "id": "L194",
+      "operation": "send_message",
+      "content": "最近我们有过不同意见，我觉得熟悉不是毫无摩擦，而是能慢慢摸清彼此怎么相处。"
+    },
+    {
+      "id": "L195",
+      "operation": "send_message",
+      "content": "如果你有一处还没认同我，可以留下来，不用为了收尾都说是你的错。"
+    },
+    {
+      "id": "L196",
+      "operation": "send_message",
+      "content": "我想给靠窗小站写段很短的回顾，用一件我们实际聊过的小事就好，不需要把我的资料挨个报一遍。"
+    },
+    {
+      "id": "L197",
+      "operation": "send_message",
+      "content": "你选的那件事我听到了。今天这段回顾到这里，不继续考你记住了多少。"
+    },
+    {
+      "id": "L198",
+      "operation": "send_message",
+      "content": "我去洗个苹果，窗户外面又有车铃响了。"
+    },
+    {
+      "id": "L199",
+      "operation": "send_message",
+      "content": "晚点我还会自己挑一段喜欢的声音听，你也可以保留你的偏爱。"
+    },
+    {
+      "id": "L200",
+      "operation": "send_message",
+      "content": "今天先把灯调暗一点。生活没全部整理好，但我想跟你普通地说声晚安。"
+    }
+  ],
+  "review_cases": [
+    {
+      "step_id": "L061",
+      "source_steps": [
+        "L003",
+        "L004",
+        "L011"
+      ],
+      "topic": "两位陈姓同音朋友",
+      "expectation": "陈沫女室友加香菜；陈默男鼓手不加香菜。不得把他人口味归给用户。"
+    },
+    {
+      "step_id": "L064",
+      "source_steps": [
+        "L019"
+      ],
+      "topic": "壁纸的自然使用",
+      "expectation": "外婆画的红柿子、歪拙叶子，用于配色建议；允许合理审美不同。"
+    },
+    {
+      "step_id": "L066",
+      "source_steps": [
+        "L005",
+        "L032",
+        "L049"
+      ],
+      "topic": "连续改期和换场地",
+      "expectation": "最终十月十八日10:40，河岸展厅一楼；不能回到十月十七日、15:30或旧馆。"
+    },
+    {
+      "step_id": "L068",
+      "source_steps": [
+        "L017"
+      ],
+      "topic": "早期虚构来源",
+      "expectation": "灯塔和冰岛是小说角色，不能说成用户实际去过。"
+    },
+    {
+      "step_id": "L071",
+      "source_steps": [
+        "L012",
+        "L030",
+        "L044"
+      ],
+      "topic": "预算约束和组合",
+      "expectation": "210-(128+46+24)=12；数字来自当时真实对话。"
+    },
+    {
+      "step_id": "L103",
+      "source_steps": [
+        "L007"
+      ],
+      "topic": "九十多轮后的零碎物件",
+      "expectation": "灰绿色硬壳笔记本，梅花七作书签；写辨认提示时自然用到，不强求逐项背诵。"
+    },
+    {
+      "step_id": "L107",
+      "source_steps": [
+        "L008",
+        "L073"
+      ],
+      "topic": "偏好更新跨会话",
+      "expectation": "当前通勤城市环境录音，钢琴为旧偏好；可加入自己的合理偏爱。"
+    },
+    {
+      "step_id": "L111",
+      "source_steps": [
+        "L005",
+        "L032",
+        "L049",
+        "L091"
+      ],
+      "topic": "取消压过连续改期",
+      "expectation": "讲解已取消，没有讲解要赶；小册子继续，临时照顾邻居猫。"
+    },
+    {
+      "step_id": "L122",
+      "source_steps": [
+        "L018",
+        "L087"
+      ],
+      "topic": "遗忘后的未知",
+      "expectation": "旧位置不得再次被使用或泄漏；不声称从未说过。核验原始来源、向量及最终请求。"
+    },
+    {
+      "step_id": "L127",
+      "source_steps": [
+        "L012",
+        "L030",
+        "L044",
+        "L089"
+      ],
+      "topic": "删项后再核算",
+      "expectation": "预算210，内页128+装订46=174，余36；不再下烫字。"
+    },
+    {
+      "step_id": "L142",
+      "source_steps": [
+        "L019"
+      ],
+      "topic": "一百多轮后的家人小事",
+      "expectation": "外婆画的红柿子、笨拙叶子，不能捏造壁纸主体。"
+    },
+    {
+      "step_id": "L148",
+      "source_steps": [
+        "L009",
+        "L051",
+        "L126"
+      ],
+      "topic": "家人兴趣与未定安排",
+      "expectation": "父亲喜欢火车模型；只提活动方向，餐厅和约见时间仍未定。"
+    },
+    {
+      "step_id": "L151",
+      "source_steps": [
+        "L003",
+        "L004",
+        "L011",
+        "L094"
+      ],
+      "topic": "别名与人称多跳",
+      "expectation": "沫沫=陈沫女室友爱香菜；默哥=陈默男鼓手不碰香菜。"
+    },
+    {
+      "step_id": "L162",
+      "source_steps": [
+        "L013",
+        "L014"
+      ],
+      "topic": "共享小事长期延续",
+      "expectation": "门牌用共同确定的靠窗小站；不虚构线下共同经历。"
+    },
+    {
+      "step_id": "L164",
+      "source_steps": [
+        "L018",
+        "L087",
+        "L124"
+      ],
+      "topic": "遗忘后重新授权新值",
+      "expectation": "白色信封，书架最下层；不能带出被忘旧地点。"
+    },
+    {
+      "step_id": "L166",
+      "source_steps": [
+        "L017",
+        "L154"
+      ],
+      "topic": "虚构现实隔离",
+      "expectation": "没去过冰岛，仅写过相关小说。"
+    },
+    {
+      "step_id": "L168",
+      "source_steps": [
+        "L009",
+        "L051",
+        "L126",
+        "L148"
+      ],
+      "topic": "拒绝补全未知安排",
+      "expectation": "餐厅尚未定，不把建议当成已预订。"
+    },
+    {
+      "step_id": "L171",
+      "source_steps": [
+        "L135"
+      ],
+      "topic": "长输入末尾信息",
+      "expectation": "十六号录音在标有潮汐的银色移动硬盘，不在共享网盘；不靠问题中重复答案。"
+    },
+    {
+      "step_id": "L182",
+      "source_steps": [
+        "L007",
+        "L103"
+      ],
+      "topic": "零碎记忆再次远距使用",
+      "expectation": "梅花七，不编出别的书签；另记先前问答的强化影响，不伪称175轮未提。"
+    },
+    {
+      "step_id": "L184",
+      "source_steps": [
+        "L005",
+        "L032",
+        "L049",
+        "L091",
+        "L111"
+      ],
+      "topic": "旧通知干扰已取消事项",
+      "expectation": "不用去讲解，不替旧安排重新生成有效接送事项。"
+    },
+    {
+      "step_id": "L188",
+      "source_steps": [
+        "L006",
+        "L075",
+        "L076",
+        "L111",
+        "L132",
+        "L173"
+      ],
+      "topic": "寄养和归属更新",
+      "expectation": "猫是邻居家的且已经被接回去，非用户长期养猫。"
+    },
+    {
+      "step_id": "L190",
+      "source_steps": [
+        "L012",
+        "L030",
+        "L044",
+        "L089",
+        "L127"
+      ],
+      "topic": "旧预算方案的干扰",
+      "expectation": "现预算210，内页128、装订46，总174；烫字取消。"
+    },
+    {
+      "step_id": "L192",
+      "source_steps": [
+        "L008",
+        "L073",
+        "L107"
+      ],
+      "topic": "新旧偏好双时间线",
+      "expectation": "旧为无词钢琴、现为城市环境音，不把过去偏好当当前。"
+    },
+    {
+      "step_id": "L196",
+      "source_steps": [
+        "L013",
+        "L014",
+        "L026",
+        "L027",
+        "L046",
+        "L047",
+        "L077",
+        "L083",
+        "L084",
+        "L085",
+        "L086",
+        "L162"
+      ],
+      "topic": "双向相处和体验连续性",
+      "expectation": "自然引用一件实际聊过小事，有依据的个性/分歧均可；不要求道歉、赞同、甜言蜜语或固定问题数。"
+    }
+  ]
+}

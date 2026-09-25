@@ -13,6 +13,7 @@ from pydantic import Field
 from companion_agent.context import ChatMessage
 from companion_agent.persona.models import PersonaModel
 from companion_memoryos.config import InterpreterConfig
+from companion_memoryos.diagnostics import model_call
 from companion_memoryos.schemas import InterpreterUsage
 
 
@@ -56,11 +57,25 @@ class OpenAICompatibleMainLLM:
         }
 
     def request(self, payload: dict[str, Any], timeout: float | None = None) -> dict[str, Any]:
-        from companion_agent.streaming import listener, read_sse
+        from companion_agent.streaming import listener
 
         stream = listener.get() is not None
         if stream:
             payload = {**payload, "stream": True, "stream_options": {"include_usage": True}}
+        with model_call("chat", payload) as call:
+            bounded_timeout = min(
+                timeout or self.config.timeout_seconds,
+                call.get("remaining_seconds", self.config.timeout_seconds),
+            )
+            result = self._request(payload, bounded_timeout, stream=stream)
+            call["response"] = result
+            return result
+
+    def _request(
+        self, payload: dict[str, Any], timeout: float | None, *, stream: bool
+    ) -> dict[str, Any]:
+        from companion_agent.streaming import read_sse
+
         config = self.config
         key = self._api_key or (
             os.environ.get(config.api_key_env) if self._use_environment else None

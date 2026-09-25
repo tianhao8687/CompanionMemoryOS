@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+from companion_agent.communication import communication_preferences
 from companion_agent.current_state.models import (
     CurrentStateAnalysis,
     StateKind,
@@ -94,6 +95,15 @@ def analyze_current_turn(
     analysis = CurrentStateAnalysis()
     clauses = eligible_clauses(text)
     accepted = "，".join(clauses)
+    analysis.celebrating = any(
+        asserted_clause(c)
+        and _affirmed(re.compile(r"开心|高兴|兴奋|拿到奖金|加薪|获奖|终于过了|考过了"), c)
+        for c in clauses
+    )
+    analysis.recalling_history = bool(re.search(r"记得|之前|那件事|刚才的|上次", text))
+    analysis.continuing = bool(
+        re.search(r"接着|继续|还没讲完|还有.{0,4}(?:事|想|讲)|刚才", accepted)
+    )
     other_relation = any(
         OTHER_TARGET.search(c) and re.search(r"误会|争吵|吵架|原谅|和解", c) for c in clauses
     )
@@ -111,7 +121,10 @@ def analyze_current_turn(
             analysis.rejected_address_text = raw.strip()
     for clause in clauses:
         today = "今天" in clause or "今日" in clause
-        if _affirmed(LISTEN, clause):
+        boundary_only = bool(communication_preferences(clause)) and not re.search(
+            r"听我|讲完|说完|倾诉|吐槽|先|暂时|今天", clause
+        )
+        if _affirmed(LISTEN, clause) and not boundary_only:
             analysis.explicit_goal = ResponseGoal.LISTEN
         elif _affirmed(ADVICE, clause) and not re.search(
             r"(?:别|不要|不用|不想).{0,5}(?:建议|方案|办法)", clause

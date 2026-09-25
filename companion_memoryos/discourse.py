@@ -37,6 +37,27 @@ DEFERRED = re.compile(
 )
 INDEPENDENT = re.compile(r"^(?:但是|不过|可是|但|另外|此外)")
 CURRENT = re.compile(r"^(?:我|你|我们)?(?:现在|目前|此刻)")
+FACT_QUESTION = re.compile(
+    r"什么|哪(?:里|儿|个|一|年|天|家|种|次|边|层)|多少|几(?:个|根|天|年|月|号|点|层|次|本|元)|"
+    r"谁|是不是|是否|对不对"
+)
+FACT_ANCHOR = re.compile(
+    r"我(?:的|那|之前|以前|前面|上次)|(?:那|这)(?:把|本|只|个|次|件|段)|"
+    r"(?:之前|以前|前面|上次|那天).{0,18}(?:说|提|聊|买|去|放)|"
+    r"(?:买|放|住|选|定|订|约|贴|印|系|写|送|参加).{0,8}(?:了|过|的|着)|"
+    r"放(?:在)?哪(?:里|儿)|(?:隔|晚|早)了几天|(?:最喜欢|偏爱|生日|名字|主题)|"
+    r"我(?:有|曾|曾经)?(?:说|提|讲)过"
+)
+FACT_REFERENCE = re.compile(
+    r"(?:回到|说回).{0,18}(?:那|这)|"
+    r"(?:之前|以前|前面|最初|当初|上次).{0,8}(?:说|提|讲)"
+)
+PROSPECTIVE_QUESTION = re.compile(
+    r"应该|应当|该(?:不该|怎么|怎样|选|买|穿|放|去)|要不要|怎么办|怎么(?:办|选|挑)|"
+    r"建议|推荐|适合|打算|准备|计划|想买|想选|一般|通常|假装|演一下|扮演|设定|"
+    r"写.{0,8}(?:故事|小说)|翻译|转述|原话|不想知道|不管|无论|我知道|我清楚|"
+    r"(?:什么|哪种).{0,8}都|(?:选|挑|买|穿).{0,12}(?:合适|好看|好[呢啊？?])"
+)
 
 
 def _deferred_start(clause: str, *, sequenced: bool) -> int | None:
@@ -83,6 +104,15 @@ def direct_clauses(text: str) -> list[str]:
             if INDEPENDENT.match(clause) or (scope != "condition" and CURRENT.match(clause)):
                 scope, sequenced = "", False
             condition = CONDITION.search(body)
+            if (
+                condition
+                and condition.group() == "的话"
+                and re.search(r"(?:一句|一段|几句|几段|这句|那句|这些|那些).{0,24}的话$", body)
+                and not body.endswith("话的话")
+            ):
+                # In “写一句简短的话”, 话 is a noun, not a conditional
+                # suffix governing the next direct request.
+                condition = None
             if condition:
                 # A postposed prerequisite governs the immediately preceding proposition.
                 # Ordinary fronted conditions do not discard an independent earlier self-report.
@@ -100,6 +130,8 @@ def direct_clauses(text: str) -> list[str]:
                 continue
             if OTHER_SUBJECT.search(body) or re.search(r"举个例子|扮演|设定", body):
                 reported = True
+                if re.search(r"(?:说|问|表示|写道|原话)[：:]", body):
+                    scope = "report"
                 continue
             if re.match(r"我(?!的?(?:朋友|同事|家人|同学))|你|请|帮我|给我|让我", body):
                 reported = False
@@ -125,6 +157,28 @@ def negated_predicate(clause: str, start: int) -> bool:
 
 def asserted_clause(clause: str) -> bool:
     return not NONASSERTIVE.search(clause) and not re.search(r"[？?]|吗(?:[。！!]?)$", clause)
+
+
+def fact_recall_clauses(content: str) -> list[str]:
+    """Questions about an established personal fact also authorize explicit recall.
+
+    This classifies a request, never asserts its premise or creates a memory. Keep
+    quoted/conditional speech out, and distinguish factual slots from advice about
+    future choices. A question mark alone must not promote ordinary chat to recall.
+    """
+    clauses = [
+        clause
+        for clause in direct_clauses(content)
+        if not PROSPECTIVE_QUESTION.search(clause)
+        and not re.search(r"(?:不|别|无需|不用|不要).{0,5}(?:问|答|查|提|说|告诉|回忆)", clause)
+    ]
+    reference = any(FACT_REFERENCE.search(clause) for clause in clauses)
+    return [
+        clause
+        for clause in clauses
+        if FACT_QUESTION.search(clause)
+        and (FACT_ANCHOR.search(clause) or (reference and clause.startswith("它")))
+    ]
 
 
 def grounded_model_signals(
@@ -153,7 +207,7 @@ def grounded_model_signals(
     clauses = direct_clauses(content)
     if evidence_text is not None:
         clauses = [clause for clause in clauses if clause.rstrip("？?") in evidence_text]
-    return [
+    signals = [
         signal
         for signal in proposed
         if any(
@@ -164,6 +218,11 @@ def grounded_model_signals(
             for match in re.finditer(anchors[signal], clause)
         )
     ]
+    if DiscourseSignal.MEMORY_QUESTION in proposed and any(
+        clause in fact_recall_clauses(content) for clause in clauses
+    ):
+        signals.append(DiscourseSignal.MEMORY_QUESTION)
+    return list(dict.fromkeys(signals))
 
 
 def interpret_explicit_discourse(
@@ -197,6 +256,9 @@ def interpret_explicit_discourse(
         for signal, phrases in phrase_families.items()
     }
     matched = {signal: phrases for signal, phrases in matched.items() if phrases}
+    facts = fact_recall_clauses(content)
+    if facts:
+        matched.setdefault(DiscourseSignal.MEMORY_QUESTION, []).extend(facts)
     return interpret_discourse_signals(
         user_id=user_id, scope=scope, turn_id=turn_id, signals=list(matched), matched=matched
     )

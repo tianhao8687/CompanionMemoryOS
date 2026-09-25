@@ -15,6 +15,16 @@ from companion_memoryos.temporal import TemporalHint, temporal_similarity
 
 _WORD_PATTERN = re.compile(r"[A-Za-z0-9_]+")
 _CJK_PATTERN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]+")
+_RECALL_QUESTION = re.compile(r"[?？]|什么|哪[个些里儿]|多少|几天|多久|记得|来着")
+_QUESTION_FRAMING = re.compile(
+    r"(?:回到|说回)?(?:我)?(?:前面|之前|刚才|先前|最初|当初)(?:说|提|讲)(?:过)?的?"
+    r"|(?:我)?(?:有|曾经|曾)?(?:跟你)?(?:说|提|讲)过"
+    r"|(?:我)?(?:那(?:次|件|个)|上次)|(?:那|这)(?:把|本|只|个|次|件|段)"
+    r"|为什么|为何|它(?:是|的)?"
+    r"|(?:还)?记(?:不记)?得"
+    r"|(?:相隔|间隔|隔了?|晚了?|早了?)?(?:多少|几)(?:天|年|个月|小时|分钟)"
+    r"|(?:是)?什么|哪[个些里儿]|多久|来着"
+)
 
 
 def tokenize(text: str, config: CompanionConfig) -> set[str]:
@@ -42,10 +52,21 @@ def build_search_document(texts: list[str], config: CompanionConfig) -> str:
 
 def build_fts_query(text: str, config: CompanionConfig) -> str:
     selected = sorted(
-        tokenize(text, config),
+        query_tokens(text, config),
         key=lambda token: (-len(token), token),
     )[: config.retrieval.max_fts_terms]
     return " OR ".join('"' + token.replace('"', '""') + '"' for token in selected)
+
+
+def query_tokens(text: str, config: CompanionConfig) -> set[str]:
+    # Interrogative framing is not a remembered detail. Including all of its CJK
+    # n-grams can drown out two correctly matched nouns when embeddings are absent.
+    # Separate removed phrases with spaces so unrelated words never join into a term.
+    if _RECALL_QUESTION.search(text):
+        normalized = tokenize(_QUESTION_FRAMING.sub(" ", text), config)
+        if normalized:
+            return normalized
+    return tokenize(text, config)
 
 
 def score_memory(
@@ -56,12 +77,12 @@ def score_memory(
     semantic_similarity: float = EMPTY_SCORE,
     temporal_hint: TemporalHint | None = None,
 ) -> ScoreBreakdown:
-    query_tokens = tokenize(request.query, config)
+    requested_tokens = query_tokens(request.query, config)
     memory_tokens = tokenize(
         " ".join([memory.title, memory.content, *memory.needs]),
         config,
     )
-    lexical = _weighted_overlap(query_tokens, memory_tokens)
+    lexical = _weighted_overlap(requested_tokens, memory_tokens)
     semantic = max(EMPTY_SCORE, min(PERFECT_SCORE, semantic_similarity))
     entity = entity_similarity(request, memory, config)
     temporal = (
@@ -131,7 +152,7 @@ def event_entity_similarity(
 
 
 def lexical_similarity(left_text: str, right_text: str, config: CompanionConfig) -> float:
-    return _weighted_overlap(tokenize(left_text, config), tokenize(right_text, config))
+    return _weighted_overlap(query_tokens(left_text, config), tokenize(right_text, config))
 
 
 def _weighted_overlap(left: set[str], right: set[str]) -> float:

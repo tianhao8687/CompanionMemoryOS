@@ -100,7 +100,9 @@ def test_natural_correction_replaces_same_subject_despite_minor_wording(tmp_path
 def test_independent_preferences_and_communication_requirements_coexist(tmp_path: Path) -> None:
     host = host_for(tmp_path)
     chat(host, "我喜欢咖啡，我不喜欢香菜。回复短一点。先听我讲")
-    assert len(host.memories(host.conversations()[0]["id"])["memories"]) == 4
+    state = host.memories(host.conversations()[0]["id"])
+    assert len(state["memories"]) == 3
+    assert any(item["slot"] == "communication:need" for item in state["states"])
 
 
 @pytest.mark.parametrize(

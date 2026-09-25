@@ -10,6 +10,7 @@ from typing import Any
 from jsonschema import Draft202012Validator
 from referencing import Registry
 
+from companion_agent.automation.calculator import NAME_PATTERN
 from companion_agent.automation.mcp_client import MCPClient
 from companion_agent.automation.models import (
     AutomationConfig,
@@ -51,6 +52,46 @@ def definition(
 
 
 BUILTINS = [
+    definition(
+        "calculate",
+        "本地十进制计算。按顺序计算有名称的表达式，可引用前面的名称。"
+        "支持 + - * /、括号及 round(数值,小数位)，按四舍五入保留0到12位小数。"
+        "可用中英文结果名称；金额、余额和差额分别命名，正文引用对应结果。"
+        "判断够不够、超过还是不足时，使用 comparisons 比较两个已命名结果；"
+        "返回 relation 为 greater/equal/less，difference 为左减右，文字结论须与之相符。"
+        "只计算已知或明确标为假设的数据，不提供天气概率等未知事实。",
+        {
+            "calculations": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 24,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "pattern": "^" + NAME_PATTERN + "$"},
+                        "expression": {"type": "string", "minLength": 1, "maxLength": 256},
+                    },
+                    "required": ["name", "expression"],
+                    "additionalProperties": False,
+                },
+            },
+            "comparisons": {
+                "type": "array",
+                "maxItems": 24,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "pattern": "^" + NAME_PATTERN + "$"},
+                        "left": {"type": "string", "description": "本次计算中的左侧结果名称"},
+                        "right": {"type": "string", "description": "本次计算中的右侧结果名称"},
+                    },
+                    "required": ["name", "left", "right"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        ["calculations"],
+    ),
     definition("local_time", "读取当前本地时间与日期，解释用户说的明天、下周等时间。", {}),
     definition("schedule_list", "查询当前对话的提醒和定时任务。", {}),
     definition(
@@ -322,6 +363,13 @@ class ToolHub:
     def _builtin(
         self, name: str, args: dict[str, Any], conversation: str, key: str
     ) -> dict[str, Any]:
+        if name == "calculate":
+            from companion_agent.automation.calculator import CalculationError, calculate
+
+            try:
+                return calculate(args["calculations"], args.get("comparisons"))
+            except CalculationError as error:
+                return {"status": "failed", "message": str(error)}
         if name == "local_time":
             from zoneinfo import ZoneInfo
 

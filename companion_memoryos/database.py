@@ -5,12 +5,21 @@ import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from contextvars import ContextVar
+from dataclasses import dataclass
 from pathlib import Path
+from threading import get_ident
 
 from companion_memoryos.config import CompanionConfig
 from companion_memoryos.constants import DATABASE_SCHEMA_VERSION, SQLITE_INTEGRITY_OK
 from companion_memoryos.scoring import build_search_document
 from companion_memoryos.turn_layers import turn_reality_layer
+
+
+@dataclass
+class _ConnectionSession:
+    thread_id: int
+    connection: sqlite3.Connection | None = None
+    closed: bool = False
 
 
 class Database:
@@ -19,16 +28,36 @@ class Database:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.path = self.data_dir / "companion-memoryos.db"
         self.config = config
-        self._active_connection: ContextVar[sqlite3.Connection | None] = ContextVar(
+        self._active_connection: ContextVar[_ConnectionSession | None] = ContextVar(
             f"companion_connection_{id(self)}", default=None
+        )
+        self._session: ContextVar[_ConnectionSession | None] = ContextVar(
+            f"companion_session_{id(self)}", default=None
         )
 
     @contextmanager
-    def connection(self) -> Iterator[sqlite3.Connection]:
-        active = self._active_connection.get()
-        if active is not None:
-            yield active
+    def session(self) -> Iterator[None]:
+        """Reuse a connection within synchronous work, without extending transactions.
+
+        Every outer connection() still commits or rolls back at its original
+        boundary. In particular, model/network waits must not hold a write lock.
+        A copied context in another worker cannot inherit a SQLite connection.
+        """
+        previous = self._session.get()
+        if previous is not None and not previous.closed and previous.thread_id == get_ident():
+            yield
             return
+        session = _ConnectionSession(get_ident())
+        token = self._session.set(session)
+        try:
+            yield
+        finally:
+            self._session.reset(token)
+            session.closed = True
+            if session.connection is not None:
+                session.connection.close()
+
+    def _open_connection(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
@@ -47,7 +76,30 @@ class Database:
             turn_reality_layer,
             deterministic=True,
         )
-        token = self._active_connection.set(connection)
+        return connection
+
+    @contextmanager
+    def connection(self) -> Iterator[sqlite3.Connection]:
+        active = self._active_connection.get()
+        if (
+            active is not None
+            and not active.closed
+            and active.thread_id == get_ident()
+            and active.connection is not None
+        ):
+            yield active.connection
+            return
+        session = self._session.get()
+        if session is not None and (session.closed or session.thread_id != get_ident()):
+            session = None
+        if session is not None:
+            if session.connection is None:
+                session.connection = self._open_connection()
+            connection = session.connection
+        else:
+            connection = self._open_connection()
+        transaction = _ConnectionSession(get_ident(), connection)
+        token = self._active_connection.set(transaction)
         try:
             yield connection
             connection.commit()
@@ -56,7 +108,9 @@ class Database:
             raise
         finally:
             self._active_connection.reset(token)
-            connection.close()
+            transaction.closed = True
+            if session is None:
+                connection.close()
 
     @contextmanager
     def atomic(self) -> Iterator[sqlite3.Connection]:

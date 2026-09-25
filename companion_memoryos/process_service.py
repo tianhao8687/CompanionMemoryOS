@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from weakref import WeakValueDictionary
 
 from companion_memoryos.constants import RECALL_QUERY_MAX_CHARACTERS
+from companion_memoryos.diagnostics import record
 from companion_memoryos.entity_resolution import domain_filter, entity_catalog
 from companion_memoryos.interpreter import (
     INTERPRETER_PROMPT_SHA256,
@@ -78,6 +79,14 @@ def process_turn(
         return result
     with _single_flight(str(service.store.database.path), storage.turn.id):
         _interpret(service, request, result)
+    record(
+        "interpretation",
+        {
+            "status": result.interpretation_status,
+            "receipt_id": result.interpretation.id if result.interpretation else None,
+            "reasons": result.reasons,
+        },
+    )
     return _finish(service, request, result)
 
 
@@ -198,6 +207,8 @@ def _interpret(
         result.model_usage = output.usage
         proposed, reasons = _eligible_proposals(output.interpretation, context)
         result.reasons.extend(reasons)
+        if output.validation_issues:
+            result.reasons.append("invalid_independent_proposals_dropped")
         if not _source_active(service, turn):
             result.interpretation_status = "source_invalidated"
             return
@@ -222,6 +233,7 @@ def _interpret(
                 "usage": output.usage.model_dump() if output.usage is not None else None,
                 "calendar_timezone": request.calendar_timezone,
                 "proposal_filter_reasons": reasons,
+                "validation_issues": output.validation_issues,
             },
         )
         try:
@@ -257,8 +269,9 @@ def _interpret(
             }
             else "interpreter_failed"
         )
-    except Exception:
+    except Exception as error:
         # Plugin/model failures must not undo an already committed original conversation.
+        record("interpretation_error", {"error_type": type(error).__name__})
         result.interpretation_status = "failed"
         result.reasons.append("interpretation_or_candidate_validation_failed")
 
@@ -413,12 +426,19 @@ def _eligible_proposals(
     proposed: TurnInterpretation,
     context: InterpreterContext,
 ) -> tuple[TurnInterpretation, list[str]]:
+    reasons: list[str] = []
+    reserved_actors = {context.user_id, context.companion_id, context.current_turn.actor_id}
     entities = [
         entity
         for entity in proposed.entities
-        if context.reality_layer is RealityLayer.REAL_WORLD
-        or entity.reality_layer is context.reality_layer
+        if entity.ref not in reserved_actors
+        and (
+            context.reality_layer is RealityLayer.REAL_WORLD
+            or entity.reality_layer is context.reality_layer
+        )
     ]
+    if any(entity.ref in reserved_actors for entity in proposed.entities):
+        reasons.append("reserved_actor_entity_proposal_deferred")
     local_refs = {entity.ref for entity in entities}
     allowed_subjects = {
         None,
@@ -427,7 +447,6 @@ def _eligible_proposals(
         context.current_turn.actor_id,
         *local_refs,
     }
-    reasons: list[str] = []
     updates: dict[str, Any] = {"entities": entities}
     for category in ("memory_candidates", "state_claims"):
         candidates = []
@@ -458,6 +477,7 @@ def _eligible_proposals(
             and not any(
                 episode.id == hint.episode_id
                 and episode.continuity_turn_id == hint.continuity_turn_id
+                and bool(set(episode.topic_keys) & set(proposed.topics))
                 for episode in context.episodes
             )
         )

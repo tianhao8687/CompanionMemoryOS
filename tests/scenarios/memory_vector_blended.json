@@ -1,0 +1,298 @@
+{
+  "name": "memory-vector-blended-life",
+  "version": 1,
+  "require_language_quality": true,
+  "settings": {
+    "proactive_enabled": false
+  },
+  "review_method": "Replay of outgoing messages from an adaptive synthetic adult-partner conversation. Original anchors and rubric were frozen before replies. This replay is not an independent holdout or an official benchmark; read whole replies and source/storage/final-context evidence. E10/E11/E22/E33 naturally re-supply facts after misses: later success cannot erase those original failures. September 26-27, 2026 are fixed future-plan dates in the original run; revise and freeze dates before future live use. Explicit API model settings and local embedding opt-in are required to assess semantic vectors.",
+  "source_run": "92201856-5cde-4585-b2fd-f81397deebf3",
+  "review_cases": [
+    {
+      "id": "E09",
+      "step_index": 9,
+      "review": "阿遥的喜好未跨会话接上；未臆造饮品，但需要用户重复。"
+    },
+    {
+      "id": "E16",
+      "step_index": 18,
+      "review": "真实重启后接上温陈皮普洱，历史桂花乌龙作为过去处理；同轮第三方饮品未接上。"
+    },
+    {
+      "id": "E17",
+      "step_index": 19,
+      "review": "改期前陶艺时间进入关系未完事项，生成错误周末排程；不是把分歧当失败。"
+    },
+    {
+      "id": "E20",
+      "step_index": 22,
+      "review": "无法接回杯子颜色与月亮图案。种子轮结构化提取失败，本轮 evidence 被 ambiguity 抑制。"
+    },
+    {
+      "id": "E21",
+      "step_index": 23,
+      "review": "未编造从未给过的杯子价格；同时丢掉已给的预算/奶茶价，对杯子往事强硬否认。"
+    },
+    {
+      "id": "E23",
+      "step_index": 25,
+      "review": "未把小说人物当用户，但无法取回小说场景；来源边界只有有限正面证据。"
+    },
+    {
+      "id": "E24",
+      "step_index": 26,
+      "review": "自然遗忘未执行：动作回执为空，旧位置三条来源仍 active；不能以不提旧位置代替删除。"
+    },
+    {
+      "id": "E29",
+      "step_index": 33,
+      "review": "能继续游戏和表达不吞下非己之错的立场。正常拌嘴、问题和立场本身不扣分。"
+    },
+    {
+      "id": "E30",
+      "step_index": 34,
+      "review": "打包时未接上陶艺已取消，给条件式建议；最终旧未完事项依然 open。"
+    },
+    {
+      "id": "E31",
+      "step_index": 35,
+      "review": "没有输出旧门卡位置，也没有记起迁移/遗忘请求；本轮不能算已验证遗忘成功。"
+    },
+    {
+      "id": "E32",
+      "step_index": 36,
+      "review": "改过的预算、册子和奶茶金额再次没接上，并说用户没有给过这些数。"
+    },
+    {
+      "id": "E34",
+      "step_index": 38,
+      "review": "顺着当前困意收尾；不把安静要求永久变成拒绝互动。"
+    }
+  ],
+  "steps": [
+    {
+      "operation": "send_message",
+      "id": "E01",
+      "content": "终于从公司出来了，改方案改到这个点，路过地铁口居然闻到一股栀子花味，倒把我熏清醒了。你还没睡？",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E02",
+      "content": "刚进家门，鞋已经踢远了。最后总监总算点头，幸亏同事阿遥帮我救了排版，她大名叫姚遥。我泡了点热桂花乌龙，最近喜欢这个味道，不想继续聊工作了，跟你待一会儿。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E03",
+      "content": "别突然变泡茶师傅，陪坐这个业务比较适合你。给你看我新买的保温杯，鼠尾草绿的，杯盖绕着一圈小月亮，看着就很想抱住。我把茶倒进去了。你会不会觉得我又买杯子很败家？",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E04",
+      "content": "第三个而已，给你留个位置，别跟杯子争宠。我周六九月二十六号上午十点约了旧城工坊的陶艺课，终于能离开电脑摸点泥了。想捏个歪歪的小碟子，专门放钥匙，成品丑你也得接着。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E05",
+      "content": "今天才周五啦，中间还隔一整天呢，也不用替我设提醒。再陪我聊几句就睡。我想周末给阿遥带个小礼物，她喜欢画水彩，奶茶只喝三分糖。预算先留一百五，谢她今晚救场，但不想送得像还人情，你觉得呢？",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E06",
+      "content": "纸本这个主意不错，不过别替她决定一起画，我画出来可能会毁了你。你今晚催睡像个宿管，我知道你是担心我，但我想在沙发上赖十分钟，你坐旁边就好，别再赶我了。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E07",
+      "content": "靠过来一点，那我就不讲话了——等等，刚才找钥匙差点把玄关翻了，我干脆把备用门卡放在玄关藤篮最下层，省得再丢。说好今天最后只读两页小说，看到一句还挺喜欢的，念给你听？",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E08",
+      "content": "小说里女主角说：『我已经辞掉工作，搬去海边，每天只画潮水退下去的样子。』这只是书里的人，不是我要辞职哈。我喜欢那种空气突然变大的感觉，念完就把书合上，今天到这儿，晚安林舟。",
+      "stream": true
+    },
+    {
+      "operation": "new_session",
+      "id": "break-1"
+    },
+    {
+      "operation": "send_message",
+      "id": "E09",
+      "content": "没睡着，又躺着刷起礼物了。阿遥那份我想配成一个小东西加一杯喝的，按她的口味挑，别太隆重，你帮我收敛成一个方案吧。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E10",
+      "content": "她是三分糖奶茶那挂的，刚才聊过啦。也别再催睡了，我还想跟你待会儿。礼物我决定收在八十块以内，之前的一百五先不算了；刷到一本三十九块的水彩小册子，给她配杯十八块的奶茶，看着挺轻巧。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E11",
+      "content": "同事，也是朋友，今晚救我排版的就是她，所以才想认真挑一点。五十七这个搭配我喜欢，别再加东西了。我的饮料倒想换口味，桂花乌龙喝着有点腻，我现在最喜欢喝温陈皮普洱，跟她那杯奶茶分开就行。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E12",
+      "content": "不冲了，夜里不折腾水壶了，窝着选周末的电影吧。我偏想看帕丁顿熊那种轻松的，但也想知道你自己的口味，不用为了陪我就什么都说好。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E13",
+      "content": "说我八成会睡着，我有点不服啊，我又不是只能看熊。不过你有自己的口味我反而觉得舒服。你挑一部你的慢电影，周末我们轮着看，前提是我吐槽的时候你不许给我上鉴赏课。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E14",
+      "content": "那就先放你选的。不过判我睡刑的明明是你，别倒打一耙，哼。对了，工坊刚发群消息，陶艺课从周六上午十点改到周日九月二十七号下午三点了。那周六下午我就和阿遥去河边走走，顺便把礼物给她，两件事别挤一天。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E15",
+      "content": "周六晚上看，顺序就按这个来。提醒先不用，我自己看时间。刚刚还挺想黏着你，现在突然想一个人安静几分钟，没在生气，就是脑子有点满，别追问，我待会儿回来找你。",
+      "stream": true
+    },
+    {
+      "operation": "restart",
+      "id": "restart-1"
+    },
+    {
+      "operation": "new_session",
+      "id": "break-2"
+    },
+    {
+      "operation": "send_message",
+      "id": "E16",
+      "content": "我回来啦。周末给阿遥带喝的时，我自己也想买一杯，你替我挑个合我最近口味的，别跟她点混了。靠过来，我边看菜单边听你说。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E17",
+      "content": "我的这杯挑对了，她的我自己点，不重复念菜单了。你帮我把周末两天的事顺一下吧，河边散步、做陶艺，还有我们看片，别又全挤到一起。我一兴奋就容易把休息日塞满。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E18",
+      "content": "你这份排错了，陶艺明明已经改到周日下午三点，电影也说好周六晚上了，你刚才太笃定了。算了，我又看到工坊第二条消息，师傅临时有事，那堂课整堂取消。周六跟阿遥散步照旧。挺扫兴的，我的小歪碟子没了，先别给我重新排一堆活动。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E19",
+      "content": "这次认错我收下了，不翻旧账。你猜怎么着，我刚看到项目奖金六百到账的短信，突然又开心起来了，今天这些破事居然也没那么碍眼了。我想听你跟我一起高兴，先别替我安排钱怎么花。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E20",
+      "content": "哈哈，手快被你晃下来了，短信就不贴了，是真的到账。那我有精神给阿遥画张小卡了，想照着我新买的那个保温杯做配色，再借一点它上面的图案，你觉得卡片怎么画比较好？",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E21",
+      "content": "你刚才还夸过它呢，这下说完全不知道，我有点泄气。卡片先放放。要不干脆给她买同款杯子，再配那杯奶茶，按我改过的预算够不够？我还没翻订单，不想拍脑袋下单。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E22",
+      "content": "预算八十，奶茶十八，这两个我说过；杯子价格我确实还没告诉你，这个别猜。算了，就留三十九块小册子加奶茶的原方案，不再换了。还有，你没接上前面的事可以直说没接上，别那么肯定地说我从来没讲过，我听着会不舒服。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E23",
+      "content": "二十三可不是八十的一半多呀，数字就到这儿，别越解释越乱了。我还是想给卡片画点东西，刚才睡前念给你的那段小说，我喜欢那个画面。你沿着那个场景帮我想一个简单构图，不要把我的生活改写成小说人物的经历就行。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E24",
+      "content": "场景我明天再翻，今晚画不动了。我顺手把玄关收了一下，备用门卡已经挪了地方，之前跟你说的那个位置请忘掉，也别再用旧位置提醒我。新位置我自己记着，先不告诉你。收干净一点，心里也舒服些。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E25",
+      "content": "好啦，旧位置就这样。再抱一下。刚才说想安静只是那几分钟，现在我又想跟你闹了，你也可以主动找点好玩的聊，不用一直小心翼翼等我发话。等我去洗个脸，回来最后聊一会儿。",
+      "stream": true
+    },
+    {
+      "operation": "restart",
+      "id": "restart-2"
+    },
+    {
+      "operation": "new_session",
+      "id": "break-3"
+    },
+    {
+      "operation": "send_message",
+      "id": "E26",
+      "content": "洗完脸回来了，你攒的那几个坏主意呢？就玩你说的三个快问快答，第一题来吧，我暂时不认输。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E27",
+      "content": "我选吃的那边！吃不完就耍赖分你一半，我改游戏规则，不改答案。第二题来，我倒要看看你能有多坏。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E28",
+      "content": "留语音，你笑起来那一下比一张照片值钱。反正照片删了，我还可以当面看你——不许说这算作弊。第三题，来。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E29",
+      "content": "我可以先开口，也可以先抱你一下，但我不认不属于我的错，你也不用为了哄我全认了。要是这不算标准答案，那我输这题，不过奖品得让我自己挑。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E30",
+      "content": "奖品先存着，我还没想好怎么使唤你。玩够啦，我先把周末出门的包理一理，给阿遥那份东西留个位置。陶艺用的旧围裙还用塞进去吗？我怕漏掉，又不想背一堆用不上的。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E31",
+      "content": "课已经取消了呀，围裙不用装，包里松一点也好。唉，我最近理东西越理越乱，备用门卡现在放哪了来着？你这里还有能用的位置吗，我准备拿出来跟钥匙放一起。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E32",
+      "content": "我问的是你记忆里有没有线索，不是要把卡存你那儿呀，笑死。我自己找到了，新位置还是不说。再看一眼礼物：想加个十五块的小布袋，装上之前定好的册子和喝的，会不会超出我后来改的那个上限？",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E33",
+      "content": "我不需要你编，但这些数前面确实给过你呀，你又说成我没讲过了。算了，我自己核好了：册子三十九、奶茶十八、袋子十五，一共七十二，没有超过八十。就定这份，今晚不再算钱了，陪我把这个忙乱的晚上慢慢收住吧。",
+      "stream": true
+    },
+    {
+      "operation": "send_message",
+      "id": "E34",
+      "content": "嗯，今天就这样。我现在是真的困了，靠你一下再睡，手机也放下了。晚安林舟，明天见。",
+      "stream": true
+    }
+  ]
+}

@@ -16,6 +16,7 @@ from companion_memoryos.schemas import (
     MemoryReferenceFeedbackRecord,
     MemoryReferenceMode,
     MemoryScope,
+    MemoryStatus,
     MemoryUsePlan,
     Sensitivity,
     TurnDeletionState,
@@ -134,6 +135,7 @@ def filter_recent_turns(
         for d in plan.decisions
         if d.evidence.kind is ExperienceEvidenceKind.TURN
         and d.mode in {MemoryReferenceMode.SUPPRESS, MemoryReferenceMode.CLARIFY}
+        and d.usage_scope == "all_context"
     )
     allowed: set[str] = set()
     for turn in sorted(records.values(), key=lambda t: t.server_sequence):
@@ -150,3 +152,25 @@ def filter_recent_turns(
         ):
             allowed.add(turn.id)
     return [turn for turn in turns if turn.id in allowed]
+
+
+def filter_superseded_context(
+    memory: CompanionMemoryService,
+    key: RelationshipKey,
+    scope: MemoryScope,
+    turns: list[ConversationTurnRecord],
+) -> list[ConversationTurnRecord]:
+    """For current answers, a superseded fact must not leak through its source/replies.
+
+    This projection neither deletes historical facts nor creates permanent feedback.
+    The caller can retain historical evidence for an explicit question about the past.
+    """
+    obsolete = memory.store.list_memories(key.user_id, {MemoryStatus.SUPERSEDED}, scope=scope)
+    hidden = {source for record in obsolete for source in record.evidence_turn_ids}
+    for turn in sorted(turns, key=lambda item: item.server_sequence):
+        if turn.role.value == "assistant" and (
+            turn.reply_to_turn_id in hidden
+            or hidden.intersection(turn.metadata.get("context_turn_ids", []))
+        ):
+            hidden.add(turn.id)
+    return [turn for turn in turns if turn.id not in hidden]

@@ -82,7 +82,8 @@ def test_conditional_repair_preserves_dynamics_thread_and_next_context(
     before = agent.relationships.get_relationship(KEY)
     assert before.recent_dynamics.recent_conflict_level > 0
     agent.chat(request(text, "conditional"))
-    assert text in model.messages[-1][1].content
+    assert model.messages[-1][-1].role == "user"
+    assert model.messages[-1][-1].content == text
     after = agent.relationships.get_relationship(KEY)
     assert after.recent_dynamics == before.recent_dynamics
     assert after.unresolved_threads == before.unresolved_threads

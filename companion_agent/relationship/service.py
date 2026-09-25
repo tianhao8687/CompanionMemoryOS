@@ -201,6 +201,7 @@ class RelationshipService:
             source = self.memory.store.get_turn(ref.id, key.user_id)
             if (
                 source.deletion_state is not TurnDeletionState.ACTIVE
+                or source.metadata.get("content_redacted_at")
                 or source.role is not ConversationRole.USER
                 or source.actor_id != key.user_id
                 or turn_reality_layer(
@@ -250,6 +251,14 @@ class RelationshipService:
                 key, f"turn:{source.source_turn_id}", as_of, seen, allow_sensitive=allow_sensitive
             )
             at = source_at
+            update_source = source.metadata.get("last_update_source_turn_id")
+            if isinstance(update_source, str) and update_source != source.source_turn_id:
+                at = max(
+                    at,
+                    self._evidence_time(
+                        key, f"turn:{update_source}", as_of, seen, allow_sensitive=allow_sensitive
+                    ),
+                )
         if (
             source.user_id != key.user_id
             or source.scope.companion_id != key.companion_id
@@ -792,6 +801,8 @@ class RelationshipService:
         elif evidence.kind is RelationshipEvidenceKind.OPEN_LOOP:
             loop = self.memory.store.get_open_loop(evidence.id, key.user_id)
             children = [f"turn:{loop.source_turn_id}"] if loop.source_turn_id else []
+            if isinstance(loop.metadata.get("last_update_source_turn_id"), str):
+                children.append(f"turn:{loop.metadata['last_update_source_turn_id']}")
         elif evidence.kind is RelationshipEvidenceKind.MILESTONE:
             model = self.store.get(key)
             milestone = (
@@ -812,6 +823,7 @@ class RelationshipService:
         memory_use_plan: MemoryUsePlan | None = None,
         allow_sensitive: bool = False,
         as_of: datetime | None = None,
+        dynamics_only: bool = False,
     ) -> CompiledRelationshipContext:
         from companion_agent.evidence_policy import restricted_evidence
         from companion_agent.relationship.compiler import compile_relationship_context
@@ -820,7 +832,8 @@ class RelationshipService:
         current = model if model is not None else self.evaluate_stage(key, as_of=at)
         if current.key != key:
             raise ValueError("relationship context has a different owner")
-        refs = _all_evidence(current)
+        all_refs = _all_evidence(current)
+        refs = set(current.recent_dynamics.evidence_ids) if dynamics_only else all_refs
         roots = {ref: self.evidence_roots(key, ref) for ref in refs}
         all_roots = set().union(*roots.values()) if roots else set()
         feedback_refs = []
@@ -832,7 +845,10 @@ class RelationshipService:
                         kind=ExperienceEvidenceKind(reference.kind.value), id=reference.id
                     )
                 )
-        blocked = restricted_evidence(self.memory, key, feedback_refs, at)
+        # Historical/event time must not hide restrictions just applied during
+        # this request (for example forgetting its source). Revalidate against
+        # current policy before generation, as response persistence already does.
+        blocked = restricted_evidence(self.memory, key, feedback_refs, max(at, now_utc()))
         modes: dict[str, MemoryReferenceMode] = {}
         for decision in (memory_use_plan or MemoryUsePlan()).decisions:
             ref = f"{decision.evidence.kind.value}:{decision.evidence.id}"
@@ -845,6 +861,7 @@ class RelationshipService:
             if blocked.intersection(roots[ref])
             or not self.evidence_valid(key, ref, at, allow_sensitive=allow_sensitive)
         }
+        excluded.update(all_refs - refs)
         for ref in refs:
             inherited = {modes[root] for root in roots[ref] if root in modes}
             for restrictive in (

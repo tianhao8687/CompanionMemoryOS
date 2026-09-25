@@ -14,6 +14,7 @@ dist/
 *.db-wal
 .companion-memoryos/
 .agent-data/
+.agent-tests/
 .env
 .env.*
 !.env.example

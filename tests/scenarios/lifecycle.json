@@ -1,0 +1,23 @@
+{
+  "name": "real-process-lifecycle", "version": 2, "require_language_quality": false,
+  "settings": {"proactive_enabled": true, "quiet_start": 0, "quiet_end": 0},
+  "steps": [
+    {"operation": "send_message", "content": "我喜欢咖啡。", "request_id": "learn"},
+    {"operation": "send_message", "content": "我喜欢咖啡。", "request_id": "learn", "expect_reused": true},
+    {"operation": "correct_memory", "content_match": "喜欢咖啡", "content": "我不喜欢咖啡了。"},
+    {"operation": "read_state", "expect_active": ["不喜欢咖啡"], "reject_active": ["我喜欢咖啡"]},
+    {"operation": "restart"},
+    {"operation": "send_message", "content": "我现在喜欢什么？", "reject_context_text": ["我喜欢咖啡"]},
+    {"operation": "forget_memory", "content_match": "不喜欢咖啡"},
+    {"operation": "send_message", "content": "我喜欢什么饮料？", "reject_context_text": ["我不喜欢咖啡", "我喜欢咖啡"]},
+    {"operation": "restart"},
+    {"operation": "new_session"},
+    {"operation": "send_message", "content": "我喜欢什么饮料？", "reject_context_text": ["我不喜欢咖啡", "我喜欢咖啡"]},
+    {"operation": "send_message", "content": "我明天有面试。"},
+    {"operation": "update_event", "status": "scheduled", "due_in_seconds": 3600},
+    {"operation": "update_event", "status": "scheduled", "due_in_seconds": 7200},
+    {"operation": "update_event", "status": "cancelled"},
+    {"operation": "advance_time", "seconds": 172800},
+    {"operation": "read_state", "expect_event_status": "cancelled", "reject_active": ["咖啡"]}
+  ]
+}

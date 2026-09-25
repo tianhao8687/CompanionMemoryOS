@@ -220,6 +220,16 @@ async function sendMessage(retry = false) {
   }
 }
 
+function updateStyleFields() {
+  const custom = document.querySelector('input[name="style"]:checked')?.value === "custom";
+  $("custom-style-field").hidden = !custom;
+  $("custom-style").required = custom;
+  $("custom-style").setCustomValidity(custom && !$("custom-style").value.trim() ? "请写下你喜欢的相处风格。" : "");
+}
+
+document.querySelectorAll('input[name="style"]').forEach((input) => input.addEventListener("change", updateStyleFields));
+$("custom-style").addEventListener("input", updateStyleFields);
+
 function openSettings() {
   if (!state.config || state.busy) return;
   const settings = state.config.settings;
@@ -227,18 +237,23 @@ function openSettings() {
   $("companion-name").value = settings.companion_name;
   $("user-name").value = settings.user_name;
   $("persona-notes").value = settings.persona_notes;
+  $("custom-style").value = settings.custom_style || "";
   document.querySelector(`input[name="style"][value="${settings.style}"]`).checked = true;
+  updateStyleFields();
   $("romance-consent").checked = settings.romance_consent;
   $("storage-consent").checked = settings.storage_consent;
   $("model-consent").checked = settings.model_consent;
   $("api-key").value = "";
   $("api-key").placeholder = state.config.key_configured ? "已配置，留空可保留现有 Key" : "sk-…";
+  $("remember-key").checked = Boolean(state.config.key_persisted);
+  $("remember-key").disabled = !state.config.credential_persistence_supported;
+  $("remember-key-hint").textContent = state.config.credential_store_error ? "暂时无法读取已保存的凭据，请检查系统凭据管理器。" : (state.config.credential_persistence_supported ? "使用 Windows 凭据管理器保存，重启后自动读取。取消勾选并保存可移除保存的 Key。" : "此环境不支持系统凭据保存，Key 仅在本次运行中使用。");
   $("model").value = settings.deepseek.model;
   $("base-url").value = settings.deepseek.base_url;
   $("max-tokens").value = settings.deepseek.max_tokens;
   $("temperature").value = settings.deepseek.temperature;
   $("thinking").value = settings.deepseek.thinking;
-  $("key-status").textContent = state.config.key_source === "environment" ? "从环境变量读取" : (state.config.key_configured ? "本次运行已配置" : "尚未配置");
+  $("key-status").textContent = state.config.key_persisted ? "已安全保存在本机" : (state.config.key_source === "environment" ? "从环境变量读取" : (state.config.key_configured ? "本次运行已配置" : "尚未配置"));
   $("settings-message").hidden = true;
   state.clearKey = false;
   setSidebar(false, true);
@@ -268,6 +283,7 @@ async function saveSettings(test = false) {
     companion_name: $("companion-name").value.trim(),
     user_name: $("user-name").value.trim(),
     style: document.querySelector("input[name=style]:checked").value,
+    custom_style: $("custom-style").value.trim(),
     persona_notes: $("persona-notes").value.trim(),
     romance_consent: $("romance-consent").checked,
     storage_consent: $("storage-consent").checked,
@@ -282,12 +298,13 @@ async function saveSettings(test = false) {
   buttons.forEach((button) => { button.disabled = true; });
   $("settings-message").hidden = true;
   try {
-    const result = await api("/api/settings", { method: "PUT", body: JSON.stringify({ settings, api_key: $("api-key").value.trim() || null, clear_api_key: state.clearKey }) });
+    const result = await api("/api/settings", { method: "PUT", body: JSON.stringify({ settings, api_key: $("api-key").value.trim() || null, clear_api_key: state.clearKey, remember_api_key: $("remember-key").checked }) });
     state.config = result;
     state.clearKey = false;
     $("api-key").value = "";
     $("api-key").placeholder = result.key_configured ? "已配置，留空可保留现有 Key" : "sk-…";
-    $("key-status").textContent = result.key_configured ? "已配置" : "尚未配置";
+    $("remember-key").checked = Boolean(result.key_persisted);
+    $("key-status").textContent = result.key_persisted ? "已安全保存在本机" : (result.key_configured ? "已配置" : "尚未配置");
     updateProfile();
     renderMessages(false);
     if (test) {
@@ -363,7 +380,7 @@ $("open-settings").addEventListener("click", openSettings);
 $("setup-now").addEventListener("click", openSettings);
 $("settings-form").addEventListener("submit", (event) => { event.preventDefault(); saveSettings(); });
 $("test-connection").addEventListener("click", () => saveSettings(true));
-$("clear-key").addEventListener("click", () => { state.clearKey = true; $("api-key").value = ""; $("key-status").textContent = "保存后清除；环境变量 Key 仍可用"; });
+$("clear-key").addEventListener("click", () => { state.clearKey = true; $("api-key").value = ""; $("remember-key").checked = false; $("key-status").textContent = "保存后清除当前及本机保存的 Key；环境变量 Key 仍可用"; });
 $("open-memory").addEventListener("click", openMemories);
 $("toggle-sidebar").addEventListener("click", () => setSidebar(!$("sidebar").classList.contains("open")));
 $("close-sidebar").addEventListener("click", () => setSidebar(false, true));

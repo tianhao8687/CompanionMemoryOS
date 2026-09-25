@@ -232,12 +232,17 @@ def test_runtime_continuous_chat_restart_retry_and_metadata(
     first = agent.chat(request("先听我说完，别给建议"), RelationshipStage.FAMILIAR)
     second_request = request("我小时候怕狗", "turn-2")
     second = agent.chat(second_request, RelationshipStage.FAMILIAR)
-    assert first.turn.content in model.inputs[1][1].content
+    assert any(
+        message.role == "assistant" and message.content == first.turn.content
+        for message in model.inputs[1][2:-1]
+    )
+    assert model.inputs[1][-1].role == "user"
+    assert model.inputs[1][-1].content == second_request.content
     # Relevant authored backstory is available; listening is still an explicit user request.
     assert "阿灰" in model.inputs[1][1].content
     assert '"authority":"explicit_request"' in model.inputs[1][1].content
     assert first.turn.metadata["response_goal"] == "listen"
-    assert second.turn.metadata["persona_version"] == "0.1.2"
+    assert second.turn.metadata["persona_version"] == load_persona().version
     assert second.turn.metadata["familiarity_stage"] == "new"
     assert second.turn.metadata["relationship_distance"] == "cautious"
     assert second.turn.actor_id == "xiaohe"

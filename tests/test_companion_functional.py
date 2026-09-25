@@ -127,7 +127,13 @@ def test_feedback_is_grounded_and_persisted(tmp_path: Path) -> None:
     memory = host.memories(host.conversations()[0]["id"])["memories"]
     assert len(memory) == 1 and memory[0]["metadata"]["reflection"]
     restarted = host_for(tmp_path)
-    assert restarted.memory.store.get(memory[0]["id"], LOCAL_USER).content == "以后少说教，先听我讲"
+    assert restarted.memory.store.get(memory[0]["id"], LOCAL_USER).content == "以后少说教"
+    source = restarted.memory.store.get_turn(memory[0]["evidence_turn_ids"][0], LOCAL_USER)
+    assert source.content == "以后少说教，先听我讲"
+    assert any(
+        item["slot"] == "communication:need"
+        for item in host.memories(host.conversations()[0]["id"])["states"]
+    )
 
 
 def test_embedding_http_uses_separate_credentials_and_rejects_bad_vectors(
@@ -240,7 +246,11 @@ class ResumeModel:
                 message={"role": "assistant", "content": "操作完成，后续也核对好了。"},
                 total_tokens=10,
             )
-        resumed = "continuation：" in str(messages[-1].get("content", ""))
+        resumed = any(
+            item["role"] == "user"
+            and str(item.get("content", "")).startswith("本地工具记录（continuation：")
+            for item in messages
+        )
         if resumed and self.fail_resume:
             raise MainLLMError("main_llm_timeout")
         call = ToolCall(
