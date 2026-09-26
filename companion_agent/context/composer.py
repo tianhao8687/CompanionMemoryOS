@@ -69,7 +69,8 @@ A mere promise is not delivery.
 Respond to the final user turn. Historical requests with prior_response_omitted already had a
 reply which is unavailable in this context; treat them as background, not unfinished tasks.
 Only resume an earlier task when the current user request calls for it.
-Respect current user corrections, boundaries and requests to listen. Do not force agreement.
+Respect current user corrections, boundaries and requests to listen.
+Do not impose a default temperament on the user-selected character.
 A temporary listening activity ends when the topic or task changes. Persistent communication
 preferences constrain style, not the current goal. Old emotions describe their original time;
 use them only for explicit recall, a needed reference, or a clearly related current topic.
@@ -96,7 +97,7 @@ CURRENT_TASK_RULES = """本轮用户提出了具体任务，请在这次回复�
 写作、改写或翻译请求要给出正文；计算请求要给出结果；明确的解释请求要实际解释。
 遵守本轮指定的数量和格式：要一句就选好一句给出，要一条可直接发送的消息就给完整消息。
 如果用户问的是之前写过的内容，按已保存的原文回答；不要把回忆请求当成重新创作。
-角色个性体现在成品和措辞中，可以有自己的审美、幽默和意见。
+角色个性体现在成品和措辞中，语气与表达方式遵循用户选定的角色设定。
 亲密互动、问候或承诺可以伴随任务，但不能替代成品，也不要回到旧话题而漏掉当前请求。
 发送前核对最后一条用户消息：回复里是否已经包含用户要的内容。"""
 
@@ -104,6 +105,21 @@ CURRENT_TASK_RULES = """本轮用户提出了具体任务，请在这次回复�
 class ChatMessage(PersonaModel):
     role: Literal["system", "user", "assistant"]
     content: str = Field(min_length=1)
+    source_turn_id: str | None = Field(default=None, exclude=True, repr=False)
+    image_urls: list[str] = Field(default_factory=list, exclude=True, repr=False)
+
+    def wire(self) -> dict[str, Any]:
+        if not self.image_urls:
+            return {"role": self.role, "content": self.content}
+        if self.role != "user":
+            raise ValueError("images require a user message")
+        return {
+            "role": self.role,
+            "content": [
+                {"type": "text", "text": self.content},
+                *({"type": "image_url", "image_url": {"url": url}} for url in self.image_urls),
+            ],
+        }
 
 
 class ComposedContext(PersonaModel):
@@ -125,6 +141,7 @@ def compose_context(
     user_id: str,
     scope: MemoryScope,
     current_user_turn: str,
+    current_turn_id: str | None = None,
     memory_context: CompanionContext | None = None,
     memory_use_plan: MemoryUsePlan | None = None,
     recent_conversation: list[ConversationTurnRecord] | None = None,
@@ -305,6 +322,7 @@ def compose_context(
                 ChatMessage(
                     role="user" if turn.role is ConversationRole.USER else "assistant",
                     content=turn.content,
+                    source_turn_id=turn.id,
                 )
             )
 
@@ -374,7 +392,7 @@ def compose_context(
             ChatMessage(role="system", content=system),
             ChatMessage(role="user", content=data),
             *dialogue,
-            ChatMessage(role="user", content=current_user_turn),
+            ChatMessage(role="user", content=current_user_turn, source_turn_id=current_turn_id),
         ],
         persona=persona,
         relationship=relationship_context,

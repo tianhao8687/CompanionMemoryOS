@@ -1,11 +1,9 @@
 name: Build local Windows and Android apps
 
-# Packaging runs only on a dedicated build branch or explicit manual dispatch.
-# The branch trigger lets a new workflow run before it is merged to the default branch.
+# Run packaging manually only after local checks, review, and user approval.
+# Source pushes must not automatically rebuild the installers.
 # This workflow does not publish a release or deploy a server.
 on:
-  push:
-    branches: ['codex/local-apps-*']
   workflow_dispatch:
     inputs:
       target:

@@ -6,7 +6,7 @@ import 'dart:typed_data';
 import 'models.dart';
 
 /// Existing loopback cookie handshake; no remote exposure or persisted secrets.
-class LocalRepository implements CompanionRepository {
+class LocalRepository extends CompanionRepository {
   LocalRepository(String endpoint, {this.clientToken})
     : base = validateEndpoint(endpoint);
   final Uri base;
@@ -141,12 +141,16 @@ class LocalRepository implements CompanionRepository {
   Stream<Map<String, dynamic>> send(
     String conversation,
     String request,
-    String text,
-  ) async* {
+    String text, {
+    List<String> imageIds = const [],
+    String? quoteId,
+  }) async* {
     final response = await _request('POST', '/api/chat/stream', {
       'conversation_id': conversation,
       'request_id': request,
       'content': text,
+      'image_ids': imageIds,
+      'quote_id': quoteId,
     });
     var complete = false;
     await for (final line
@@ -181,8 +185,179 @@ class LocalRepository implements CompanionRepository {
     return Map<String, dynamic>.from(result['settings'] as Map);
   }
 
+  @override
+  Future<String> uploadImage(Uint8List bytes, String purpose) async =>
+      (await _json(
+            'POST',
+            '/api/images?purpose=${Uri.encodeQueryComponent(purpose)}',
+            bytes,
+          ))['id']
+          as String;
+  @override
+  Future<Uint8List> image(String id) async {
+    final response = await _request(
+      'GET',
+      '/api/images/${Uri.encodeComponent(id)}',
+    );
+    final bytes = BytesBuilder(copy: false);
+    await for (final chunk in response) {
+      bytes.add(chunk);
+      if (bytes.length > 8 * 1024 * 1024) {
+        throw const CompanionException('图片太大。');
+      }
+    }
+    return bytes.takeBytes();
+  }
+
+  @override
+  Future<void> discardImage(String id) async {
+    await _json('DELETE', '/api/images/${Uri.encodeComponent(id)}');
+  }
+
   Future<Map<String, dynamic>> memories(String conversation) =>
       _json('GET', '/api/memories/${Uri.encodeComponent(conversation)}');
+
+  @override
+  Future<Map<String, dynamic>> readChatState(String conversation) => _json(
+    'GET',
+    '/api/conversations/${Uri.encodeComponent(conversation)}/ui-state',
+  );
+  @override
+  Future<void> saveChatState(
+    String conversation,
+    Map<String, dynamic> state,
+  ) async {
+    await _json(
+      'PUT',
+      '/api/conversations/${Uri.encodeComponent(conversation)}/ui-state',
+      state,
+    );
+  }
+
+  @override
+  Future<void> bookmark(List<String> ids, bool saved) async {
+    await _json('PUT', '/api/bookmarks', {'ids': ids, 'saved': saved});
+  }
+
+  @override
+  Future<Map<String, dynamic>> bookmarks({int offset = 0}) =>
+      _json('GET', '/api/bookmarks?offset=$offset');
+
+  Future<Map<String, dynamic>> journal({
+    bool moments = false,
+    String category = 'all',
+    int offset = 0,
+  }) => _json(
+    'GET',
+    Uri(
+      path: '/api/journal/entries',
+      queryParameters: {
+        'moments': '$moments',
+        'category': category,
+        'offset': '$offset',
+      },
+    ).toString(),
+  );
+  Future<Map<String, dynamic>> journalFlags(
+    String id,
+    String category,
+    bool important,
+  ) => _json('PUT', '/api/journal/entries/${Uri.encodeComponent(id)}/flags', {
+    'category': category,
+    'important': important,
+  });
+  Future<Map<String, dynamic>> saveMoment(Map<String, dynamic> value) =>
+      _json('POST', '/api/journal/moments', value);
+  Future<List<Map<String, dynamic>>> journalEvents() async =>
+      ((await _json('GET', '/api/journal/events'))['items'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+  Future<Map<String, dynamic>> saveJournalEvent(
+    Map<String, dynamic> value, {
+    String? id,
+  }) => _json(
+    id == null ? 'POST' : 'PUT',
+    id == null
+        ? '/api/journal/events'
+        : '/api/journal/events/${Uri.encodeComponent(id)}',
+    value,
+  );
+  Future<void> closeJournalEvent(String id, String status) async {
+    await _json('PUT', '/api/events/${Uri.encodeComponent(id)}', {
+      'status': status,
+    });
+  }
+
+  Future<Map<String, dynamic>> search(
+    String query, {
+    String? conversation,
+    int? before,
+  }) => _json(
+    'GET',
+    Uri(
+      path: '/api/search',
+      queryParameters: {
+        'query': query,
+        'conversation_id': ?conversation,
+        if (before != null) 'before': '$before',
+      },
+    ).toString(),
+  );
+  Future<List<ChatLine>> context(String conversation, String id) async {
+    final result = await _json(
+      'GET',
+      '/api/conversations/${Uri.encodeComponent(conversation)}/context/${Uri.encodeComponent(id)}',
+    );
+    return (result['messages'] as List)
+        .map((v) => ChatLine.fromJson(Map<String, dynamic>.from(v as Map)))
+        .toList();
+  }
+
+  Future<List<StickerItem>> stickers() async {
+    final result = await _json('GET', '/api/stickers');
+    return (result['stickers'] as List)
+        .map((v) => StickerItem.fromJson(Map<String, dynamic>.from(v as Map)))
+        .toList();
+  }
+
+  Future<StickerItem> uploadSticker(Uint8List bytes, String label) async =>
+      StickerItem.fromJson(
+        await _json(
+          'POST',
+          Uri(
+            path: '/api/stickers',
+            queryParameters: {'label': label},
+          ).toString(),
+          bytes,
+        ),
+      );
+  Future<void> deleteSticker(String id) async {
+    await _json('DELETE', '/api/stickers/${Uri.encodeComponent(id)}');
+  }
+
+  Future<Uint8List> stickerImage(String id) async {
+    final response = await _request(
+      'GET',
+      '/api/stickers/${Uri.encodeComponent(id)}/content',
+    );
+    final bytes = BytesBuilder(copy: false);
+    await for (final chunk in response) {
+      bytes.add(chunk);
+      if (bytes.length > 2 * 1024 * 1024) {
+        throw const CompanionException('表情包太大。');
+      }
+    }
+    return bytes.takeBytes();
+  }
+
+  Future<Map<String, dynamic>> updates() => _json('GET', '/api/updates');
+  Future<void> markRead(String conversation, int through) async {
+    await _json(
+      'POST',
+      '/api/conversations/${Uri.encodeComponent(conversation)}/read?through=$through',
+      {},
+    );
+  }
 
   Future<void> forgetMemory(String id) async {
     await _json('POST', '/api/memories/${Uri.encodeComponent(id)}/forget', {});

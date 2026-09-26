@@ -132,7 +132,7 @@ class AgentLoop:
             run.status = "completed"
             return response
         started = monotonic()
-        history = [message.model_dump() for message in messages]
+        history = [message.wire() for message in messages]
         history.insert(0, {"role": "system", "content": LOOP_RULES})
         actions = self.hub.store.actions(run.conversation)[:5]
         if actions:

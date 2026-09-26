@@ -21,6 +21,7 @@ class ModelResponse(PersonaModel):
     text: str = Field(min_length=1, max_length=50_000)
     model: str = Field(min_length=1)
     usage: InterpreterUsage | None = None
+    sticker_id: str | None = None
 
 
 class MainLLM(Protocol):
@@ -50,7 +51,7 @@ class OpenAICompatibleMainLLM:
     def payload(self, messages: list[ChatMessage]) -> dict[str, Any]:
         return {
             "model": self.config.model,
-            "messages": [message.model_dump() for message in messages],
+            "messages": [message.wire() for message in messages],
             self.config.output_token_parameter: self.config.max_output_tokens,
             "stream": False,
             "n": 1,

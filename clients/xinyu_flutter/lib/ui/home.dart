@@ -4,9 +4,13 @@ import '../state/companion_controller.dart';
 import '../state/frame_probe.dart';
 import 'chat.dart';
 import 'glass.dart';
+import 'local_image.dart';
 import 'navigation.dart';
 import 'settings_sheet.dart';
 import 'memory_sheet.dart';
+import 'chat_search.dart';
+import 'character_home.dart';
+import 'problem_dialog.dart';
 
 class XinYuHome extends StatefulWidget {
   const XinYuHome({super.key, required this.controller, required this.probe});
@@ -16,8 +20,63 @@ class XinYuHome extends StatefulWidget {
   State<XinYuHome> createState() => _XinYuHomeState();
 }
 
-class _XinYuHomeState extends State<XinYuHome> {
+class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
   final scaffold = GlobalKey<ScaffoldState>();
+  bool _problemVisible = false, _problemScheduled = false;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    widget.controller.problem.addListener(_problemChanged);
+    _problemChanged();
+  }
+
+  void _problemChanged() {
+    if (!mounted ||
+        _problemVisible ||
+        _problemScheduled ||
+        widget.controller.problem.value == null) {
+      return;
+    }
+    _problemScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _problemScheduled = false;
+      if (!mounted || widget.controller.problem.value == null) return;
+      _problemVisible = true;
+      final openSettings = await showProblemDialog(
+        context,
+        widget.controller.problem,
+      );
+      if (!mounted) return;
+      widget.controller.problem.value = null;
+      _problemVisible = false;
+      if (openSettings == true) {
+        await showCompanionSettings(context, widget.controller, initialTab: 1);
+      }
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  @override
+  void didUpdateWidget(covariant XinYuHome oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.problem.removeListener(_problemChanged);
+      widget.controller.problem.addListener(_problemChanged);
+      _problemChanged();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    widget.controller.problem.removeListener(_problemChanged);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) =>
+      widget.controller.setForeground(state == AppLifecycleState.resumed);
   void _settings() => showCompanionSettings(context, widget.controller);
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -28,6 +87,16 @@ class _XinYuHomeState extends State<XinYuHome> {
       return Stack(
         children: [
           const Positioned.fill(child: XinYuWallpaper()),
+          if (controller.settings['background_image'] case final String id) ...[
+            Positioned.fill(
+              child: LocalImage(
+                controller: controller,
+                id: id,
+                fallback: const XinYuWallpaper(),
+              ),
+            ),
+            const Positioned.fill(child: ColoredBox(color: Color(0x38f4faf6))),
+          ],
           Scaffold(
             key: scaffold,
             backgroundColor: Colors.transparent,
@@ -94,10 +163,7 @@ class _XinYuHomeState extends State<XinYuHome> {
                                 constraints: const BoxConstraints(
                                   maxWidth: 1040,
                                 ),
-                                child: Composer(
-                                  controller: controller,
-                                  openSettings: _settings,
-                                ),
+                                child: Composer(controller: controller),
                               ),
                             ),
                             if (MediaQuery.viewInsetsOf(context).bottom == 0)
@@ -145,67 +211,78 @@ class _XinYuHomeState extends State<XinYuHome> {
             icon: const Icon(Icons.menu_rounded, size: 22),
           ),
         if (!compact) ...[
-          CompanionAvatar(
-            size: 43,
-            label: widget.controller.companionName.characters.last,
+          InkWell(
+            onTap: () => showCharacterHome(context, widget.controller),
+            child: ProfileAvatar(controller: widget.controller, size: 43),
           ),
           const SizedBox(width: 13),
         ],
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                widget.controller.companionName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Row(
-                children: [
-                  Container(
-                    width: 5,
-                    height: 5,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Color(0xff689277),
-                    ),
+          child: InkWell(
+            key: const Key('open-character-home'),
+            onTap: () => showCharacterHome(context, widget.controller),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.controller.companionName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      widget.controller.isDemo
-                          ? '演示空间'
-                          : widget.controller.loading
-                          ? '正在连接'
-                          : widget.controller.connected
-                          ? '记忆保存在本机'
-                          : '本机引擎未连接',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: XinYuColors.muted,
+                ),
+                const SizedBox(height: 5),
+                Row(
+                  children: [
+                    Container(
+                      width: 5,
+                      height: 5,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xff689277),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        widget.controller.isDemo
+                            ? '演示空间'
+                            : widget.controller.loading
+                            ? '正在连接'
+                            : widget.controller.connected
+                            ? '记忆保存在本机'
+                            : '本机引擎未连接',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: XinYuColors.muted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
         IconButton(
           key: const Key('open-memories'),
-          tooltip: '查看记忆',
+          tooltip: '记忆手账',
           onPressed: widget.controller.busy || !widget.controller.connected
               ? null
               : () => showMemories(context, widget.controller),
-          icon: const Icon(Icons.auto_awesome_outlined, size: 21),
+          icon: const Icon(Icons.book_outlined, size: 21),
         ),
+        if (widget.controller.hasChatFeatures)
+          IconButton(
+            key: const Key('open-search'),
+            tooltip: '搜索聊天',
+            onPressed: () => showChatSearch(context, widget.controller),
+            icon: const Icon(Icons.search_rounded, size: 21),
+          ),
         if (widget.controller.isDemo ||
             const bool.fromEnvironment('XINYU_DEVELOPMENT'))
           IconButton(
@@ -231,7 +308,7 @@ class _XinYuHomeState extends State<XinYuHome> {
         padding: const EdgeInsets.fromLTRB(14, 9, 8, 9),
         decoration: BoxDecoration(
           color: const Color(0xd0fff5e8),
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: XinYuShapes.fieldCorners,
         ),
         child: Row(
           children: [
@@ -286,7 +363,7 @@ class _FramePanel extends StatelessWidget {
       return Material(
         color: const Color(0xf5f7f7f0),
         elevation: 3,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: XinYuShapes.fieldCorners,
         child: SizedBox(
           width: 266,
           child: Padding(

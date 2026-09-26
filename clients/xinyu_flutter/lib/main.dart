@@ -85,6 +85,34 @@ class _XinYuAppState extends State<XinYuApp> {
             primary: XinYuColors.accent,
           ),
       scaffoldBackgroundColor: Colors.transparent,
+      dialogTheme: const DialogThemeData(
+        shape: XinYuShapes.panel,
+        clipBehavior: Clip.antiAlias,
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        shape: XinYuShapes.panel,
+        clipBehavior: Clip.antiAlias,
+      ),
+      chipTheme: const ChipThemeData(shape: XinYuShapes.pill),
+      checkboxTheme: const CheckboxThemeData(shape: CircleBorder()),
+      listTileTheme: const ListTileThemeData(shape: XinYuShapes.field),
+      popupMenuTheme: const PopupMenuThemeData(shape: XinYuShapes.card),
+      menuTheme: const MenuThemeData(
+        style: MenuStyle(shape: WidgetStatePropertyAll(XinYuShapes.card)),
+      ),
+      menuButtonTheme: const MenuButtonThemeData(
+        style: ButtonStyle(shape: WidgetStatePropertyAll(XinYuShapes.pill)),
+      ),
+      datePickerTheme: const DatePickerThemeData(shape: XinYuShapes.panel),
+      timePickerTheme: const TimePickerThemeData(
+        shape: XinYuShapes.panel,
+        hourMinuteShape: XinYuShapes.field,
+        dayPeriodShape: XinYuShapes.pill,
+      ),
+      snackBarTheme: const SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: XinYuShapes.card,
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: const Color(0x60ffffff),
@@ -93,15 +121,15 @@ class _XinYuAppState extends State<XinYuApp> {
           vertical: 15,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: XinYuShapes.fieldCorners,
           borderSide: const BorderSide(color: Color(0xcaffffff)),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: XinYuShapes.fieldCorners,
           borderSide: const BorderSide(color: Color(0xcaffffff)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: XinYuShapes.fieldCorners,
           borderSide: const BorderSide(color: Color(0xff719887), width: 1.4),
         ),
         labelStyle: const TextStyle(color: XinYuColors.muted, fontSize: 13),
@@ -109,16 +137,26 @@ class _XinYuAppState extends State<XinYuApp> {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size(48, 46),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
+          shape: XinYuShapes.pill,
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(44, 44),
+          shape: XinYuShapes.pill,
         ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(minimumSize: const Size(44, 44)),
+        style: TextButton.styleFrom(
+          minimumSize: const Size(44, 44),
+          shape: XinYuShapes.pill,
+        ),
       ),
       iconButtonTheme: IconButtonThemeData(
-        style: IconButton.styleFrom(minimumSize: const Size(44, 44)),
+        style: IconButton.styleFrom(
+          minimumSize: const Size(44, 44),
+          shape: const CircleBorder(),
+        ),
       ),
       scrollbarTheme: ScrollbarThemeData(
         thumbColor: WidgetStateProperty.all(const Color(0x65748a7c)),

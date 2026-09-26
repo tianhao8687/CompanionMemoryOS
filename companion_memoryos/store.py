@@ -1464,7 +1464,8 @@ class MemoryStore:
                 if key in {"context_turn_ids", "process_reality_layer", "persona_id", "model"}
             }
             metadata["content_redacted_at"] = datetime_to_text(now)
-            if not content.strip():
+            empty = not content.strip()
+            if empty:
                 content, spans = "[已遗忘指定位置]", []
                 metadata["content_redacted_empty"] = True
             self._invalidate_turn_descendants(
@@ -1497,19 +1498,46 @@ class MemoryStore:
             )
             connection.execute(
                 "UPDATE conversation_turns SET content=?, content_hash=?, speech_spans_json=?, "
-                "retrieval_keys_json='[]', embedding_space=NULL, metadata_json=? "
+                "retrieval_keys_json='[]', embedding_space=NULL, metadata_json=?, deletion_state=? "
                 "WHERE id=? AND user_id=?",
                 (
                     content,
                     digest,
                     span_json,
                     metadata_json,
+                    TurnDeletionState.FORGOTTEN.value if empty else source.deletion_state.value,
                     turn_id,
                     user_id,
                 ),
             )
             self._audit(connection, turn_id, user_id, "conversation_turn.redacted", {}, now)
+            if empty and source.role is ConversationRole.USER:
+                # A reply to a wholly removed utterance cannot remain a second route
+                # to its contents. Later, independent requests are not deletion targets.
+                replies = connection.execute(
+                    "SELECT id, content FROM conversation_turns WHERE user_id=? "
+                    "AND reply_to_turn_id=? AND role='assistant' AND deletion_state='active' "
+                    "AND companion_id IS ? AND relationship_id IS ? "
+                    "AND conversation_id IS ? AND group_id IS ?",
+                    (user_id, turn_id, *scope_values(source.scope)),
+                ).fetchall()
+                for reply in replies:
+                    self.redact_turn(str(reply["id"]), user_id, [(0, len(reply["content"]))])
             return self.get_turn(turn_id, user_id)
+
+    def repair_empty_redactions(self, user_id: str) -> None:
+        """Finish previously applied full redactions without reinterpreting old text."""
+        with self.database.atomic() as connection:
+            rows = connection.execute(
+                "SELECT id FROM conversation_turns WHERE user_id=? AND deletion_state='active' "
+                "AND json_extract(metadata_json, '$.content_redacted_empty')=1",
+                (user_id,),
+            ).fetchall()
+            for row in rows:
+                turn = self.get_turn(str(row["id"]), user_id)
+                # A preceding user record may already have cleared this direct reply.
+                if turn.deletion_state is TurnDeletionState.ACTIVE:
+                    self.redact_turn(turn.id, user_id, [(0, len(turn.content))])
 
     def forget_turn(
         self,

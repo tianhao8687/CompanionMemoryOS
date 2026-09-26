@@ -26,7 +26,7 @@ class CompanionNavigation extends StatelessWidget {
               height: 44,
               decoration: BoxDecoration(
                 color: const Color(0x60fff6e9),
-                borderRadius: BorderRadius.circular(15),
+                borderRadius: XinYuShapes.pillCorners,
                 border: Border.all(color: const Color(0xbfffffff)),
               ),
               child: const Icon(
@@ -120,9 +120,9 @@ class CompanionNavigation extends StatelessWidget {
               final selected = item.id == controller.active;
               return Material(
                 color: selected ? const Color(0x80ffffff) : Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: XinYuShapes.cardCorners,
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: XinYuShapes.cardCorners,
                   onTap: controller.busy
                       ? null
                       : () {
@@ -158,6 +158,8 @@ class CompanionNavigation extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (item.unread > 0)
+                          Badge(label: Text('${item.unread}')),
                       ],
                     ),
                   ),

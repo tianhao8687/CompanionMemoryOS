@@ -72,7 +72,10 @@ def main() -> int:
         for attempt in (1, 2):
             launch = adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/.MainActivity")
             (run / f"launch-{attempt}.log").write_text(launch, encoding="utf-8")
-            if "Error:" in launch or "Status: ok" not in launch:
+            # am start -W has its own short first-frame timeout. A cold ARM
+            # translation start can exceed it while the activity is still alive.
+            # Only the bounded UI connection check below can prove readiness.
+            if "Error:" in launch:
                 raise RuntimeError(f"Android did not start the activity on launch {attempt}")
             deadline = time.monotonic() + 150
             connected = False
@@ -86,8 +89,8 @@ def main() -> int:
                 if "记忆保存在本机" in hierarchy:
                     connected = True
                     break
-                if "本机引擎未连接" in hierarchy:
-                    break
+                # The disconnected header is also rendered during initialization.
+                # Do not turn a transient header into an early startup failure.
                 time.sleep(3)
             screenshot = subprocess.run(
                 ["adb", "-s", serial, "exec-out", "screencap", "-p"],

@@ -58,6 +58,7 @@ void main() {
           final body =
               jsonDecode(await utf8.decoder.bind(request).join()) as Map;
           expect(body['request_id'], 'stable-id');
+          expect(body['image_ids'], ['synthetic-local-image']);
           final data = utf8.encode(
             '${jsonEncode({'type': 'delta', 'text': '你好'})}\n${jsonEncode({'type': 'result', 'result': {}})}\n',
           );
@@ -73,7 +74,9 @@ void main() {
     });
     final snapshot = await repository.bootstrap();
     expect(snapshot.settings['companion_name'], '小禾');
-    final events = await repository.send('chat', 'stable-id', '你好').toList();
+    final events = await repository
+        .send('chat', 'stable-id', '你好', imageIds: ['synthetic-local-image'])
+        .toList();
     expect(events.first['text'], '你好');
     expect(events.last['type'], 'result');
     expect(requests, ['/', '/api/bootstrap', '/api/chat/stream']);

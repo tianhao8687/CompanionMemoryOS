@@ -13,10 +13,11 @@ class LocalFiles(private val activity: Activity, private val worker: ExecutorSer
     private val limit = 64 * 1024 * 1024
 
     fun call(call: MethodCall, result: MethodChannel.Result) {
-        if (call.method != "saveBackup" && call.method != "pickBackup") {
+        if (call.method != "saveBackup" && call.method != "pickBackup" && call.method != "pickImage") {
             result.notImplemented(); return
         }
         if (pending != null) { result.error("busy", "请先完成文件选择。", null); return }
+        val image = call.method == "pickImage"
         val save = call.method == "saveBackup"
         bytes = if (save) call.argument<ByteArray>("bytes") else null
         if (save && (bytes == null || bytes!!.size > limit)) {
@@ -25,9 +26,9 @@ class LocalFiles(private val activity: Activity, private val worker: ExecutorSer
         pending = result
         val intent = Intent(if (save) Intent.ACTION_CREATE_DOCUMENT else Intent.ACTION_OPEN_DOCUMENT)
             .addCategory(Intent.CATEGORY_OPENABLE)
-            .setType(if (save) "application/octet-stream" else "*/*")
+            .setType(if (image) "image/*" else if (save) "application/octet-stream" else "*/*")
         if (save) intent.putExtra(Intent.EXTRA_TITLE, call.argument<String>("name") ?: "xinyu-backup.sqlite")
-        try { activity.startActivityForResult(intent, if (save) 7101 else 7102) }
+        try { activity.startActivityForResult(intent, if (save) 7101 else if (image) 7103 else 7102) }
         catch (_: Exception) {
             pending = null; bytes = null
             result.error("file_picker", "无法打开系统文件选择器。", null)
@@ -35,7 +36,7 @@ class LocalFiles(private val activity: Activity, private val worker: ExecutorSer
     }
 
     fun result(request: Int, code: Int, data: Intent?): Boolean {
-        if (request != 7101 && request != 7102) return false
+        if (request != 7101 && request != 7102 && request != 7103) return false
         val reply = pending ?: return true
         val payload = bytes
         pending = null; bytes = null
@@ -58,7 +59,7 @@ class LocalFiles(private val activity: Activity, private val worker: ExecutorSer
                         while (true) {
                             val count = stream.read(buffer)
                             if (count < 0) break
-                            require(output.size() + count <= limit)
+                            require(output.size() + count <= if (request == 7103) 20 * 1024 * 1024 else limit)
                             output.write(buffer, 0, count)
                         }
                     }
@@ -66,7 +67,7 @@ class LocalFiles(private val activity: Activity, private val worker: ExecutorSer
                     activity.runOnUiThread { reply.success(content) }
                 }
             } catch (_: Exception) {
-                activity.runOnUiThread { reply.error("backup_file", "无法读写备份，请检查文件权限和大小（最多 64 MB）。", null) }
+                activity.runOnUiThread { reply.error("local_file", if (request == 7103) "无法读取图片，请选择 20 MB 以内的图片。" else "无法读写备份，请检查文件权限和大小（最多 64 MB）。", null) }
             }
         }
         return true

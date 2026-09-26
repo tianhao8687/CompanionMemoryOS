@@ -1,21 +1,28 @@
 import 'package:flutter/material.dart';
 
 import '../state/companion_controller.dart';
-import '../data/models.dart';
 import 'glass.dart';
+import 'local_image.dart';
+import 'stickers.dart';
 
 Future<void> showCompanionSettings(
   BuildContext context,
-  CompanionController controller,
-) => showDialog<void>(
+  CompanionController controller, {
+  int initialTab = 0,
+}) => showDialog<void>(
   context: context,
   barrierColor: const Color(0x2433403c),
-  builder: (_) => SettingsSheet(controller: controller),
+  builder: (_) => SettingsSheet(controller: controller, initialTab: initialTab),
 );
 
 class SettingsSheet extends StatefulWidget {
-  const SettingsSheet({super.key, required this.controller});
+  const SettingsSheet({
+    super.key,
+    required this.controller,
+    this.initialTab = 0,
+  });
   final CompanionController controller;
+  final int initialTab;
   @override
   State<SettingsSheet> createState() => _SettingsSheetState();
 }
@@ -27,11 +34,13 @@ class _SettingsSheetState extends State<SettingsSheet> {
   late final TextEditingController companion,
       user,
       notes,
+      userProfile,
       address,
       customStyle,
       model,
       modelUrl;
   final apiKey = TextEditingController();
+  final _importedImages = <String>[];
   bool working = false;
   bool rememberKey = false, clearKey = false;
   String? notice;
@@ -39,11 +48,15 @@ class _SettingsSheetState extends State<SettingsSheet> {
   @override
   void initState() {
     super.initState();
+    tab = widget.initialTab;
     values = widget.controller.settingsCopy();
     companion = TextEditingController(text: widget.controller.companionName);
     user = TextEditingController(text: widget.controller.userName);
     notes = TextEditingController(
       text: values['persona_notes'] as String? ?? '',
+    );
+    userProfile = TextEditingController(
+      text: values['user_persona'] as String? ?? '',
     );
     address = TextEditingController(text: widget.controller.endpoint);
     customStyle = TextEditingController(
@@ -62,11 +75,21 @@ class _SettingsSheetState extends State<SettingsSheet> {
 
   @override
   void dispose() {
+    for (final id in _importedImages) {
+      if (![
+        'background_image',
+        'user_avatar',
+        'companion_avatar',
+      ].any((key) => widget.controller.settings[key] == id)) {
+        widget.controller.discardImage(id);
+      }
+    }
     _scroll.dispose();
     for (final c in [
       companion,
       user,
       notes,
+      userProfile,
       address,
       apiKey,
       customStyle,
@@ -105,6 +128,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
         companion.text = widget.controller.companionName;
         user.text = widget.controller.userName;
         notes.text = values['persona_notes'] as String? ?? '';
+        userProfile.text = values['user_persona'] as String? ?? '';
         customStyle.text = values['custom_style'] as String? ?? '';
         model.text =
             values['deepseek']?['model'] as String? ?? 'deepseek-flash';
@@ -123,8 +147,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
     } catch (e) {
       if (mounted) {
         setState(
-          () =>
-              notice = e is CompanionException ? e.message : '操作未完成，请检查服务后重试。',
+          () => notice = widget.controller.reportFailure(e, title: '设置操作未完成'),
         );
       }
     } finally {
@@ -137,6 +160,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
     values['companion_name'] = companion.text.trim();
     values['user_name'] = user.text.trim();
     values['persona_notes'] = notes.text.trim();
+    values['user_persona'] = userProfile.text.trim();
     values['custom_style'] = customStyle.text.trim();
     if (!widget.controller.isDemo) {
       final config = Map<String, dynamic>.from(
@@ -178,7 +202,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
             key: const Key('settings-glass'),
             blur: 30,
             tint: const Color(0x88f5fcf8),
-            radius: 32,
+            radius: XinYuShapes.panelRadius,
             padding: EdgeInsets.all(compact ? 16 : 26),
             child: Form(
               key: _form,
@@ -226,56 +250,73 @@ class _SettingsSheetState extends State<SettingsSheet> {
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
                       color: const Color(0x28728c80),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: XinYuShapes.cardCorners,
                       border: Border.all(color: const Color(0x90ffffff)),
                     ),
-                    child: Row(
-                      children: [
-                        for (final item in [
-                          (0, '相处设定', Icons.favorite_border_rounded),
-                          (2, '外观', Icons.text_fields_rounded),
-                          (1, '连接与数据', Icons.tune_rounded),
-                        ])
-                          Expanded(
-                            child: _SettingsTab(
-                              label: item.$2,
-                              icon: item.$3,
-                              selected: tab == item.$1,
-                              showIcon: !compact,
-                              onTap: working ? null : () => _selectTab(item.$1),
-                            ),
-                          ),
-                      ],
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final columns = constraints.maxWidth < 500 ? 2 : 4;
+                        return Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: [
+                            for (final item in [
+                              (0, '相处设定', Icons.favorite_border_rounded),
+                              (2, '外观', Icons.text_fields_rounded),
+                              (3, '消息', Icons.notifications_none_rounded),
+                              (1, '连接与数据', Icons.tune_rounded),
+                            ])
+                              SizedBox(
+                                width:
+                                    (constraints.maxWidth - 4 * (columns - 1)) /
+                                    columns,
+                                child: _SettingsTab(
+                                  label: item.$2,
+                                  icon: item.$3,
+                                  selected: tab == item.$1,
+                                  showIcon: !compact,
+                                  onTap: working
+                                      ? null
+                                      : () => _selectTab(item.$1),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: 18),
                   Flexible(
-                    child: SingleChildScrollView(
-                      key: const Key('settings-scroll'),
-                      controller: _scroll,
-                      child: AbsorbPointer(
-                        absorbing: working,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (tab == 0) ..._persona(),
-                            if (tab == 1) ..._connection(),
-                            if (tab == 2) ..._appearance(),
-                            if (notice != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 14),
-                                child: Semantics(
-                                  liveRegion: true,
-                                  child: Text(
-                                    notice!,
-                                    style: const TextStyle(
-                                      color: Color(0xff865c43),
-                                      height: 1.6,
+                    child: ClipRRect(
+                      borderRadius: XinYuShapes.cardCorners,
+                      child: SingleChildScrollView(
+                        key: const Key('settings-scroll'),
+                        controller: _scroll,
+                        child: AbsorbPointer(
+                          absorbing: working,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (tab == 0) ..._persona(),
+                              if (tab == 1) ..._connection(),
+                              if (tab == 2) ..._appearance(),
+                              if (tab == 3) ..._messages(),
+                              if (notice != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 14),
+                                  child: Semantics(
+                                    liveRegion: true,
+                                    child: Text(
+                                      notice!,
+                                      style: const TextStyle(
+                                        color: Color(0xff865c43),
+                                        height: 1.6,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -315,6 +356,246 @@ class _SettingsSheetState extends State<SettingsSheet> {
     );
   }
 
+  Future<void> _pickImage(String field, String purpose) async {
+    if (working) return;
+    setState(() {
+      working = true;
+      notice = null;
+    });
+    try {
+      final id = await widget.controller.importImage(purpose);
+      if (mounted && id != null) {
+        _importedImages.add(id);
+        setState(() => values[field] = id);
+      } else if (id != null) {
+        widget.controller.discardImage(id);
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () =>
+              notice = widget.controller.reportFailure(error, title: '图片未能导入'),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => working = false);
+    }
+  }
+
+  Widget _imageSetting(
+    String title,
+    String field,
+    String purpose,
+    bool avatar,
+  ) {
+    final id = values[field] as String?;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 10),
+        ClipRRect(
+          borderRadius: avatar
+              ? BorderRadius.circular(36)
+              : XinYuShapes.fieldCorners,
+          child: id == null
+              ? (avatar
+                    ? const CompanionAvatar(size: 72)
+                    : const SizedBox(
+                        height: 100,
+                        width: double.infinity,
+                        child: XinYuWallpaper(),
+                      ))
+              : LocalImage(
+                  controller: widget.controller,
+                  id: id,
+                  width: avatar ? 72 : double.infinity,
+                  height: avatar ? 72 : 130,
+                ),
+        ),
+        Wrap(
+          spacing: 8,
+          children: [
+            TextButton.icon(
+              key: Key('pick-$field'),
+              onPressed: working ? null : () => _pickImage(field, purpose),
+              icon: const Icon(Icons.photo_library_outlined, size: 18),
+              label: Text('选择$title'),
+            ),
+            if (id != null)
+              TextButton(
+                onPressed: working
+                    ? null
+                    : () => setState(() => values[field] = null),
+                child: const Text('恢复默认'),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _messages() => [
+    _SettingsGroup(
+      title: '聊天节奏',
+      icon: Icons.chat_bubble_outline_rounded,
+      subtitle: '连续发出的短消息一起回应，日常回复按自然段落显示；角色设定保持优先。',
+      children: [
+        SwitchListTile.adaptive(
+          key: const Key('natural-chat'),
+          contentPadding: EdgeInsets.zero,
+          title: const Text('自然聊天节奏'),
+          value: values['natural_chat'] != false,
+          onChanged: (v) => setState(() => values['natural_chat'] = v),
+        ),
+        const Text(
+          '发送文字后留一点时间继续说，也可以点“现在回应”。关闭后立即发送并整段显示。',
+          style: TextStyle(fontSize: 12, height: 1.6, color: XinYuColors.muted),
+        ),
+      ],
+    ),
+    const SizedBox(height: 14),
+    _SettingsGroup(
+      title: '表情包',
+      icon: Icons.emoji_emotions_outlined,
+      subtitle: '让回复多一点表情。AI 按聊天内容选用，也可以只发文字。',
+      children: [
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('允许 AI 发表情包'),
+          value: values['stickers_enabled'] != false,
+          onChanged: (v) => setState(() => values['stickers_enabled'] = v),
+        ),
+        OutlinedButton.icon(
+          onPressed: widget.controller.hasChatFeatures
+              ? () => showStickerLibrary(context, widget.controller)
+              : null,
+          icon: const Icon(Icons.collections_outlined),
+          label: const Text('内置表情与我的表情包'),
+        ),
+      ],
+    ),
+    const SizedBox(height: 14),
+    _SettingsGroup(
+      title: '主动找我聊天',
+      icon: Icons.notifications_active_outlined,
+      subtitle: '结合近期聊天和记忆，在合适的时候发来一条消息。你没回复时，不会连续催促。',
+      children: [
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('允许主动联系'),
+          value: values['proactive_enabled'] == true,
+          onChanged: (v) => setState(() => values['proactive_enabled'] = v),
+        ),
+        if (values['proactive_enabled'] == true) ...[
+          const Text('频率上限', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          RoundedChoiceField<String>(
+            initialValue: values['proactive_frequency'] as String? ?? 'normal',
+            choices: const {
+              'low': '偶尔 · 最多 1 条/天',
+              'normal': '适中 · 最多 3 条/天',
+              'high': '频繁 · 最多 6 条/天',
+            },
+            onChanged: (v) => setState(() => values['proactive_frequency'] = v),
+          ),
+          const SizedBox(height: 16),
+          const Text('免打扰时间', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              for (final pair in [
+                ('quiet_start', '开始', 22),
+                ('quiet_end', '结束', 8),
+              ])
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: RoundedChoiceField<int>(
+                      initialValue: values[pair.$1] as int? ?? pair.$3,
+                      label: pair.$2,
+                      choices: {
+                        for (var h = 0; h < 24; h++)
+                          h: '${h.toString().padLeft(2, '0')}:00',
+                      },
+                      onChanged: (v) => setState(() => values[pair.$1] = v),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '时区：${values['calendar_timezone'] ?? 'Asia/Shanghai'}；开始与结束相同表示全天可联系。',
+            style: const TextStyle(fontSize: 11, color: XinYuColors.muted),
+          ),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('通知显示消息内容'),
+            subtitle: const Text('关闭时只显示有新消息'),
+            value: values['notification_preview'] == true,
+            onChanged: (v) =>
+                setState(() => values['notification_preview'] = v),
+          ),
+          Wrap(
+            spacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final native = await widget.controller.notifications
+                      .call<Map>('status');
+                  if (native == null) {
+                    if (mounted) setState(() => notice = '后台系统通知目前支持安卓版。');
+                    return;
+                  }
+                  await widget.controller.notifications.call(
+                    'requestPermission',
+                  );
+                  if (mounted) setState(() => notice = '请在系统提示中允许通知，然后保存设置。');
+                },
+                icon: const Icon(Icons.notifications_none),
+                label: const Text('开启系统通知'),
+              ),
+              TextButton(
+                onPressed: () =>
+                    widget.controller.notifications.call('openSettings'),
+                child: const Text('系统通知设置'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  final supported = await widget.controller.notifications
+                      .call<Map>('status');
+                  final sent = await widget.controller.notifications.call<bool>(
+                    'test',
+                  );
+                  if (mounted) {
+                    setState(
+                      () => notice = supported == null
+                          ? '后台消息通知目前支持安卓版。'
+                          : sent == true
+                          ? '已发送测试通知，请查看通知栏。'
+                          : '请先允许通知；顶部横幅还需系统允许悬浮通知。',
+                    );
+                  }
+                },
+                child: const Text('测试通知'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '需开启在线模型、允许保存与模型调用，并将 Key 安全保存在设备上，才能在后台生成消息。每次主动联系会使用模型额度。\n安卓会按电量与网络情况安排检查，不保证准点；强行停止应用后需重新打开。红米手机请在系统中允许自启动、后台运行和悬浮通知。',
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.7,
+              color: XinYuColors.muted,
+            ),
+          ),
+        ],
+      ],
+    ),
+  ];
+
   List<Widget> _appearance() => [
     _SettingsGroup(
       title: '字号',
@@ -342,7 +623,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: const Color(0x65ffffff),
-            borderRadius: BorderRadius.circular(17),
+            borderRadius: XinYuShapes.fieldCorners,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,6 +646,19 @@ class _SettingsSheetState extends State<SettingsSheet> {
             ],
           ),
         ),
+      ],
+    ),
+    const SizedBox(height: 14),
+    _SettingsGroup(
+      title: '背景与头像',
+      icon: Icons.wallpaper_rounded,
+      subtitle: '从当前设备选择图片。保存后生效，背景和头像不会交给模型。',
+      children: [
+        _imageSetting('聊天背景', 'background_image', 'background', false),
+        const Divider(),
+        _imageSetting('我的头像', 'user_avatar', 'user_avatar', true),
+        const Divider(),
+        _imageSetting('TA 的头像', 'companion_avatar', 'companion_avatar', true),
       ],
     ),
   ];
@@ -398,7 +692,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
     const SizedBox(height: 14),
     _SettingsGroup(
       title: '相处风格',
-      subtitle: '选一种感觉，也可以写下自己的期待。',
+      subtitle: '自定义时只使用你写下的角色资料，不混入预设性格。',
       icon: Icons.auto_awesome_outlined,
       children: [
         LayoutBuilder(
@@ -432,9 +726,9 @@ class _SettingsSheetState extends State<SettingsSheet> {
             maxLines: 5,
             maxLength: 6000,
             decoration: const InputDecoration(
-              labelText: '自定义相处风格',
+              labelText: '自定义角色与相处风格',
               alignLabelWithHint: true,
-              hintText: '比如：坦诚、有主见，开心时可以一起胡闹。',
+              hintText: '写下 TA 的身份、性格与相处方式，例如温柔顺从，或直率爱辩论。',
             ),
             validator: (v) =>
                 v == null || v.trim().isEmpty ? '请描述希望的相处风格' : null,
@@ -444,15 +738,34 @@ class _SettingsSheetState extends State<SettingsSheet> {
     ),
     const SizedBox(height: 14),
     _SettingsGroup(
-      title: '相处偏好',
+      title: '我的人物资料',
+      icon: Icons.person_outline_rounded,
+      subtitle: '你的身份、背景和偏好；与 TA 的资料分别保存。',
+      children: [
+        TextFormField(
+          controller: userProfile,
+          key: const Key('user-profile'),
+          maxLines: 4,
+          maxLength: 6000,
+          decoration: const InputDecoration(
+            labelText: '我是谁',
+            alignLabelWithHint: true,
+            hintText: '写下希望在这段对话中使用的身份、性格和背景。',
+          ),
+        ),
+      ],
+    ),
+    const SizedBox(height: 14),
+    _SettingsGroup(
+      title: '角色资料与相处偏好',
       icon: Icons.favorite_outline_rounded,
       children: [
         TextFormField(
           controller: notes,
           decoration: const InputDecoration(
-            labelText: '想让 TA 了解的相处偏好',
+            labelText: '补充角色资料与相处偏好',
             alignLabelWithHint: true,
-            hintText: '喜欢的称呼、聊天习惯，或希望被尊重的边界。',
+            hintText: 'TA 是怎样的人、喜欢的称呼、聊天习惯，或希望被尊重的边界。',
           ),
           maxLines: 3,
           maxLength: 1000,
@@ -563,6 +876,22 @@ class _SettingsSheetState extends State<SettingsSheet> {
             onTap: () => setState(() => values['model_mode'] = 'api'),
           ),
           if (values['model_mode'] == 'api') ...[
+            const SizedBox(height: 14),
+            RoundedChoiceField<String>(
+              initialValue: values['vision'] as String? ?? 'auto',
+              label: '聊天图片识别',
+              choices: const {
+                'auto': '自动（DeepSeek Flash）',
+                'enabled': '启用（模型须支持图片）',
+                'disabled': '关闭',
+              },
+              onChanged: (value) => setState(() => values['vision'] = value),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '发送的聊天图片及必要的近期图片会交给所选模型。离线模式不支持识图。',
+              style: TextStyle(fontSize: 12, color: XinYuColors.muted),
+            ),
             const SizedBox(height: 20),
             TextFormField(
               controller: model,
@@ -646,7 +975,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
         _SettingsGroup(
           title: '备份与恢复',
           icon: Icons.inventory_2_outlined,
-          subtitle: '导出完整聊天与记忆。恢复支持本应用的备份，最多 64 MB。',
+          subtitle: '导出聊天、记忆和图片。恢复支持本应用的备份，最多 64 MB。',
           children: [
             Wrap(
               spacing: 8,
@@ -693,12 +1022,12 @@ class _SettingsTab extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: XinYuShapes.pillCorners,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: XinYuShapes.pillCorners,
             gradient: selected
                 ? const LinearGradient(
                     begin: Alignment.topLeft,
@@ -763,7 +1092,7 @@ class _SettingsGroup extends StatelessWidget {
     width: double.infinity,
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(23),
+      borderRadius: XinYuShapes.cardCorners,
       gradient: const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
@@ -853,12 +1182,12 @@ class _ChoiceCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(17),
+          borderRadius: XinYuShapes.cardCorners,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 160),
             padding: const EdgeInsets.all(13),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(17),
+              borderRadius: XinYuShapes.cardCorners,
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,

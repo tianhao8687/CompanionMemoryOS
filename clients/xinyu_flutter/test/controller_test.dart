@@ -5,14 +5,18 @@ import 'package:xinyu_flutter/state/companion_controller.dart';
 
 class RetryRepository extends DemoRepository {
   final requests = <String>[];
+  final attachments = <List<String>>[];
   bool failAfterResult = false;
   @override
   Stream<Map<String, dynamic>> send(
     String conversation,
     String request,
-    String text,
-  ) async* {
+    String text, {
+    List<String> imageIds = const [],
+    String? quoteId,
+  }) async* {
     requests.add(request);
+    attachments.add(List.of(imageIds));
     if (requests.length == 1 && !failAfterResult) {
       yield {'type': 'delta', 'text': '未完成'};
       throw const CompanionException('连接断开');
@@ -20,7 +24,12 @@ class RetryRepository extends DemoRepository {
     yield {
       'type': 'result',
       'result': {
-        'user': {'id': 'saved-user', 'content': text, 'role': 'user'},
+        'user': {
+          'id': 'saved-user',
+          'content': text,
+          'role': 'user',
+          'image_ids': imageIds,
+        },
         'assistant': {
           'id': 'saved-reply',
           'content': '已完成的回复',
@@ -33,6 +42,25 @@ class RetryRepository extends DemoRepository {
 }
 
 void main() {
+  test('First image-only message keeps its attachment through conversation creation and retry', () async {
+    final repo = RetryRepository();
+    final controller = CompanionController(repository: repo);
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    controller.active = null;
+    controller.pendingImages.add('synthetic-image');
+    await controller.send('');
+    expect(controller.canRetry, isTrue);
+    expect(controller.messages.single.imageIds, ['synthetic-image']);
+    await controller.retry();
+    expect(repo.requests[0], repo.requests[1]);
+    expect(repo.attachments, [
+      ['synthetic-image'],
+      ['synthetic-image'],
+    ]);
+    expect(controller.messages.first.imageIds, ['synthetic-image']);
+    expect(controller.outgoingRevision, 2);
+  });
   test('Retry reuses request id, discards partial answer and replaces optimistic row', () async {
     final repo = RetryRepository();
     final controller = CompanionController(repository: repo);

@@ -223,6 +223,18 @@ class Continuity:
         if prior and max(prior) >= last_user:
             return
         for row in reversed(self.events()):
+            # Journal entries share this ledger but use Outreach's bounded call,
+            # cadence and source revalidation, or a model-free local reminder.
+            with host.database.connection() as db:
+                if (
+                    db.execute(
+                        "SELECT 1 FROM sqlite_master WHERE name='journal_event_details'"
+                    ).fetchone()
+                    and db.execute(
+                        "SELECT 1 FROM journal_event_details WHERE id=?", (row["id"],)
+                    ).fetchone()
+                ):
+                    continue
             if row["status"] != "scheduled" or datetime.fromisoformat(row["due_at"]) > now:
                 continue
             source = host.memory.store.get_turn(row["source_turn"], user)

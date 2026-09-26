@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 
-import '../data/models.dart';
 import '../state/companion_controller.dart';
 import 'glass.dart';
+import 'journal_sheet.dart';
 
 Future<void> showMemories(
   BuildContext context,
   CompanionController controller,
-) => showDialog<void>(
-  context: context,
-  builder: (_) => MemorySheet(controller: controller),
-);
+) => controller.hasJournal
+    ? showJournal(context, controller)
+    : showDialog<void>(
+        context: context,
+        builder: (_) => MemorySheet(controller: controller),
+      );
 
 class MemorySheet extends StatefulWidget {
   const MemorySheet({super.key, required this.controller});
@@ -49,7 +51,7 @@ class _MemorySheetState extends State<MemorySheet> {
     } catch (e) {
       if (mounted) {
         setState(
-          () => error = e is CompanionException ? e.message : '记忆暂时无法读取，请稍后重试。',
+          () => error = widget.controller.reportFailure(e, title: '记忆暂时无法读取'),
         );
       }
     } finally {
@@ -114,7 +116,7 @@ class _MemorySheetState extends State<MemorySheet> {
     } catch (e) {
       if (mounted) {
         setState(
-          () => error = e is CompanionException ? e.message : '修改未完成，请稍后重试。',
+          () => error = widget.controller.reportFailure(e, title: '记忆修改未完成'),
         );
       }
     } finally {
@@ -136,7 +138,7 @@ class _MemorySheetState extends State<MemorySheet> {
         ),
         child: BackdropGroup(
           child: GlassSurface(
-            radius: 28,
+            radius: XinYuShapes.panelRadius,
             blur: 28,
             tint: const Color(0xd4faf9f5),
             padding: const EdgeInsets.all(22),

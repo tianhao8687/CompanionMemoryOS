@@ -128,8 +128,7 @@ def test_custom_style_does_not_inherit_default_character_kernel_or_response_tone
     assert "所有闲聊都讲解棋谱" not in context and "最讨厌散步" not in context
     assert "说话必须咄咄逼人" not in context and "每次都宣讲一遍个人原则" not in context
     for rule in original().invariants:
-        if rule.severity == "hard":
-            assert rule.description in context
+        assert rule.description not in context
     assert "不能假装已有共同经历" in context
 
 

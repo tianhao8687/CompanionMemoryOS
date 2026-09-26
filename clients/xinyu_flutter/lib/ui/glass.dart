@@ -15,13 +15,77 @@ abstract final class XinYuColors {
   static const peach = Color(0xffe8b99f);
 }
 
+abstract final class XinYuShapes {
+  static const panelRadius = 32.0;
+  static const cardRadius = 28.0;
+  static const fieldRadius = 24.0;
+  static const panelCorners = BorderRadius.all(Radius.circular(panelRadius));
+  static const cardCorners = BorderRadius.all(Radius.circular(cardRadius));
+  static const fieldCorners = BorderRadius.all(Radius.circular(fieldRadius));
+  static const pillCorners = BorderRadius.all(Radius.circular(999));
+  static const panel = RoundedRectangleBorder(borderRadius: panelCorners);
+  static const card = RoundedRectangleBorder(borderRadius: cardCorners);
+  static const field = RoundedRectangleBorder(borderRadius: fieldCorners);
+  static const pill = StadiumBorder();
+}
+
+/// Share rounded selection, hover and keyboard-focus surfaces in every menu.
+class RoundedChoiceField<T> extends StatelessWidget {
+  const RoundedChoiceField({
+    super.key,
+    required this.initialValue,
+    required this.choices,
+    required this.onChanged,
+    this.label,
+  });
+  final T initialValue;
+  final Map<T, String> choices;
+  final ValueChanged<T?>? onChanged;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) => DropdownMenuFormField<T>(
+    initialSelection: initialValue,
+    enabled: onChanged != null,
+    onSelected: onChanged,
+    selectOnly: true,
+    expandedInsets: EdgeInsets.zero,
+    menuHeight: 320,
+    maxLines: 2,
+    label: label == null ? null : Text(label!),
+    textStyle: Theme.of(context).textTheme.bodyMedium
+        ?.copyWith(fontSize: 13, color: XinYuColors.ink),
+    menuStyle: const MenuStyle(
+      shape: WidgetStatePropertyAll(XinYuShapes.card),
+      padding: WidgetStatePropertyAll(EdgeInsets.all(8)),
+    ),
+    dropdownMenuEntries: [
+      for (final entry in choices.entries)
+        DropdownMenuEntry<T>(
+          value: entry.key,
+          label: entry.value,
+          labelWidget: Text(entry.value),
+          style: ButtonStyle(
+            shape: const WidgetStatePropertyAll(XinYuShapes.pill),
+            padding: const WidgetStatePropertyAll(
+              EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+            backgroundColor: entry.key == initialValue
+                ? const WidgetStatePropertyAll(Color(0x286d9d85))
+                : null,
+          ),
+        ),
+    ],
+  );
+}
+
 /// Only non-overlapping surfaces share the inherited BackdropKey. Sheets and
 /// drawers establish their own group; no nested blur is added for their fields.
 class GlassSurface extends StatelessWidget {
   const GlassSurface({
     super.key,
     required this.child,
-    this.radius = 26,
+    this.radius = XinYuShapes.panelRadius,
     this.padding = EdgeInsets.zero,
     this.tint = const Color(0x28ffffff),
     this.blur = 24,

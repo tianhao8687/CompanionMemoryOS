@@ -177,8 +177,9 @@ def test_custom_style_validates_blank_and_supports_complete_prompt(tmp_path: Pat
     assert response.status_code == 200, response.text
 
 
+@pytest.mark.parametrize("style", ["gentle", "custom"])
 def test_settings_reload_persona_without_losing_session_key_or_history(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, style: str
 ) -> None:
     import yaml
 
@@ -187,22 +188,22 @@ def test_settings_reload_persona_without_losing_session_key_or_history(
     persona_path = tmp_path / "persona.yaml"
     definition = load_persona().model_dump(mode="json")
     definition["invariants"].append(
-        {"id": "reload_probe", "severity": "soft", "description": "喜欢用灯塔作比喻"}
+        {"id": "reload_probe", "severity": "hard", "description": "数字来源需要可以核对"}
     )
     persona_path.write_text(yaml.safe_dump(definition, allow_unicode=True), encoding="utf-8")
     monkeypatch.setattr(romance, "load_persona", lambda: load_persona(persona_path))
     model = RecordingLLM()
     client = client_for(tmp_path / "data", model)
-    settings = configure(client, style="custom", custom_style="温暖，喜欢听对方说话。")
+    settings = configure(client, style=style, custom_style="温暖，喜欢听对方说话。")
     secret = "sk-synthetic-persona-reload-test"
     saved = client.put("/api/settings", json={"settings": settings, "api_key": secret})
     assert saved.status_code == 200 and saved.json()["key_source"] == "session"
     payload = message(client, "晚上好", "before-reload")
     before = client.post("/api/chat", json=payload)
     assert before.status_code == 200, before.text
-    assert "喜欢用灯塔作比喻" in model.inputs[-1][0].content
+    assert ("数字来源需要可以核对" in model.inputs[-1][0].content) == (style != "custom")
 
-    definition["invariants"][-1]["description"] = "喜欢用星图作比喻"
+    definition["invariants"][-1]["description"] = "时间来源需要可以核对"
     persona_path.write_text(yaml.safe_dump(definition, allow_unicode=True), encoding="utf-8")
     # Saving unchanged public settings reloads the source without sending another key.
     reloaded = client.put("/api/settings", json={"settings": settings})
@@ -214,16 +215,18 @@ def test_settings_reload_persona_without_losing_session_key_or_history(
     )
     assert after.status_code == 200, after.text
     context = model.inputs[-1][0].content
-    assert "喜欢用星图作比喻" in context and "喜欢用灯塔作比喻" not in context
+    assert ("时间来源需要可以核对" in context) == (style != "custom")
+    assert "数字来源需要可以核对" not in context
     for invariant in definition["invariants"]:
-        assert f"{invariant['severity']}/{invariant['id']}" in context
+        included = style != "custom"
+        assert (f"{invariant['severity']}/{invariant['id']}" in context) == included
     reply_ids = {result.json()["assistant"]["id"] for result in (before, after)}
     versions = {
         turn.metadata["persona_version"]
         for turn in host.memory.list_turns(LOCAL_USER)
         if turn.id in reply_ids
     }
-    assert len(versions) == 2
+    assert len(versions) == (1 if style == "custom" else 2)
     history = client.get(f"/api/conversations/{payload['conversation_id']}/messages").json()
     assert len(history["messages"]) == 4
     assert secret not in reloaded.text and secret not in client.get("/api/bootstrap").text

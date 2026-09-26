@@ -23,18 +23,25 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from companion_agent import chat_search
 from companion_agent.automation.hub import ToolHub
 from companion_agent.automation.loop import AgentLoop, RunContext
 from companion_agent.automation.models import AutomationConfig, ScheduleInput
 from companion_agent.channels import ChannelConfig, Channels, IncomingMessage
+from companion_agent.chat_experience import ChatExperience
+from companion_agent.chat_experience import install_routes as install_chat_experience_routes
 from companion_agent.cognition import ApplicationMemory
 from companion_agent.context import ChatMessage
 from companion_agent.continuity import Continuity
 from companion_agent.credentials import CredentialStore, CredentialStoreError
 from companion_agent.deepseek import DeepSeekConfig, DeepSeekLLM
 from companion_agent.directives import directive_recall
+from companion_agent.images import MAX_IMAGE_BYTES, ImageAwareModel, ImagePurpose, ImageStore
+from companion_agent.journal import Journal, JournalError
+from companion_agent.journal import install_routes as install_journal_routes
 from companion_agent.llm import MainLLM, MainLLMError
 from companion_agent.offline import OfflineModel
+from companion_agent.outreach import Outreach
 from companion_agent.persona.models import PersonaModel
 from companion_agent.relationship import RelationshipKey
 from companion_agent.romance import (
@@ -45,6 +52,7 @@ from companion_agent.romance import (
 )
 from companion_agent.runtime import CompanionAgent
 from companion_agent.semantics import RelationshipIdentityType
+from companion_agent.stickers import MAX_STICKER_BYTES, StickerModel, StickerStore
 from companion_memoryos.config import load_config
 from companion_memoryos.database import Database
 from companion_memoryos.schemas import (
@@ -95,7 +103,11 @@ def problem(status: int, code: str, message: str) -> HTTPException:
 class ChatInput(PersonaModel):
     conversation_id: str = Field(min_length=1, max_length=128)
     request_id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
-    content: str = Field(min_length=1, max_length=6000)
+    content: str = Field(default="", max_length=6000)
+    quote_id: str | None = Field(default=None, min_length=1, max_length=240)
+    image_ids: list[Annotated[str, Field(pattern=r"^[a-f0-9]{32}$")]] = Field(
+        default_factory=list, max_length=4
+    )
 
 
 class MemoryEdit(PersonaModel):
@@ -158,6 +170,8 @@ class RomanceHost:
         if testing:
             self.memory.on_memory_changed = testing.invalidate
         self.database = database
+        self.images = ImageStore(database, self.memory.store, LOCAL_USER)
+        self.memory.store.repair_empty_redactions(LOCAL_USER)
         self.lock = RLock()
         self.session = secrets.token_urlsafe(32)
         self.api_key: str | None = None
@@ -203,10 +217,26 @@ class RomanceHost:
             self.key_persisted = self.api_key is not None
         except CredentialStoreError:
             self.credential_store_error = True
+        self.chat_experience = ChatExperience(self)
+        self.images.prune_drafts(
+            {
+                image_id
+                for image_id in (
+                    self.settings.background_image,
+                    self.settings.user_avatar,
+                    self.settings.companion_avatar,
+                )
+                if image_id
+            }
+            | self.chat_experience.protected_images()
+        )
         self.tools = ToolHub(database)
         self.tools.available = lambda: self.settings.storage_consent
+        self.stickers = StickerStore(database)
         self.agent = self.make_agent(self.settings, self.api_key)
         self.continuity = Continuity(self)
+        self.journal = Journal(self)
+        self.outreach = Outreach(self)
         self.memory.on_user_turn = self.continuity.observe
         self.channels = Channels(self)
         self.tools.scheduler.on_tick = self.continuity.tick
@@ -263,7 +293,11 @@ class RomanceHost:
         return CompanionAgent(
             self.memory,
             romantic_persona(settings),
-            self.loop,
+            StickerModel(
+                ImageAwareModel(self.loop, self.images, settings.vision_ready),
+                self.stickers,
+                settings.stickers_enabled,
+            ),
             application_rules=romantic_rules(settings),
             max_persona_tokens=1600,
             context_variant=self.testing.marker.get("variant", "full") if self.testing else "full",
@@ -294,6 +328,12 @@ class RomanceHost:
         return {
             "settings": self.settings.model_dump(mode="json"),
             "model_ready": self.credentials_ready(),
+            "vision_ready": self.settings.vision_ready,
+            "chat_features": True,
+            "journal_features": True,
+            "chat_experience": True,
+            "last_conversation": self.chat_experience.last_conversation(),
+            "journal_background": self.outreach.background_enabled(),
             "key_configured": bool(
                 self.injected_llm or self.resolved_key(self.settings, self.api_key)
             ),
@@ -307,12 +347,16 @@ class RomanceHost:
             else ("environment" if self.resolved_key(self.settings, self.api_key) else "missing"),
         }
 
-    def conversations(self) -> list[dict[str, str]]:
+    def conversations(self) -> list[dict[str, Any]]:
         with self.database.connection() as connection:
             rows = connection.execute(
                 "SELECT * FROM romance_conversations ORDER BY updated_at DESC, rowid DESC"
             ).fetchall()
-        return [dict(row) for row in rows]
+        counts: dict[str, int] = {}
+        for turn in self.outreach.unread():
+            cid = turn.scope.conversation_id or ""
+            counts[cid] = counts.get(cid, 0) + 1
+        return [dict(row, unread=counts.get(row["id"], 0)) for row in rows]
 
     def new_conversation(self) -> dict[str, str]:
         now = datetime.now(UTC).isoformat()
@@ -340,6 +384,14 @@ class RomanceHost:
 
     def save_settings(self, update: SettingsUpdate) -> dict[str, Any]:
         with self.exclusive():
+            for field, purpose in (
+                ("background_image", "background"),
+                ("user_avatar", "user_avatar"),
+                ("companion_avatar", "companion_avatar"),
+            ):
+                image_id = getattr(update.settings, field)
+                if image_id:
+                    self.images.require(image_id, purpose)
             before = self.settings
             proposed_key = None if update.clear_api_key else self.api_key
             if update.api_key is not None:
@@ -398,10 +450,28 @@ class RomanceHost:
                         + datetime.now(UTC).isoformat(),
                     )
             self.settings = update.settings.model_copy(deep=True)
+            if not self.settings.storage_consent:
+                self.chat_experience.clear_private_ui()
             self.api_key = proposed_key
             self.key_persisted = bool(remember and proposed_key)
             self.credential_store_error = False
             self.agent = candidate
+            protected = {
+                image_id
+                for image_id in (
+                    self.settings.background_image,
+                    self.settings.user_avatar,
+                    self.settings.companion_avatar,
+                )
+                if image_id
+            }
+            for previous_image in (
+                before.background_image,
+                before.user_avatar,
+                before.companion_avatar,
+            ):
+                if previous_image and previous_image not in protected:
+                    self.images.discard(previous_image, protected)
             return self.public_settings()
 
     def chat(self, item: ChatInput) -> dict[str, Any]:
@@ -416,12 +486,30 @@ class RomanceHost:
     def _chat(self, item: ChatInput) -> dict[str, Any]:
         with self.exclusive():
             scope = self.scope(item.conversation_id)
-            if not item.content.strip():
+            if not item.content.strip() and not item.image_ids:
                 raise problem(422, "empty_message", "请输入消息。")
             if not self.settings.storage_consent or not self.settings.model_consent:
                 raise problem(403, "consent_required", "请先在设置中确认本地保存与模型调用授权。")
             if not self.credentials_ready():
                 raise MainLLMError("main_llm_api_key_missing")
+            if item.quote_id:
+                self.journal.require_turn(item.quote_id, item.conversation_id, for_model=True)
+            with self.database.connection() as db:
+                previous = db.execute(
+                    "SELECT reply_to_turn_id FROM conversation_turns WHERE user_id=? "
+                    "AND conversation_id=? AND idempotency_key=? AND role='user'",
+                    (LOCAL_USER, item.conversation_id, item.request_id),
+                ).fetchone()
+                if previous is not None and previous[0] != item.quote_id:
+                    raise problem(409, "quote_changed", "重试时引用的消息必须与原消息一致。")
+            if item.image_ids and not self.settings.vision_ready:
+                raise problem(
+                    422,
+                    "vision_unavailable",
+                    "请在连接设置中启用支持图片的在线模型；离线模式不能识图。",
+                )
+            self.images.bind(item.conversation_id, item.request_id, item.image_ids)
+            item = item.model_copy(update={"content": item.content.strip() or "[图片]"})
             with self.database.connection() as db:
                 checkpoint = db.execute(
                     "SELECT c.state FROM agent_checkpoints c JOIN conversation_turns t "
@@ -440,6 +528,7 @@ class RomanceHost:
                         user_id=LOCAL_USER,
                         scope=scope,
                         content=item.content,
+                        reply_to_turn_id=item.quote_id,
                         idempotency_key=item.request_id,
                         consent=ConsentState.GRANTED,
                         model_consent=ConsentState.GRANTED,
@@ -461,8 +550,8 @@ class RomanceHost:
                     ),
                 )
             return {
-                "user": public_turn(source),
-                "assistant": public_turn(result.turn),
+                "user": self.public_turn(source),
+                "assistant": self.public_turn(result.turn),
                 "reused": result.reused,
                 "execution": {
                     "steps": run.steps,
@@ -470,6 +559,16 @@ class RomanceHost:
                     "status": run.status,
                 },
             }
+
+    def public_turn(self, turn: ConversationTurnRecord) -> dict[str, Any]:
+        return {
+            **public_turn(turn),
+            "image_ids": self.images.ids(turn),
+            "sticker": self.stickers.describe(turn.metadata.get("sticker_id")),
+            "quote": self.journal.quote(turn),
+            "notice": bool(turn.metadata.get("journal_reminder")),
+            "bookmarked": self.chat_experience.contains(turn.id),
+        }
 
     def save_checkpoint(self, run: RunContext, source: str) -> None:
         if run.pending_action:
@@ -592,7 +691,7 @@ class RomanceHost:
                         (action_id,),
                     )
                 return {
-                    "assistant": public_turn(result.turn),
+                    "assistant": self.public_turn(result.turn),
                     "reused": result.reused,
                     "execution": {
                         "status": run.status,
@@ -716,6 +815,12 @@ def create_app(
                 )
             # Limit the actual body, including requests without Content-Length.
             limit = MAX_BODY_BYTES
+            if request.url.path == "/api/settings":
+                limit = 131_072
+            if request.url.path == "/api/images":
+                limit = MAX_IMAGE_BYTES
+            if request.url.path == "/api/stickers":
+                limit = MAX_STICKER_BYTES
             if client_token is not None and request.url.path == "/api/local/restore":
                 from companion_agent.local_data import MAX_BACKUP_BYTES
 
@@ -740,6 +845,9 @@ def create_app(
         cookie = f"{COOKIE}_{request.url.port or 80}"
         if not secrets.compare_digest(request.cookies.get(cookie, ""), host.session):
             raise problem(401, "session_expired", "本地会话已失效，请刷新页面。")
+
+    install_journal_routes(app, host, authorized)
+    install_chat_experience_routes(app, host, authorized)
 
     @app.exception_handler(RequestValidationError)
     async def invalid_input(request: Request, error: RequestValidationError) -> JSONResponse:
@@ -798,6 +906,108 @@ def create_app(
     def settings(update: SettingsUpdate) -> dict[str, Any]:
         return host.save_settings(update)
 
+    @app.get("/api/search", dependencies=[Depends(authorized)])
+    def search_chats(
+        query: str = Query(min_length=1, max_length=100),
+        conversation_id: str | None = None,
+        before: int | None = Query(default=None, ge=1),
+        limit: int = Query(default=30, ge=1, le=50),
+    ) -> dict[str, Any]:
+        with host.lock:
+            return chat_search.search(host, query, conversation_id, before, limit)
+
+    @app.get("/api/updates", dependencies=[Depends(authorized)])
+    def updates() -> dict[str, Any]:
+        with host.lock:
+            host.journal.tick_reminders()
+            return {
+                "conversations": host.conversations(),
+                "outreach": host.outreach.state(),
+                "proactive_enabled": host.outreach.enabled(),
+                "background_enabled": host.outreach.background_enabled(),
+                "notification_conversations": list(
+                    {t.scope.conversation_id for t in host.outreach.unread()}
+                ),
+            }
+
+    @app.post("/api/conversations/{conversation_id}/read", dependencies=[Depends(authorized)])
+    def mark_read(conversation_id: str, through: int = Query(ge=0)) -> dict[str, bool]:
+        with host.lock:
+            host.outreach.unread()
+            host.outreach.read(conversation_id, through)
+        return {"ok": True}
+
+    @app.get(
+        "/api/conversations/{conversation_id}/context/{identifier}",
+        dependencies=[Depends(authorized)],
+    )
+    def search_context(conversation_id: str, identifier: str) -> dict[str, Any]:
+        with host.lock:
+            return chat_search.context(host, conversation_id, identifier)
+
+    @app.get("/api/stickers", dependencies=[Depends(authorized)])
+    def stickers() -> dict[str, Any]:
+        with host.lock:
+            return {"stickers": host.stickers.catalog()}
+
+    @app.post("/api/stickers", dependencies=[Depends(authorized)])
+    async def upload_sticker(request: Request, label: str = Query(max_length=32)) -> dict[str, str]:
+        content = await request.body()
+        with host.exclusive():
+            try:
+                return host.stickers.upload(content, label)
+            except ValueError as error:
+                raise problem(422, "invalid_sticker", str(error)) from None
+
+    @app.get("/api/stickers/{identifier}/content", dependencies=[Depends(authorized)])
+    def sticker_content(identifier: str) -> Response:
+        with host.lock:
+            try:
+                content, mime = host.stickers.read(identifier)
+                return Response(content, media_type=mime)
+            except KeyError:
+                raise problem(404, "sticker_missing", "表情包已删除。") from None
+
+    @app.delete("/api/stickers/{identifier}", dependencies=[Depends(authorized)])
+    def delete_sticker(identifier: str) -> dict[str, bool]:
+        with host.exclusive():
+            host.stickers.delete(identifier)
+        return {"ok": True}
+
+    @app.post("/api/images", dependencies=[Depends(authorized)])
+    async def upload_image(request: Request, purpose: ImagePurpose) -> dict[str, Any]:
+        content = await request.body()
+        with host.exclusive():
+            if purpose == "chat" and not host.settings.storage_consent:
+                raise problem(403, "consent_required", "请先允许本地保存聊天。")
+            try:
+                return host.images.upload(purpose, content)
+            except ValueError as error:
+                raise problem(422, "invalid_image", str(error)) from None
+
+    @app.get("/api/images/{image_id}", dependencies=[Depends(authorized)])
+    def get_image(image_id: str) -> Response:
+        with host.lock:
+            try:
+                return Response(host.images.read(image_id), media_type="image/png")
+            except ValueError:
+                raise problem(404, "image_missing", "图片不可用。") from None
+
+    @app.delete("/api/images/{image_id}", dependencies=[Depends(authorized)])
+    def discard_image(image_id: str) -> dict[str, bool]:
+        with host.exclusive():
+            protected = {
+                value
+                for value in (
+                    host.settings.background_image,
+                    host.settings.user_avatar,
+                    host.settings.companion_avatar,
+                )
+                if value
+            }
+            host.images.discard(image_id, protected)
+            return {"deleted": True}
+
     @app.post("/api/connection", dependencies=[Depends(authorized)])
     def check_connection() -> dict[str, str]:
         with host.exclusive():
@@ -835,7 +1045,7 @@ def create_app(
             ]
             page = turns[:limit]
             return {
-                "messages": [public_turn(turn) for turn in reversed(page)],
+                "messages": [host.public_turn(turn) for turn in reversed(page)],
                 "has_more": len(turns) > limit,
             }
 
@@ -863,6 +1073,8 @@ def create_app(
                 queue.put(
                     {"type": "error", "message": MODEL_ERRORS.get(str(error), "模型暂未完成回复。")}
                 )
+            except JournalError as error:
+                queue.put({"type": "error", "message": str(error)})
             except HTTPException as error:
                 detail = error.detail
                 queue.put(
@@ -928,6 +1140,8 @@ def create_app(
             if not host.settings.storage_consent:
                 raise problem(403, "consent_required", "请先允许本地保存。")
             record = host.memory.store.get(memory_id, LOCAL_USER)
+            if record.metadata.get("journal_moment"):
+                host.journal.require_memory(memory_id)
             conversation_id = item.conversation_id or host.conversations()[0]["id"]
             source_scope = host.scope(conversation_id)
             with host.database.atomic():
@@ -941,6 +1155,9 @@ def create_app(
                         consent=ConsentState.GRANTED,
                         idempotency_key="memory_edit:" + item.request_id,
                         source_ref="memory:manual_correction",
+                        metadata={"reality_layer": record.reality_layer.value}
+                        if record.metadata.get("journal_moment")
+                        else {},
                     )
                 ).turn
                 assert source is not None
@@ -957,7 +1174,18 @@ def create_app(
                         user_id=LOCAL_USER,
                         content=item.content,
                         consent=ConsentState.GRANTED,
-                        evidence_turn_ids=[source.id],
+                        evidence_turn_ids=list(
+                            dict.fromkeys(
+                                [
+                                    source.id,
+                                    *(
+                                        record.evidence_turn_ids
+                                        if record.metadata.get("journal_moment")
+                                        else []
+                                    ),
+                                ]
+                            )
+                        ),
                         source_excerpt=item.content,
                     ),
                 )
@@ -966,7 +1194,14 @@ def create_app(
     @app.put("/api/events/{event_id}", dependencies=[Depends(authorized)])
     def update_event(event_id: str, item: EventUpdate) -> dict[str, bool]:
         with host.exclusive():
-            host.continuity.change(event_id, item.status, due=item.due_at)
+            with host.database.connection() as db:
+                manual = db.execute(
+                    "SELECT 1 FROM journal_event_details WHERE id=?", (event_id,)
+                ).fetchone()
+            if item.status in {"cancelled", "resolved"} and manual:
+                host.journal.close_event(event_id, item.status)
+            else:
+                host.continuity.change(event_id, item.status, due=item.due_at)
         return {"saved": True}
 
     @app.get("/api/channels", dependencies=[Depends(authorized)])

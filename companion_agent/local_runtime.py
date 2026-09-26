@@ -14,6 +14,7 @@ import secrets
 import socket
 import sys
 import time
+from contextlib import suppress
 from pathlib import Path
 from threading import Lock, Thread
 from typing import Any, BinaryIO
@@ -158,6 +159,33 @@ def stop_embedded() -> None:
         if _embedded is not None:
             _embedded.stop()
             _embedded = None
+
+
+def embedded_outreach_tick() -> str:
+    """Android's shared executor owns the runtime for the entire background job."""
+    with _embedded_lock:
+        if _embedded is None:
+            return json.dumps({"enabled": False, "notifications": [], "valid": []})
+        host = _embedded.app.state.host
+        with suppress(Exception):
+            host.journal.tick_reminders()
+            host.outreach.tick()
+        with host.lock:
+            return json.dumps(
+                {
+                    "enabled": host.outreach.background_enabled(),
+                    "notifications": host.outreach.notifications(),
+                    "valid": list({t.scope.conversation_id for t in host.outreach.unread()}),
+                }
+            )
+
+
+def embedded_notifications_delivered(identifiers_json: str) -> None:
+    with _embedded_lock:
+        if _embedded is not None:
+            host = _embedded.app.state.host
+            with host.lock:
+                host.outreach.delivered(json.loads(identifiers_json))
 
 
 def main() -> None:

@@ -3,6 +3,13 @@
 Use Python 3.12+. On Windows this checkout uses `.venv/Scripts/python.exe`.
 Read `docs/CHAT_QUALITY_TESTING.md` before application acceptance work.
 
+## Review before GitHub upload
+
+Complete applicable local checks and tests, then show the user the concrete results.
+Wait for the user's explicit approval before pushing changes to GitHub, uploading
+new GitHub artifacts, or dispatching another GitHub Actions packaging run.
+Keep installer packaging manual-only; do not enable automatic packaging on push.
+
 ## Checks
 
 ```powershell

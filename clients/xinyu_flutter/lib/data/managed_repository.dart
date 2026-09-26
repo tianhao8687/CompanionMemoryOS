@@ -1,10 +1,11 @@
+import 'dart:typed_data';
 import 'dart:async';
 
 import 'local_repository.dart';
 import 'models.dart';
 import 'native_runtime.dart';
 
-class ManagedRepository implements CompanionRepository {
+class ManagedRepository extends CompanionRepository {
   ManagedRepository({NativeRuntime? runtime})
     : runtime = runtime ?? NativeRuntime();
   final NativeRuntime runtime;
@@ -45,8 +46,16 @@ class ManagedRepository implements CompanionRepository {
   Stream<Map<String, dynamic>> send(
     String conversation,
     String request,
-    String text,
-  ) => connection.send(conversation, request, text);
+    String text, {
+    List<String> imageIds = const [],
+    String? quoteId,
+  }) => connection.send(
+    conversation,
+    request,
+    text,
+    imageIds: imageIds,
+    quoteId: quoteId,
+  );
   @override
   Future<Map<String, dynamic>> saveSettings(
     Map<String, dynamic> settings, {
@@ -59,6 +68,25 @@ class ManagedRepository implements CompanionRepository {
     rememberKey: rememberKey,
     clearKey: clearKey,
   );
+  @override
+  Future<String> uploadImage(Uint8List bytes, String purpose) =>
+      connection.uploadImage(bytes, purpose);
+  @override
+  Future<Uint8List> image(String id) => connection.image(id);
+  @override
+  Future<void> discardImage(String id) => connection.discardImage(id);
+  @override
+  Future<Map<String, dynamic>> readChatState(String conversation) =>
+      connection.readChatState(conversation);
+  @override
+  Future<void> saveChatState(String conversation, Map<String, dynamic> state) =>
+      connection.saveChatState(conversation, state);
+  @override
+  Future<void> bookmark(List<String> ids, bool saved) =>
+      connection.bookmark(ids, saved);
+  @override
+  Future<Map<String, dynamic>> bookmarks({int offset = 0}) =>
+      connection.bookmarks(offset: offset);
   @override
   void close() {
     _closed = true;
