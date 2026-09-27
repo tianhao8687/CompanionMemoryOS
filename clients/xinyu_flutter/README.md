@@ -4,6 +4,9 @@ Flutter 玻璃界面 + 原有 Python 记忆引擎。电脑和手机各自保存�
 不互通，不依赖电脑给手机提供服务，也不需要租服务器。当前源码和实际产物状态见
 [本地版交付记录](../../docs/LOCAL_APP_DELIVERY.md)；源码接入不等于安装包已经验收。
 
+最新测试版：[心隅 0.2.9 Windows / Android](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.9)。
+Windows 安装、覆盖更新、数据保留与桌面检查见 [交付记录](../../docs/WINDOWS_029_DELIVERY.md)。
+
 旧 Android `0.2.0+2` APK 已确认存在启动缺陷，请使用
 [启动修复记录](../../docs/ANDROID_STARTUP_REPAIR.md)列出的修正版本。
 
