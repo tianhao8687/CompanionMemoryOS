@@ -94,6 +94,10 @@
           <div class="two-columns"><label>TA 的名字<input id="companion-name" maxlength="24" required autocomplete="off"></label><label>希望怎么称呼你<input id="user-name" maxlength="24" placeholder="随你喜欢，也可以先不填" autocomplete="off"></label></div>
           <fieldset class="style-field"><legend>相处的感觉</legend><div class="style-options"><label><input type="radio" name="style" value="gentle"><span>温柔细腻<small>把偏爱放在小事里</small></span></label><label><input type="radio" name="style" value="playful"><span>轻快俏皮<small>一起发现日常的有趣</small></span></label><label><input type="radio" name="style" value="steady"><span>沉稳坦诚<small>话不多，回应很认真</small></span></label><label><input type="radio" name="style" value="custom" aria-controls="custom-style-field"><span>自定义<small>写下你喜欢的相处方式</small></span></label></div></fieldset>
           <label id="custom-style-field" hidden>自定义角色与相处风格<textarea id="custom-style" maxlength="6000" rows="5" aria-describedby="custom-style-hint" placeholder="写下 TA 的身份、性格与相处方式，例如温柔顺从，或直率爱辩论。"></textarea><small class="field-hint" id="custom-style-hint">你写下的身份、性格和偏好优先，最多 6000 字。切换到其他风格后，这段文字仍会保留。</small></label>
+          <div id="custom-voice-fields" hidden>
+            <label>喜欢的说话示例 <span class="optional">选填</span><textarea id="custom-style-examples" maxlength="2000" rows="3" placeholder="写一两段你希望 TA 怎样接话，也可以附上对话场景。"></textarea><small class="field-hint">参考语气，不逐轮照抄，不作为真实共同经历。</small></label>
+            <label>不喜欢的表达 <span class="optional">选填</span><textarea id="custom-style-avoid" maxlength="1000" rows="2" placeholder="例如：反复用同一种安慰，或每句话都以追问结尾。"></textarea><small class="field-hint">这些内容只在自定义风格下生效。离线规则演示使用固定回复，不演绎角色。</small></label>
+          </div>
           <label>还想赋予 TA 的特点 <span class="optional">选填</span><textarea id="persona-notes" maxlength="1000" rows="2" placeholder="例如：喜欢音乐，偶尔讲冷笑话，表达直接一点。"></textarea></label>
           <label class="check-label"><input id="romance-consent" type="checkbox"><span>我希望以恋人设定与 AI 相处<small>可以随时改为普通陪伴，也可以在聊天中调整亲密边界。</small></span></label>
         </div>

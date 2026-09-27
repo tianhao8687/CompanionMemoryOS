@@ -223,6 +223,7 @@ async function sendMessage(retry = false) {
 function updateStyleFields() {
   const custom = document.querySelector('input[name="style"]:checked')?.value === "custom";
   $("custom-style-field").hidden = !custom;
+  $("custom-voice-fields").hidden = !custom;
   $("custom-style").required = custom;
   $("custom-style").setCustomValidity(custom && !$("custom-style").value.trim() ? "请写下你喜欢的相处风格。" : "");
 }
@@ -238,6 +239,8 @@ function openSettings() {
   $("user-name").value = settings.user_name;
   $("persona-notes").value = settings.persona_notes;
   $("custom-style").value = settings.custom_style || "";
+  $("custom-style-examples").value = settings.custom_style_examples || "";
+  $("custom-style-avoid").value = settings.custom_style_avoid || "";
   document.querySelector(`input[name="style"][value="${settings.style}"]`).checked = true;
   updateStyleFields();
   $("romance-consent").checked = settings.romance_consent;
@@ -284,6 +287,8 @@ async function saveSettings(test = false) {
     user_name: $("user-name").value.trim(),
     style: document.querySelector("input[name=style]:checked").value,
     custom_style: $("custom-style").value.trim(),
+    custom_style_examples: $("custom-style-examples").value.trim(),
+    custom_style_avoid: $("custom-style-avoid").value.trim(),
     persona_notes: $("persona-notes").value.trim(),
     romance_consent: $("romance-consent").checked,
     storage_consent: $("storage-consent").checked,

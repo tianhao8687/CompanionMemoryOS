@@ -37,6 +37,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
       userProfile,
       address,
       customStyle,
+      styleExamples,
+      styleAvoid,
       model,
       modelUrl;
   final apiKey = TextEditingController();
@@ -61,6 +63,12 @@ class _SettingsSheetState extends State<SettingsSheet> {
     address = TextEditingController(text: widget.controller.endpoint);
     customStyle = TextEditingController(
       text: values['custom_style'] as String? ?? '',
+    );
+    styleExamples = TextEditingController(
+      text: values['custom_style_examples'] as String? ?? '',
+    );
+    styleAvoid = TextEditingController(
+      text: values['custom_style_avoid'] as String? ?? '',
     );
     model = TextEditingController(
       text: values['deepseek']?['model'] as String? ?? 'deepseek-flash',
@@ -93,6 +101,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
       address,
       apiKey,
       customStyle,
+      styleExamples,
+      styleAvoid,
       model,
       modelUrl,
     ]) {
@@ -130,6 +140,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
         notes.text = values['persona_notes'] as String? ?? '';
         userProfile.text = values['user_persona'] as String? ?? '';
         customStyle.text = values['custom_style'] as String? ?? '';
+        styleExamples.text = values['custom_style_examples'] as String? ?? '';
+        styleAvoid.text = values['custom_style_avoid'] as String? ?? '';
         model.text =
             values['deepseek']?['model'] as String? ?? 'deepseek-flash';
         modelUrl.text =
@@ -162,6 +174,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
     values['persona_notes'] = notes.text.trim();
     values['user_persona'] = userProfile.text.trim();
     values['custom_style'] = customStyle.text.trim();
+    values['custom_style_examples'] = styleExamples.text.trim();
+    values['custom_style_avoid'] = styleAvoid.text.trim();
     if (!widget.controller.isDemo) {
       final config = Map<String, dynamic>.from(
         values['deepseek'] as Map? ?? {},
@@ -722,6 +736,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
         if (values['style'] == 'custom') ...[
           const SizedBox(height: 16),
           TextFormField(
+            key: const Key('custom-style'),
             controller: customStyle,
             maxLines: 5,
             maxLength: 6000,
@@ -733,6 +748,48 @@ class _SettingsSheetState extends State<SettingsSheet> {
             validator: (v) =>
                 v == null || v.trim().isEmpty ? '请描述希望的相处风格' : null,
           ),
+          const SizedBox(height: 16),
+          TextFormField(
+            key: const Key('custom-style-examples'),
+            controller: styleExamples,
+            minLines: 2,
+            maxLines: 5,
+            maxLength: 2000,
+            decoration: const InputDecoration(
+              labelText: '喜欢的说话示例（选填）',
+              alignLabelWithHint: true,
+              hintText: '写一两段你希望 TA 怎样接话，也可以附上对话场景。',
+              helperText: '参考语气，不每次照抄，也不会作为真实共同经历。',
+              helperMaxLines: 3,
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            key: const Key('custom-style-avoid'),
+            controller: styleAvoid,
+            minLines: 2,
+            maxLines: 4,
+            maxLength: 1000,
+            decoration: const InputDecoration(
+              labelText: '不喜欢的表达（选填）',
+              alignLabelWithHint: true,
+              hintText: '例如：反复用同一种安慰，或每句话都以追问结尾。',
+              helperText: '仅在自定义风格下使用；切换风格会保留填写内容。',
+              helperMaxLines: 3,
+            ),
+          ),
+          if (widget.controller.isDemo || values['model_mode'] != 'api') ...[
+            const SizedBox(height: 10),
+            const Text(
+              '当前是演示回复，使用固定规则；连接 API 模型后才能体验自定义角色的说话方式。',
+              key: Key('custom-style-demo-notice'),
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.6,
+                color: XinYuColors.muted,
+              ),
+            ),
+          ],
         ],
       ],
     ),
@@ -859,8 +916,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
         icon: Icons.chat_bubble_outline_rounded,
         children: [
           _ChoiceCard(
-            title: '离线规则回复',
-            description: '用于体验聊天流程，不运行大模型。',
+            title: '离线规则演示',
+            description: '固定回复，体验聊天流程；不演绎自定义角色。',
             icon: Icons.offline_bolt_outlined,
             horizontal: true,
             selected: (values['model_mode'] ?? 'offline') == 'offline',

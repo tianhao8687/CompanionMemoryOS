@@ -8,6 +8,7 @@ from pydantic import Field
 from companion_agent.character_memory import CharacterMemoryRecord
 from companion_agent.communication import preference_evidence, preference_rules
 from companion_agent.current_state.models import CompiledCurrentState
+from companion_agent.dialogue_flow import DIALOGUE_FLOW_RULES, expression_patterns
 from companion_agent.experience.models import CompiledExperienceContext
 from companion_agent.memory_lifecycle import is_conversation_task
 from companion_agent.persona.models import CompiledPersonaContext, PersonaModel
@@ -329,6 +330,8 @@ def compose_context(
     def dump(value: Any) -> str:
         return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
+    current_task = is_conversation_task(current_user_turn)
+    patterns = [] if current_task else expression_patterns(dialogue)
     system = "\n\n".join(
         [
             "[APPLICATION RULES]\n"
@@ -336,13 +339,10 @@ def compose_context(
             + preference_rules(communication_preferences or [])
             + ("\n" + CURRENT_STATE_RULES if current_state_context else ""),
             "[PERSONA]\n" + persona.text,
+            "[DIALOGUE FLOW]\n" + DIALOGUE_FLOW_RULES,
             *(["[APPLICATION INTERACTION]\n" + application_rules] if application_rules else []),
             "[MEMORY USE PLAN]\n" + dump(plan.model_dump(mode="json")),
-            *(
-                ["[CURRENT TASK]\n" + CURRENT_TASK_RULES]
-                if is_conversation_task(current_user_turn)
-                else []
-            ),
+            *(["[CURRENT TASK]\n" + CURRENT_TASK_RULES] if current_task else []),
         ]
     )
     # Background evidence stays at user priority. Real dialogue uses native message roles;
@@ -384,7 +384,17 @@ def compose_context(
                 }
             ),
             "[CONVERSATION ATTRIBUTION]\n"
-            + dump({"recent_turns": recent, "current_actor_id": user_id}),
+            + dump(
+                {
+                    "recent_turns": recent,
+                    "current_actor_id": user_id,
+                    **(
+                        {"expression_observations": {"advisory_only": True, "patterns": patterns}}
+                        if patterns
+                        else {}
+                    ),
+                }
+            ),
         ]
     )
     return ComposedContext(

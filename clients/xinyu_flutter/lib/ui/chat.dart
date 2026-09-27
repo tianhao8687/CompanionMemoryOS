@@ -528,6 +528,8 @@ class _ComposerState extends State<Composer> {
               child: Text(
                 widget.controller.isDemo
                     ? '演示空间 · 不调用模型'
+                    : widget.controller.settings['model_mode'] != 'api'
+                    ? '离线规则演示 · 固定回复'
                     : widget.controller.sending
                     ? '正在回应，稍等片刻'
                     : '安心做自己，我在这里',
