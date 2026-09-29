@@ -109,16 +109,28 @@ def test_preference_automatic_correct_forget_and_source_evidence(tmp_path: Path)
 def test_automatic_preferences_cross_chats_and_negation_supersedes(tmp_path: Path) -> None:
     model = RecordingLLM()
     host = host_for(tmp_path, model)
-    chat(host, "我喜欢咖啡")
-    new = host.new_conversation()["id"]
-    chat(host, "我不喜欢咖啡", "two", new)
-    records = host.memories(new)["memories"]
-    assert len(records) == 1 and records[0]["content"] == "我不喜欢咖啡"
-    chat(host, "还记得我喜欢什么吗", "three", new)
-    context = "\n".join(m.content for m in model.inputs[-1])
-    assert "我不喜欢咖啡" in context
-    with host.database.connection() as db:
-        assert db.execute("SELECT count(*) FROM memory_embeddings").fetchone()[0] >= 1
+    try:
+        chat(host, "我喜欢咖啡")
+        new = host.new_conversation()["id"]
+        chat(host, "我不喜欢咖啡", "two", new)
+        records = host.memories(new)["memories"]
+        assert len(records) == 1 and records[0]["content"] == "我不喜欢咖啡"
+        chat(host, "还记得我喜欢什么吗", "three", new)
+        context = "\n".join(m.content for m in model.inputs[-1])
+        assert "我不喜欢咖啡" in context
+        # Chat completion does not wait for the background index publication.
+        worker = host.memory.index_worker
+        with worker.lock:
+            thread = worker.thread
+        if thread is not None:
+            thread.join(timeout=5)
+            assert not thread.is_alive(), "background indexing did not finish"
+        assert worker.status == "ready"
+        with host.database.connection() as db:
+            indexed = {row[0] for row in db.execute("SELECT memory_id FROM memory_embeddings")}
+        assert records[0]["id"] in indexed
+    finally:
+        host.memory.close_indexer()
 
 
 def test_feedback_is_grounded_and_persisted(tmp_path: Path) -> None:
