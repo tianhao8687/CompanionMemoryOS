@@ -81,7 +81,7 @@ class _BookmarksState extends State<_Bookmarks> {
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 650, maxHeight: 740),
       child: GlassSurface(
-        tint: const Color(0xeef4faf5),
+        tint: XinYuColors.sheet,
         padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -135,7 +135,7 @@ class _BookmarksState extends State<_Bookmarks> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${hit.message.isUser ? (widget.controller.userName.isEmpty ? '你' : widget.controller.userName) : widget.controller.companionName} · ${hit.title}',
+                              '${hit.message.isUser ? (widget.controller.userName.isEmpty ? '你' : widget.controller.userName) : widget.controller.companionDisplayName} · ${hit.title}',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: XinYuColors.muted,

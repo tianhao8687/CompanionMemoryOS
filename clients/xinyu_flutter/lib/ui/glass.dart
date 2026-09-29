@@ -9,9 +9,14 @@ double readingScale(Object? size) => switch (size) {
 };
 
 abstract final class XinYuColors {
-  static const ink = Color(0xff30463f);
-  static const muted = Color(0xff61736c);
-  static const accent = Color(0xff406d59);
+  static const ink = Color(0xff172132);
+  static const muted = Color(0xff647188);
+  static const accent = Color(0xff4a607d);
+  static const canvas = Color(0xfff7f6f4);
+  static const incoming = Color(0xcfffffff);
+  static const outgoing = Color(0xbfdce8f7);
+  static const sheet = Color(0xf5f5f6f7);
+  static const selection = Color(0x80dce7f6);
   static const peach = Color(0xffe8b99f);
 }
 
@@ -71,7 +76,7 @@ class RoundedChoiceField<T> extends StatelessWidget {
               EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
             backgroundColor: entry.key == initialValue
-                ? const WidgetStatePropertyAll(Color(0x286d9d85))
+                ? const WidgetStatePropertyAll(XinYuColors.selection)
                 : null,
           ),
         ),
@@ -90,52 +95,56 @@ class GlassSurface extends StatelessWidget {
     this.tint = const Color(0x28ffffff),
     this.blur = 24,
     this.grouped = true,
+    this.outlined = true,
+    this.elevated = true,
   });
   final Widget child;
   final double radius, blur;
   final EdgeInsetsGeometry padding;
   final Color tint;
   final bool grouped;
+  final bool outlined, elevated;
   @override
   Widget build(BuildContext context) {
     final surface = DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color.alphaBlend(const Color(0x52ffffff), tint),
-            tint,
-            Color.alphaBlend(const Color(0x24ddf9f4), tint),
-          ],
-          stops: const [0, .48, 1],
-        ),
+        gradient: tint == Colors.transparent
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color.alphaBlend(const Color(0x32ffffff), tint),
+                  tint,
+                  Color.alphaBlend(const Color(0x12e4ecf7), tint),
+                ],
+                stops: const [0, .48, 1],
+              ),
       ),
       child: CustomPaint(
-        foregroundPainter: _GlassRimPainter(radius),
+        foregroundPainter: outlined ? _GlassRimPainter(radius) : null,
         child: Padding(padding: padding, child: child),
       ),
     );
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x12497168),
-            blurRadius: 28,
-            offset: Offset(0, 12),
-          ),
-          BoxShadow(
-            color: Color(0x28ffffff),
-            blurRadius: 2,
-            offset: Offset(0, -1),
-          ),
-        ],
+        boxShadow: elevated
+            ? const [
+                BoxShadow(
+                  color: Color(0x08515e70),
+                  blurRadius: 24,
+                  offset: Offset(0, 8),
+                ),
+              ]
+            : null,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(radius),
-        child: grouped
+        child: blur == 0
+            ? surface
+            : grouped
             ? BackdropFilter.grouped(
                 filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
                 child: surface,
@@ -149,36 +158,24 @@ class GlassSurface extends StatelessWidget {
   }
 }
 
-/// A bright upper lip and a faint inner edge give the glass volume without
-/// introducing another blur pass or an animation on every chat bubble.
+/// One translucent rim keeps the edge visible without a raised double outline.
 class _GlassRimPainter extends CustomPainter {
   const _GlassRimPainter(this.radius);
   final double radius;
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = (Offset.zero & size).deflate(.8);
+    final rect = (Offset.zero & size).deflate(.5);
     final outline = RRect.fromRectAndRadius(rect, Radius.circular(radius));
     canvas.drawRRect(
       outline,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5
+        ..strokeWidth = 1
         ..shader = const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xfaffffff), Color(0x48ffffff), Color(0x99ffffff)],
+          colors: [Color(0xe6ffffff), Color(0x60ffffff), Color(0xb3ffffff)],
           stops: [0, .55, 1],
-        ).createShader(rect),
-    );
-    canvas.drawRRect(
-      outline.deflate(1.5),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = .7
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0x48ffffff), Color(0x00436d61), Color(0x16436d61)],
         ).createShader(rect),
     );
   }
@@ -191,105 +188,79 @@ class _GlassRimPainter extends CustomPainter {
 class XinYuWallpaper extends StatelessWidget {
   const XinYuWallpaper({super.key});
   @override
-  Widget build(BuildContext context) => const RepaintBoundary(
-    child: SizedBox.expand(child: CustomPaint(painter: _WallpaperPainter())),
+  Widget build(BuildContext context) => RepaintBoundary(
+    child: SizedBox.expand(
+      child: CustomPaint(
+        painter: _WallpaperPainter(
+          compact: MediaQuery.sizeOf(context).width < 880,
+        ),
+      ),
+    ),
   );
 }
 
 class _WallpaperPainter extends CustomPainter {
-  const _WallpaperPainter();
+  const _WallpaperPainter({this.compact = false});
+  final bool compact;
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
     canvas.drawRect(
       rect,
       Paint()
-        ..shader = const LinearGradient(
+        ..shader = LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xfffbf4e9), Color(0xffedf1e9), Color(0xffbcdedb)],
+          colors: compact
+              ? const [Color(0xfff8f7f5), Color(0xfff6f6f5), Color(0xffeaf0f7)]
+              : const [Color(0xffebf0f5), Color(0xfff3f4f1), Color(0xffe7eef6)],
         ).createShader(rect),
     );
-    canvas.save();
-    canvas.scale(size.width / 1400, size.height / 1000);
-    final waves = [
-      (
-        Path()
-          ..moveTo(-180, 760)
-          ..cubicTo(120, 240, 320, 880, 760, 390)
-          ..cubicTo(960, 170, 1260, 370, 1590, 120),
-        [
-          const Color(0xffd8b6a8),
-          const Color(0xfff0c7ac),
-          const Color(0xffffebcd),
-        ],
-        180.0,
+    // Broad, quiet color fields reveal the frosted rims without competing
+    // with photos, personal wallpaper or the conversation.
+    for (final field in const [
+      RadialGradient(
+        center: Alignment(-.65, -.9),
+        radius: .55,
+        colors: [Color(0x809dacb4), Color(0x009dacb4)],
       ),
-      (
-        Path()
-          ..moveTo(-180, 1010)
-          ..cubicTo(120, 470, 340, 1070, 800, 600)
-          ..cubicTo(1060, 340, 1230, 680, 1580, 490),
-        [
-          const Color(0xffbbc9de),
-          const Color(0xffe4c7ce),
-          const Color(0xfff1cec1),
-        ],
-        230.0,
+      RadialGradient(
+        center: Alignment(.55, -1.05),
+        radius: .5,
+        colors: [Color(0x80d6d6ba), Color(0x00d6d6ba)],
       ),
-      (
-        Path()
-          ..moveTo(960, 1220)
-          ..cubicTo(1300, 1000, 1320, 840, 1170, 690)
-          ..cubicTo(910, 430, 1390, 280, 1600, 350),
-        [
-          const Color(0xffa4cec9),
-          const Color(0xffb9e0da),
-          const Color(0xffe8f5ee),
-        ],
-        220.0,
+      RadialGradient(
+        center: Alignment(.55, .9),
+        radius: .7,
+        colors: [Color(0x80b9c7bd), Color(0x00b9c7bd)],
       ),
-    ];
-    for (final wave in waves) {
-      canvas.drawPath(
-        wave.$1,
+      RadialGradient(
+        center: Alignment(-.75, .8),
+        radius: .7,
+        colors: [Color(0x60b8cfe9), Color(0x00b8cfe9)],
+      ),
+    ]) {
+      canvas.drawRect(
+        rect,
         Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = wave.$3 + 22
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24)
-          ..shader = LinearGradient(colors: wave.$2)
-              .createShader(const Rect.fromLTWH(0, 0, 1400, 1000)),
-      );
-      canvas.drawPath(
-        wave.$1,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = wave.$3
-          ..shader = LinearGradient(colors: wave.$2)
-              .createShader(const Rect.fromLTWH(0, 0, 1400, 1000)),
-      );
-      canvas.drawPath(
-        wave.$1,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2
-          ..color = const Color(0x70ffffff),
+          ..color = compact ? const Color(0x38ffffff) : Colors.white
+          ..shader = field.createShader(rect),
       );
     }
-    canvas.restore();
     canvas.drawRect(
       rect,
       Paint()
         ..shader = const RadialGradient(
-          center: Alignment(-.4, -.65),
-          radius: 1.05,
-          colors: [Color(0xdffffcf5), Color(0x00fff9ef)],
+          center: Alignment(.05, -.1),
+          radius: .85,
+          colors: [Color(0xe6fffdf9), Color(0x00fffdf9)],
         ).createShader(rect),
     );
   }
 
   @override
-  bool shouldRepaint(covariant _WallpaperPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _WallpaperPainter oldDelegate) =>
+      compact != oldDelegate.compact;
 }
 
 class CompanionAvatar extends StatelessWidget {
@@ -302,17 +273,10 @@ class CompanionAvatar extends StatelessWidget {
     height: size,
     alignment: Alignment.center,
     decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      border: Border.all(color: const Color(0xe8ffffff), width: 1.5),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x18446e5e),
-          blurRadius: 16,
-          offset: Offset(0, 6),
-        ),
-      ],
+      borderRadius: BorderRadius.circular(size * .27),
+      border: Border.all(color: const Color(0x80ffffff), width: .7),
       gradient: const LinearGradient(
-        colors: [Color(0xfffff4e5), Color(0xffc7ddd0), Color(0xffa6c8b5)],
+        colors: [Color(0xffebe9e4), Color(0xffe0e5ec)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),

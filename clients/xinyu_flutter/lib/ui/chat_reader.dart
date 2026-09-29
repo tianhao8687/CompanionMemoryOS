@@ -8,7 +8,6 @@ import '../data/models.dart';
 import '../state/companion_controller.dart';
 import 'chat.dart' show MessageBubble;
 import 'glass.dart';
-import 'local_image.dart';
 
 class ConversationView extends StatefulWidget {
   const ConversationView({super.key, required this.controller});
@@ -128,7 +127,7 @@ class _ConversationViewState extends State<ConversationView> {
   }
 
   Widget _bottomShortcut() => Padding(
-    padding: const EdgeInsets.only(top: 2, right: 4, bottom: 4),
+    padding: const EdgeInsets.only(top: 4, right: 8, bottom: 8),
     child: Align(
       alignment: Alignment.centerRight,
       child: GlassSurface(
@@ -147,15 +146,15 @@ class _ConversationViewState extends State<ConversationView> {
                 ? null
                 : _jumpToLatest,
             style: TextButton.styleFrom(
-              minimumSize: const Size(0, 44),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               shape: XinYuShapes.pill,
             ),
-            icon: const Icon(
-              Icons.keyboard_double_arrow_down_rounded,
-              size: 18,
+            icon: const Icon(Icons.arrow_downward_rounded, size: 20),
+            label: Text(
+              unseen > 0 ? '$unseen 条新消息' : '回到底部',
+              style: const TextStyle(fontSize: 13),
             ),
-            label: Text(unseen > 0 ? '$unseen 条新消息' : '回到底部'),
           ),
         ),
       ),
@@ -247,7 +246,7 @@ class _ConversationViewState extends State<ConversationView> {
             text: chosen
                 .map(
                   (m) =>
-                      '${m.isUser ? (c.userName.isEmpty ? '你' : c.userName) : c.companionName}：${m.text.isNotEmpty ? m.text : '[图片]'}',
+                      '${m.isUser ? (c.userName.isEmpty ? '你' : c.userName) : c.companionDisplayName}：${m.text.isNotEmpty ? m.text : '[图片]'}',
                 )
                 .join('\n\n'),
           ),
@@ -283,29 +282,7 @@ class _ConversationViewState extends State<ConversationView> {
     if (c.messages.isEmpty && !c.sending) {
       return Column(
         children: [
-          Expanded(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    ProfileAvatar(controller: c, size: 80),
-                    const SizedBox(height: 23),
-                    const Text(
-                      '留一盏灯，\n听你慢慢说。',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 28, height: 1.5),
-                    ),
-                    const SizedBox(height: 19),
-                    Text(
-                      '我是${c.companionName}。\n今天，想和我说些什么？',
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          const Expanded(child: SizedBox.expand()),
           _bottomShortcut(),
         ],
       );
@@ -391,15 +368,16 @@ class _ConversationViewState extends State<ConversationView> {
                       controller: scroll,
                       reverse: true,
                       padding: EdgeInsets.fromLTRB(
-                        MediaQuery.sizeOf(context).width < 600 ? 2 : 18,
-                        16,
-                        MediaQuery.sizeOf(context).width < 600 ? 2 : 18,
-                        14,
+                        MediaQuery.sizeOf(context).width < 880 ? 6 : 42,
+                        8,
+                        MediaQuery.sizeOf(context).width < 880 ? 6 : 42,
+                        8,
                       ),
                       scrollCacheExtent: const ScrollCacheExtent.pixels(240),
                       itemCount: c.messages.length + extra + 1,
                       itemBuilder: (context, index) {
                         if (index == c.messages.length + extra) {
+                          if (!c.hasMore) return const SizedBox.shrink();
                           return Padding(
                             padding: const EdgeInsets.all(20),
                             child: Column(
@@ -409,13 +387,6 @@ class _ConversationViewState extends State<ConversationView> {
                                     onPressed: c.busy ? null : c.loadOlder,
                                     child: const Text('查看更早的对话'),
                                   ),
-                                const Text(
-                                  '属于我们的片刻',
-                                  style: TextStyle(
-                                    color: XinYuColors.muted,
-                                    fontSize: 11,
-                                  ),
-                                ),
                               ],
                             ),
                           );
@@ -428,18 +399,60 @@ class _ConversationViewState extends State<ConversationView> {
                               isUser: false,
                             ),
                             controller: c,
-                            name: c.companionName,
+                            name: c.companionDisplayName,
                             draft: true,
                           );
                         }
-                        final line =
-                            c.messages[c.messages.length - 1 - (index - extra)];
+                        final messageIndex =
+                            c.messages.length - 1 - (index - extra);
+                        final line = c.messages[messageIndex];
+                        final previous = messageIndex > 0
+                            ? c.messages[messageIndex - 1]
+                            : null;
+                        final time = line.createdAt;
+                        final previousTime = previous?.createdAt;
+                        final separate =
+                            time != null &&
+                            (previousTime == null ||
+                                !DateUtils.isSameDay(
+                                  time.toLocal(),
+                                  previousTime.toLocal(),
+                                ) ||
+                                time.difference(previousTime).inMinutes >= 15);
+                        final continues =
+                            !separate &&
+                            previous != null &&
+                            previous.isUser == line.isUser &&
+                            !previous.notice &&
+                            !line.notice;
                         return Container(
                           key: rows.putIfAbsent(line.id, GlobalKey.new),
-                          child: MessageBubble(
-                            line: line,
-                            controller: c,
-                            name: c.companionName,
+                          child: Column(
+                            children: [
+                              if (separate)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: 8,
+                                    bottom: 2,
+                                  ),
+                                  child: Text(
+                                    _timeLabel(time),
+                                    style: TextStyle(
+                                      fontSize:
+                                          MediaQuery.sizeOf(context).width < 880
+                                          ? 12
+                                          : 14,
+                                      color: XinYuColors.muted,
+                                    ),
+                                  ),
+                                ),
+                              MessageBubble(
+                                line: line,
+                                controller: c,
+                                name: c.companionDisplayName,
+                                continuesGroup: continues,
+                              ),
+                            ],
                           ),
                         );
                       },
@@ -453,5 +466,16 @@ class _ConversationViewState extends State<ConversationView> {
         _bottomShortcut(),
       ],
     );
+  }
+
+  String _timeLabel(DateTime value) {
+    final local = value.toLocal();
+    final now = DateTime.now();
+    final day = DateUtils.isSameDay(local, now)
+        ? '今天'
+        : DateUtils.isSameDay(local, now.subtract(const Duration(days: 1)))
+        ? '昨天'
+        : '${local.month}月${local.day}日';
+    return '$day ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
   }
 }

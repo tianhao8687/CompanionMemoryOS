@@ -411,7 +411,11 @@ class CompanionController extends ChangeNotifier {
     if (through > 0) await connection.markRead(id, through);
     await notifications.call('read', {'conversation': id});
     conversations = conversations
-        .map((c) => c.id == id ? Conversation(c.id, c.title) : c)
+        .map(
+          (c) => c.id == id
+              ? Conversation(c.id, c.title, updatedAt: c.updatedAt)
+              : c,
+        )
         .toList();
   }
 
@@ -549,6 +553,11 @@ class CompanionController extends ChangeNotifier {
   bool get busy => loading || sending || collecting;
   bool get canRetry => _failed != null && !busy;
   String get companionName => settings['companion_name'] as String? ?? '小禾';
+  String get companionDisplayName {
+    final remark = (settings['companion_remark'] as String? ?? '').trim();
+    return remark.isEmpty ? companionName : remark;
+  }
+
   String get userName => settings['user_name'] as String? ?? '';
   ChatSetupIssue? chatSetupIssue({bool withImages = false}) {
     if (isDemo) return null;
@@ -932,6 +941,8 @@ class CompanionController extends ChangeNotifier {
                           text.isEmpty
                               ? '[图片]'
                               : text.substring(0, min(24, text.length)),
+                          unread: c.unread,
+                          updatedAt: assistant.createdAt ?? c.updatedAt,
                         )
                       : c,
                 )

@@ -73,14 +73,16 @@ class QuotedMessage {
 }
 
 class Conversation {
-  const Conversation(this.id, this.title, {this.unread = 0});
+  const Conversation(this.id, this.title, {this.unread = 0, this.updatedAt});
   final String id;
   final String title;
   final int unread;
+  final DateTime? updatedAt;
   factory Conversation.fromJson(Map<String, dynamic> value) => Conversation(
     value['id'] as String,
     value['title'] as String,
     unread: value['unread'] as int? ?? 0,
+    updatedAt: DateTime.tryParse(value['updated_at'] as String? ?? ''),
   );
 }
 

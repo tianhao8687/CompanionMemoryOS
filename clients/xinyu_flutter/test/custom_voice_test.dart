@@ -29,7 +29,6 @@ void main() {
       addTearDown(controller.dispose);
       await tester.pumpWidget(XinYuApp(controller: controller));
       await tester.pumpAndSettle();
-      expect(find.text('离线规则演示 · 固定回复'), findsOneWidget);
       await tester.tap(find.byKey(const Key('open-settings')));
       await tester.pumpAndSettle();
       final scroll = find

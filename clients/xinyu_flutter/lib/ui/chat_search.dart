@@ -224,7 +224,7 @@ class _ChatSearchState extends State<_ChatSearch> {
                             subtitle: Padding(
                               padding: const EdgeInsets.only(top: 6),
                               child: Text(
-                                '${hit.message.isUser ? '我' : widget.controller.companionName} · ${hit.title}\n$date',
+                                '${hit.message.isUser ? '我' : widget.controller.companionDisplayName} · ${hit.title}\n$date',
                                 style: const TextStyle(
                                   fontSize: 11,
                                   color: XinYuColors.muted,
@@ -316,7 +316,7 @@ class _SearchContextState extends State<_SearchContext> {
                           interactive: false,
                           line: message,
                           controller: widget.controller,
-                          name: widget.controller.companionName,
+                          name: widget.controller.companionDisplayName,
                         ),
                       ),
                   ],

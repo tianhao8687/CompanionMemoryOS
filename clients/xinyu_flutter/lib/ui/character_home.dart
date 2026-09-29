@@ -6,6 +6,7 @@ import 'glass.dart';
 import 'local_image.dart';
 import 'memory_sheet.dart';
 import 'chat_search.dart';
+import 'companion_remark.dart';
 
 Future<void> showCharacterHome(
   BuildContext context,
@@ -34,7 +35,7 @@ class _CharacterHomeState extends State<_CharacterHome> {
       final c = widget.controller;
       final name = isUser
           ? (c.userName.isEmpty ? '你' : c.userName)
-          : c.companionName;
+          : c.companionDisplayName;
       final bio =
           c.settings[isUser ? 'user_persona' : 'persona_notes'] as String? ??
           '';
@@ -54,7 +55,7 @@ class _CharacterHomeState extends State<_CharacterHome> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 660, maxHeight: 790),
           child: GlassSurface(
-            tint: const Color(0xeff4faf5),
+            tint: XinYuColors.sheet,
             padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -114,15 +115,22 @@ class _CharacterHomeState extends State<_CharacterHome> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 7),
-                        Text(
-                          isUser ? '我想成为的自己，由我定义。' : '相处的模样，由你的设定决定。',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: XinYuColors.muted,
+                        if (!isUser) ...[
+                          TextButton.icon(
+                            key: const Key('profile-remark'),
+                            onPressed: c.busy
+                                ? null
+                                : () => showCompanionRemark(context, c),
+                            icon: const Icon(Icons.edit_outlined, size: 16),
+                            label: const Text('设置备注'),
                           ),
-                        ),
+                          if ((c.settings['companion_note'] as String? ?? '')
+                              .isNotEmpty)
+                            _section(
+                              '备注',
+                              c.settings['companion_note'] as String,
+                            ),
+                        ],
                         const SizedBox(height: 18),
                         _section(
                           '人物资料',
@@ -306,7 +314,7 @@ class _ProfileEditorState extends State<_ProfileEditor> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 590, maxHeight: 720),
         child: GlassSurface(
-          tint: const Color(0xf5f4faf5),
+          tint: XinYuColors.sheet,
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,

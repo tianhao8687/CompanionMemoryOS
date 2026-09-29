@@ -5,6 +5,7 @@ param(
     [string]$JavaDirectory = $env:JAVA_HOME,
     [string]$BuildPython = $env:XINYU_BUILD_PYTHON,
     [string]$AndroidWheels = $env:XINYU_ANDROID_WHEELS,
+    [string]$JavaTempDirectory,
     [string]$InstallerCompiler = (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),
     [string]$BuildRoot = (Join-Path $env:LOCALAPPDATA 'XinYuBuild\releases')
 )
@@ -27,9 +28,22 @@ if ($AndroidSdk) { $env:ANDROID_HOME = $AndroidSdk }
 if ($JavaDirectory) { $env:JAVA_HOME = $JavaDirectory }
 if ($BuildPython) { $env:XINYU_BUILD_PYTHON = $BuildPython }
 if ($AndroidWheels) { $env:XINYU_ANDROID_WHEELS = [IO.Path]::GetFullPath($AndroidWheels) }
+$previousJavaToolOptions = $env:JAVA_TOOL_OPTIONS
 
 Push-Location -LiteralPath $client
 try {
+    if ($Target -eq 'android') {
+        # MSIX hosts may redirect AppData, breaking JDK Unix-domain wakeup sockets.
+        # Keep their path short and outside AppData; this setting is process-local.
+        if (-not $JavaTempDirectory) { $JavaTempDirectory = Join-Path $repository 'dist\java-tmp' }
+        $javaTempPath = [IO.Path]::GetFullPath($JavaTempDirectory).Replace('\', '/')
+        if ([Text.Encoding]::UTF8.GetByteCount($javaTempPath) -gt 75) {
+            throw 'Pass -JavaTempDirectory with a short writable path outside AppData (at most 75 UTF-8 bytes).'
+        }
+        New-Item -ItemType Directory -Path $javaTempPath -Force | Out-Null
+        $tempOptions = '-Djava.io.tmpdir="' + $javaTempPath + '" -Djdk.net.unixdomain.tmpdir="' + $javaTempPath + '"'
+        $env:JAVA_TOOL_OPTIONS = (($previousJavaToolOptions, $tempOptions | Where-Object { $_ }) -join ' ')
+    }
     & $flutter pub get
     if ($LASTEXITCODE) { throw 'Flutter dependency resolution failed.' }
     & $flutter analyze
@@ -93,4 +107,7 @@ try {
     }
     Get-ChildItem -LiteralPath $delivery -File | Get-FileHash -Algorithm SHA256
     Write-Output "Local application artifacts: $delivery"
-} finally { Pop-Location }
+} finally {
+    $env:JAVA_TOOL_OPTIONS = $previousJavaToolOptions
+    Pop-Location
+}

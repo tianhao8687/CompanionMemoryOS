@@ -60,6 +60,9 @@ class RomanceSettings(PersonaModel):
     quiet_end: int = Field(default=8, ge=0, le=23)
     calendar_timezone: str = "Asia/Shanghai"
     companion_name: str = Field(default="小禾", min_length=1, max_length=24)
+    # Private presentation fields: never part of persona identity or prompt rules.
+    companion_remark: str = Field(default="", max_length=24)
+    companion_note: str = Field(default="", max_length=200)
     user_name: str = Field(default="", max_length=24)
     style: Literal["gentle", "playful", "steady", "custom"] = "gentle"
     custom_style: str = Field(default="", max_length=6000)
@@ -99,6 +102,8 @@ class RomanceSettings(PersonaModel):
 
     @field_validator(
         "companion_name",
+        "companion_remark",
+        "companion_note",
         "user_name",
         "persona_notes",
         "custom_style",

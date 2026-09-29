@@ -15,6 +15,20 @@ Future<void> main(List<String> args) async {
       ..['storage_consent'] = true
       ..['model_consent'] = true;
     await repository.saveSettings(settings);
+    final renamed = await repository.saveSettings({
+      ...settings,
+      'companion_remark': '  月亮  ',
+      'companion_note': '联调用的私人备注',
+    });
+    final reopened = await repository.bootstrap();
+    if (renamed['companion_remark'] != '月亮' ||
+        reopened.settings['companion_note'] != '联调用的私人备注' ||
+        reopened.settings['companion_name'] !=
+            initial.settings['companion_name']) {
+      throw StateError(
+        'Private remark did not round-trip independently of role identity.',
+      );
+    }
     final conversation = await repository.createConversation();
     final request = 'flutter-smoke-${DateTime.now().microsecondsSinceEpoch}';
     final events = await repository
@@ -34,7 +48,7 @@ Future<void> main(List<String> args) async {
       throw StateError('Retry created duplicate messages.');
     }
     stdout.writeln(
-      'PASS: handshake, settings, streaming, persisted history, idempotent replay (offline model).',
+      'PASS: handshake, settings, private remark, streaming, persisted history, idempotent replay (offline model).',
     );
   } finally {
     await repository.saveSettings(initial.settings);

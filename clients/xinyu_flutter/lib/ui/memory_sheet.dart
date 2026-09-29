@@ -140,7 +140,7 @@ class _MemorySheetState extends State<MemorySheet> {
           child: GlassSurface(
             radius: XinYuShapes.panelRadius,
             blur: 28,
-            tint: const Color(0xd4faf9f5),
+            tint: XinYuColors.sheet,
             padding: const EdgeInsets.all(22),
             child: Column(
               mainAxisSize: MainAxisSize.min,

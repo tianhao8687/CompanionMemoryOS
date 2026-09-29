@@ -13,10 +13,24 @@ import json
 import os
 import subprocess
 import time
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from uuid import uuid4
 
 PACKAGE = "com.xinyu.xinyu_flutter"
+
+
+def has_connected_ui(hierarchy: str) -> bool:
+    try:
+        root = ET.fromstring(hierarchy)
+    except ET.ParseError:
+        return False
+    return any(
+        node.get("resource-id") in {"xinyu-local-ready", f"{PACKAGE}:id/xinyu-local-ready"}
+        and node.get("package") == PACKAGE
+        and node.get("enabled") == "true"
+        for node in root.iter("node")
+    )
 
 
 def main() -> int:
@@ -86,11 +100,11 @@ def main() -> int:
                 except subprocess.TimeoutExpired:
                     continue
                 (run / f"launch-{attempt}.xml").write_text(hierarchy, encoding="utf-8")
-                if "记忆保存在本机" in hierarchy:
+                if has_connected_ui(hierarchy):
                     connected = True
                     break
-                # The disconnected header is also rendered during initialization.
-                # Do not turn a transient header into an early startup failure.
+                # This nonvisual identifier appears only after the real repository
+                # handshake. Loading and demo UI cannot satisfy the check.
                 time.sleep(3)
             screenshot = subprocess.run(
                 ["adb", "-s", serial, "exec-out", "screencap", "-p"],

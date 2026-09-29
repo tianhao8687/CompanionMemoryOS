@@ -365,7 +365,7 @@ class _StickerLibraryState extends State<_StickerLibrary> {
       constraints: const BoxConstraints(maxWidth: 560, maxHeight: 640),
       child: GlassSurface(
         radius: XinYuShapes.panelRadius,
-        tint: const Color(0xebf4faf5),
+        tint: XinYuColors.sheet,
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,

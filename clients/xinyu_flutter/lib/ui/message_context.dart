@@ -48,7 +48,7 @@ class _MessageContextState extends State<_MessageContext> {
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 660, maxHeight: 700),
       child: GlassSurface(
-        tint: const Color(0xeef4faf5),
+        tint: XinYuColors.sheet,
         padding: const EdgeInsets.all(18),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -105,7 +105,7 @@ class _MessageContextState extends State<_MessageContext> {
                             width: double.infinity,
                             decoration: BoxDecoration(
                               color: line.id == widget.id
-                                  ? const Color(0x406aaf8e)
+                                  ? XinYuColors.selection
                                   : const Color(0x60ffffff),
                               borderRadius: XinYuShapes.cardCorners,
                             ),
@@ -119,7 +119,7 @@ class _MessageContextState extends State<_MessageContext> {
                                       ? (widget.controller.userName.isEmpty
                                             ? '你'
                                             : widget.controller.userName)
-                                      : widget.controller.companionName,
+                                      : widget.controller.companionDisplayName,
                                   style: const TextStyle(
                                     color: XinYuColors.muted,
                                     fontSize: 12,

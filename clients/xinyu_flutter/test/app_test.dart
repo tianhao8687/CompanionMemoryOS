@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xinyu_flutter/data/managed_repository.dart';
@@ -37,7 +39,44 @@ class SettingsFixture extends ManagedRepository {
   }
 }
 
+class PendingSettingsFixture extends SettingsFixture {
+  final ready = Completer<void>();
+  @override
+  Future<Snapshot> bootstrap() async {
+    await ready.future;
+    return super.bootstrap();
+  }
+}
+
 void main() {
+  testWidgets('native startup marker requires a completed real connection', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    try {
+      final repository = PendingSettingsFixture();
+      final controller = CompanionController(repository: repository);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(XinYuApp(controller: controller));
+      await tester.pump();
+      expect(find.bySemanticsIdentifier('xinyu-local-ready'), findsNothing);
+      repository.ready.complete();
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsIdentifier('xinyu-local-ready'), findsWidgets);
+      controller.connected = false;
+      controller.notifyListeners();
+      await tester.pump();
+      expect(find.bySemanticsIdentifier('xinyu-local-ready'), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(const XinYuApp());
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsIdentifier('xinyu-local-ready'), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+    } finally {
+      semantics.dispose();
+    }
+  });
+
   testWidgets(
     'Native settings, secure Key controls and backup fit a narrow phone',
     (tester) async {
@@ -100,7 +139,7 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.tap(find.byKey(const Key('open-settings')));
       await tester.pumpAndSettle();
-      expect(find.text('让这里，更像我们'), findsOneWidget);
+      expect(find.byKey(const Key('settings-glass')), findsOneWidget);
       await tester.tap(find.text('连接与数据'));
       await tester.pumpAndSettle();
       expect(find.text('打开本机数据'), findsOneWidget);

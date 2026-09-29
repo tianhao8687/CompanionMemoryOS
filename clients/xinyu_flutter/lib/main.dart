@@ -80,7 +80,7 @@ class _XinYuAppState extends State<XinYuApp> {
             seedColor: XinYuColors.accent,
             brightness: Brightness.light,
           ).copyWith(
-            surface: const Color(0xfff1eee7),
+            surface: XinYuColors.canvas,
             onSurface: XinYuColors.ink,
             primary: XinYuColors.accent,
           ),
@@ -130,36 +130,43 @@ class _XinYuAppState extends State<XinYuApp> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: XinYuShapes.fieldCorners,
-          borderSide: const BorderSide(color: Color(0xff719887), width: 1.4),
+          borderSide: const BorderSide(color: XinYuColors.accent, width: 1.4),
         ),
         labelStyle: const TextStyle(color: XinYuColors.muted, fontSize: 13),
+        hintStyle: const TextStyle(color: XinYuColors.muted),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(48, 46),
+          minimumSize: const Size(48, 40),
           shape: XinYuShapes.pill,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(44, 44),
+          minimumSize: const Size(48, 40),
           shape: XinYuShapes.pill,
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          minimumSize: const Size(44, 44),
+          minimumSize: const Size(48, 40),
           shape: XinYuShapes.pill,
         ),
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
-          minimumSize: const Size(44, 44),
+          minimumSize: const Size.square(40),
+          maximumSize: const Size.square(40),
+          fixedSize: const Size.square(40),
+          iconSize: 20,
+          padding: const EdgeInsets.all(10),
+          tapTargetSize: MaterialTapTargetSize.padded,
+          visualDensity: VisualDensity.standard,
           shape: const CircleBorder(),
         ),
       ),
       scrollbarTheme: ScrollbarThemeData(
-        thumbColor: WidgetStateProperty.all(const Color(0x65748a7c)),
+        thumbColor: WidgetStateProperty.all(const Color(0x65626b76)),
         thickness: WidgetStateProperty.all(4),
       ),
     ),

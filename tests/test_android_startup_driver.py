@@ -54,9 +54,15 @@ def run_driver(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, launch: str, 
                 output = "UI hierarchy dumped"
             elif args[:2] == ["shell", "cat"]:
                 state["ui_reads"] += 1
-                # A real disconnected header can appear before initialization ends.
-                label = "记忆保存在本机" if ready and state["ui_reads"] > 1 else "本机引擎未连接"
-                output = f'<hierarchy><node text="{label}" /></hierarchy>'
+                identifier = (
+                    "xinyu-local-ready"
+                    if ready and state["ui_reads"] > 1
+                    else "xinyu-message-input"
+                )
+                output = (
+                    f'<hierarchy><node resource-id="{identifier}" enabled="true" '
+                    'package="com.xinyu.xinyu_flutter" content-desc="消息输入" /></hierarchy>'
+                )
             elif args[:2] == ["exec-out", "screencap"]:
                 output = "synthetic screenshot placeholder"
             elif args[0] == "logcat" or args[:3] == ["shell", "am", "force-stop"]:
@@ -106,3 +112,22 @@ def test_activity_command_error_never_reaches_the_ui_success_check(monkeypatch, 
     assert code == 1
     assert report["status"] == "failed"
     assert state["ui_reads"] == 0
+
+
+@pytest.mark.parametrize(
+    "hierarchy",
+    [
+        '<hierarchy><node text="记忆保存在本机 xinyu-local-ready" /></hierarchy>',
+        '<hierarchy><node resource-id="xinyu-local-ready" enabled="false" '
+        'package="com.xinyu.xinyu_flutter" /></hierarchy>',
+        '<hierarchy><node resource-id="xinyu-local-ready" enabled="true" '
+        'package="unrelated.app" /></hierarchy>',
+        '<hierarchy><node resource-id="xinyu-local-ready"',
+    ],
+)
+def test_startup_requires_own_enabled_semantic_identifier(hierarchy):
+    spec = importlib.util.spec_from_file_location("android_startup_driver", DRIVER)
+    assert spec and spec.loader
+    driver = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(driver)
+    assert not driver.has_connected_ui(hierarchy)

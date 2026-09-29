@@ -25,7 +25,7 @@ Future<bool?> showProblemDialog(
             constraints: const BoxConstraints(maxWidth: 440),
             child: GlassSurface(
               radius: XinYuShapes.panelRadius,
-              tint: const Color(0xf0f4faf5),
+              tint: XinYuColors.sheet,
               padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,

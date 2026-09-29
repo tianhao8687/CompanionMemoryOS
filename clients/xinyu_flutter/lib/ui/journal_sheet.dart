@@ -514,7 +514,7 @@ class _JournalSheetState extends State<JournalSheet> {
         ),
         child: BackdropGroup(
           child: GlassSurface(
-            tint: const Color(0xdff5faf5),
+            tint: XinYuColors.sheet,
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [

@@ -215,7 +215,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
           child: GlassSurface(
             key: const Key('settings-glass'),
             blur: 30,
-            tint: const Color(0x88f5fcf8),
+            tint: XinYuColors.sheet,
             radius: XinYuShapes.panelRadius,
             padding: EdgeInsets.all(compact ? 16 : 26),
             child: Form(
@@ -226,25 +226,12 @@ class _SettingsSheetState extends State<SettingsSheet> {
                   Row(
                     children: [
                       const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '让这里，更像我们',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            SizedBox(height: 6),
-                            Text(
-                              '一点偏爱，刚好合拍。',
-                              style: TextStyle(
-                                color: XinYuColors.muted,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
+                        child: Text(
+                          '设置',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                       IconButton.filledTonal(
@@ -263,7 +250,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: const Color(0x28728c80),
+                      color: const Color(0x185e789a),
                       borderRadius: XinYuShapes.cardCorners,
                       border: Border.all(color: const Color(0x90ffffff)),
                     ),
@@ -1089,7 +1076,7 @@ class _SettingsTab extends StatelessWidget {
                 ? const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Color(0xedffffff), Color(0x95e7f5ed)],
+                    colors: [Color(0xedffffff), Color(0x95e7eef8)],
                   )
                 : null,
             border: Border.all(
@@ -1098,7 +1085,7 @@ class _SettingsTab extends StatelessWidget {
             boxShadow: selected
                 ? const [
                     BoxShadow(
-                      color: Color(0x14628271),
+                      color: Color(0x14515e70),
                       blurRadius: 10,
                       offset: Offset(0, 3),
                     ),
@@ -1212,7 +1199,7 @@ class _ChoiceCard extends StatelessWidget {
     final mark = Icon(
       selected ? Icons.check_circle_rounded : Icons.circle_outlined,
       size: 17,
-      color: selected ? XinYuColors.accent : const Color(0x5561736c),
+      color: selected ? XinYuColors.accent : const Color(0x55647188),
     );
     final text = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1249,19 +1236,19 @@ class _ChoiceCard extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: selected
-                    ? [const Color(0xedfafff9), const Color(0x9cc6e3d4)]
+                    ? [const Color(0xedf9fbff), XinYuColors.selection]
                     : [const Color(0x90ffffff), const Color(0x30ffffff)],
               ),
               border: Border.all(
                 color: selected
-                    ? const Color(0x96779e8a)
+                    ? const Color(0x968da3bf)
                     : const Color(0xc0ffffff),
                 width: 1,
               ),
               boxShadow: selected
                   ? const [
                       BoxShadow(
-                        color: Color(0x12476f5b),
+                        color: Color(0x12515e70),
                         blurRadius: 12,
                         offset: Offset(0, 4),
                       ),

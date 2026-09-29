@@ -62,7 +62,7 @@ class ProfileAvatar extends StatelessWidget {
     final id =
         controller.settings[isUser ? 'user_avatar' : 'companion_avatar']
             as String?;
-    final name = isUser ? controller.userName : controller.companionName;
+    final name = isUser ? controller.userName : controller.companionDisplayName;
     final fallback = CompanionAvatar(
       size: size,
       label: name.isEmpty ? '我' : name.characters.last,
@@ -72,10 +72,11 @@ class ProfileAvatar extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 1.5),
+        borderRadius: BorderRadius.circular(size * .27),
+        border: Border.all(color: const Color(0x80ffffff), width: .7),
       ),
-      child: ClipOval(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(size * .27),
         child: LocalImage(
           controller: controller,
           id: id,
@@ -131,12 +132,20 @@ class ChatPhoto extends StatelessWidget {
           ),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: LocalImage(
-            controller: controller,
-            id: id,
-            width: 240,
-            height: 180,
+          borderRadius: BorderRadius.circular(16),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final preferred = MediaQuery.sizeOf(context).width < 880
+                  ? 240.0
+                  : 320.0;
+              final width = preferred.clamp(0.0, constraints.maxWidth);
+              return LocalImage(
+                controller: controller,
+                id: id,
+                width: width,
+                height: width * .75,
+              );
+            },
           ),
         ),
       ),
