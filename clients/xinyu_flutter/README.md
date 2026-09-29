@@ -4,15 +4,15 @@ Flutter 玻璃界面 + 原有 Python 记忆引擎。电脑和手机各自保存�
 不互通，不依赖电脑给手机提供服务，也不需要租服务器。当前源码和实际产物状态见
 [本地版交付记录](../../docs/LOCAL_APP_DELIVERY.md)；源码接入不等于安装包已经验收。
 
-最新测试版：[心隅 0.2.9 Windows / Android](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.9)。
+已发布测试版：[心隅 0.2.9 Windows / Android](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.9)。
 Windows 安装、覆盖更新、数据保留与桌面检查见 [交付记录](../../docs/WINDOWS_029_DELIVERY.md)。
 
 2026-09-29 的新前端已按确认的 Android / Windows 原型完成，源码版本为 `0.2.10+13`：
 暖白底色、蓝灰消息、统一玻璃组件，Windows 双栏与 Android 单列适配；设置、角色主页、
 手账和收藏等弹窗也使用同一套颜色。源码变化、备注功能和本轮验证状态见
-[前端改版记录](../../docs/FRONTEND_REDESIGN_20260929.md)。本轮尚未生成新的安装包：
-Windows 缺少 C++ 编译工具链；Android 的 Java 通信问题已修复，但 NDK 下载持续超时，
-本次构建已停止并保留下载进度，尚未生成 APK。
+[前端改版记录](../../docs/FRONTEND_REDESIGN_20260929.md)。本机工具链受限后，经用户批准
+通过手动 Actions 生成两端安装包；本地文件、哈希和平台验收范围见
+[0.2.10 交付记录](../../docs/XINYU_0210_DELIVERY.md)。Actions 产物保留 7 天；本地成品已保存。
 
 旧 Android `0.2.0+2` APK 已确认存在启动缺陷，请使用
 [启动修复记录](../../docs/ANDROID_STARTUP_REPAIR.md)列出的修正版本。

@@ -2,7 +2,8 @@
 
 日期：2026-09-29。Flutter 3.47.5、Dart 3.13.4、Windows 本机环境。
 按最终确认的原型完成 `clients/xinyu_flutter`，源码版本为 `0.2.10+13`。
-本轮本地 Android 打包未成功，Windows 缺少编译工具；没有发布或生成新安装包。
+本机工具链受限后，经用户明确批准，已通过手动 GitHub Actions 生成两端安装包。
+源码 CI、产物哈希与平台验收范围见 [0.2.10 交付记录](XINYU_0210_DELIVERY.md)。
 
 ## 本次实现
 
@@ -47,8 +48,8 @@
 | `ruff check .` | 通过 |
 | `mypy companion_agent companion_memoryos` | 通过，126 个源文件 |
 | 全量 Python 测试 | 后续修复测试同步和旧版夹具后，1155 项通过、2 项跳过 |
-| Windows 原生 profile / 窗口测试 | 未完成；本机未安装 Visual Studio C++ 工具链，未产生本轮安装包和原生性能数据 |
-| Android 本地 release 构建 | Java 通信初始化问题已修复；NDK 下载持续超时后停止，未生成 APK |
+| Windows 成品 | Actions 构建成功，打包引擎在云端与本机均通过隔离验收；原生窗口和性能结果另见交付记录 |
+| Android release 构建 | 本地 NDK 下载超时后停止；Actions 已生成 APK，签名、16 KB 对齐与桥接 / FTS5 检查通过 |
 | Android 真机 | 未连接设备，未验收 |
 
 键盘单元测试验证 Enter 只提交一次及组合输入不提交。Widget 测试没有系统文本输入后端，
@@ -158,4 +159,5 @@ Windows 的微软 Build Tools 安装器签名有效，但当前执行身份没�
 不增加界面提示，演示、加载中或连接失败均不满足验收条件。Widget 测试验证这些状态；
 Android 驱动检查本应用、启用状态和精确资源 ID，7 项驱动测试通过，普通文本不能冒充连接成功。
 
-推送 GitHub、上传产物或再次运行 GitHub 打包流程仍需用户明确批准；安装包打包保持手动。
+本轮推送与手动构建已获用户明确批准；实际成品、失败记录与复测见交付记录。
+安装包打包仍保持手动，代码推送不触发安装包构建。
