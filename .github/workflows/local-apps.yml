@@ -196,8 +196,9 @@ jobs:
           ram-size: 2048M
           disk-size: 4096M
           # swiftshader_indirect was deprecated in Emulator 36.4.9. Use the
-          # supported renderer and a cold boot when checking the release APK.
-          emulator-options: -no-window -gpu swiftshader -no-snapshot -noaudio -no-boot-anim -camera-back none
+          # supported GLES renderer and a cold boot when checking the release
+          # APK. Keep guest kernel output when the emulator itself disconnects.
+          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -show-kernel -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: python clients/xinyu_flutter/tool/smoke_android_apk.py --apk-root .agent-tests/android-install
       - name: Preserve emulator host diagnostics
         if: always()
