@@ -195,14 +195,26 @@ jobs:
           arch: x86_64
           ram-size: 2048M
           disk-size: 4096M
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          # swiftshader_indirect was deprecated in Emulator 36.4.9. Use the
+          # supported renderer and a cold boot when checking the release APK.
+          emulator-options: -no-window -gpu swiftshader -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: python clients/xinyu_flutter/tool/smoke_android_apk.py --apk-root .agent-tests/android-install
+      - name: Preserve emulator host diagnostics
+        if: always()
+        run: |
+          mkdir -p .agent-tests/android-host-diagnostics
+          free -m > .agent-tests/android-host-diagnostics/memory.txt
+          df -h > .agent-tests/android-host-diagnostics/disk.txt
+          ps -eo pid,ppid,comm,rss > .agent-tests/android-host-diagnostics/processes.txt
+          sudo dmesg -T > .agent-tests/android-host-diagnostics/kernel.log
       - name: Preserve synthetic Android startup evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: android-startup-evidence-api-${{ inputs.api_level || '35' }}
-          path: .agent-tests/android-startup-*/
+          path: |
+            .agent-tests/android-startup-*/
+            .agent-tests/android-host-diagnostics/
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7
