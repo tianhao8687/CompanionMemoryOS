@@ -598,6 +598,33 @@ def _recall_turns(
         else event_before,
         reality_layer=request.state_reality_layer,
     )
+    if (
+        request.include_turn_evidence
+        and request.answer_semantics is AnswerSemantics.EVENT_RECALL
+        and temporal_hint.has_window
+    ):
+        # Keep semantic/lexical matches outside the day: reporting an event and
+        # the event itself can have different dates. Add a bounded day lookup.
+        starts = [value for value in (request.event_after, temporal_hint.start) if value]
+        ends = [value for value in (request.event_before, temporal_hint.end) if value]
+        after, before = max(starts) if starts else None, min(ends) if ends else None
+        if after is None or before is None or after < before:
+            dated = self.store.turn_pool(
+                request.user_id,
+                request.scope,
+                "",
+                self.config.retrieval.turn_candidate_pool,
+                request.as_of,
+                semantic_pool_size=0,
+                minimum_semantic_similarity=1.0,
+                exclude_turn_ids=request.exclude_turn_ids,
+                include_relationship_turns=request.include_relationship_turns,
+                event_after=after,
+                event_before=before,
+                reality_layer=request.state_reality_layer,
+            )
+            seen = {candidate.turn.id for candidate in pool}
+            pool.extend(candidate for candidate in dated if candidate.turn.id not in seen)
     items = [self._turn_item(candidate, request, temporal_hint) for candidate in pool]
     items = [
         item

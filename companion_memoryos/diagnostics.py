@@ -8,12 +8,14 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from contextvars import ContextVar
+from contextvars import Context, ContextVar, copy_context
 from time import monotonic
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 
 class DiagnosticSink(Protocol):
+    """Callbacks can run on worker threads; guards must enforce their original budget."""
+
     def begin_call(self, source: str, payload: dict[str, Any], live: bool) -> dict[str, Any]: ...
 
     def finish_call(self, call: dict[str, Any]) -> None: ...
@@ -21,7 +23,23 @@ class DiagnosticSink(Protocol):
     def event(self, name: str, value: Any) -> None: ...
 
 
+@runtime_checkable
+class ForkableDiagnosticSink(DiagnosticSink, Protocol):
+    """Optional snapshot for sinks whose attribution depends on a mutable request."""
+
+    def fork_background(self) -> DiagnosticSink: ...
+
+
 sink: ContextVar[DiagnosticSink | None] = ContextVar("model_diagnostics", default=None)
+
+
+def background_context() -> Context:
+    context = copy_context()
+    active = sink.get()
+    if isinstance(active, ForkableDiagnosticSink):
+        context.run(sink.set, active.fork_background())
+    # A plain observer/guard is retained, never dropped or treated as authorization.
+    return context
 
 
 def record(name: str, value: Any) -> None:

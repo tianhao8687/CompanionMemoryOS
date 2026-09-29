@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import Field
 
 from companion_agent.character_memory import CharacterMemoryRecord
 from companion_agent.communication import preference_evidence, preference_rules
+from companion_agent.context.grounding import memory_authority, search_grounding
 from companion_agent.current_state.models import CompiledCurrentState
 from companion_agent.dialogue_flow import DIALOGUE_FLOW_RULES, expression_patterns
 from companion_agent.experience.models import CompiledExperienceContext
@@ -39,6 +41,8 @@ An assistant's earlier embellishment cannot establish what the user said or expe
 Claims such as "you said", a reason, an intention or a remembered feeling need their own
 user-source support, even when the surrounding facts are correct. Leave unsupported details
 unknown; a new suggestion or present reaction may be expressed as such, not as past testimony.
+Evidence authority labels distinguish applicable observations, historical versions and unresolved
+claims. Search-context source IDs are retrieval hints, never resolved pronoun identities.
 Keep an announced plan, a visit and a completed handover distinct; each needs its own evidence.
 Prices, dates and physical shared experiences cannot be filled in from a remaining budget or tone.
 没有可用证据时，只说现在不确定，不要据此断言用户从未说过。
@@ -130,6 +134,7 @@ class ComposedContext(PersonaModel):
     experiences: CompiledExperienceContext | None = None
     current_state: CompiledCurrentState | None = None
     communication_preferences: list[dict[str, Any]] = Field(default_factory=list)
+    deduplicated_turn_ids: list[str] = Field(default_factory=list)
 
     @property
     def text(self) -> str:
@@ -153,6 +158,7 @@ def compose_context(
     current_state_context: CompiledCurrentState | None = None,
     application_rules: str = "",
     communication_preferences: list[dict[str, Any]] | None = None,
+    preserve_source_details: bool = False,
 ) -> ComposedContext:
     if not current_user_turn.strip():
         raise ValueError("current user turn cannot be blank")
@@ -184,15 +190,34 @@ def compose_context(
     modes = {(d.evidence.kind, d.evidence.id): d.mode for d in plan.decisions}
     evidence: list[dict[str, Any]] = []
     covered = set(experience_context.covered_evidence_ids) if experience_context else set()
+    needs_exact_evidence = (
+        preserve_source_details
+        or is_conversation_task(current_user_turn)
+        or any(decision.mode is MemoryReferenceMode.EXPLICIT_RECALL for decision in plan.decisions)
+    )
+    visible_recent_turns = {
+        turn.id: turn
+        for turn in recent_conversation or []
+        if turn.user_id == user_id
+        and turn.scope == scope
+        and turn.deletion_state is TurnDeletionState.ACTIVE
+        and turn.consent is ConsentState.GRANTED
+        and turn.role in {ConversationRole.USER, ConversationRole.ASSISTANT}
+    }
+    deduplicated_turn_ids: list[str] = []
 
     def add(kind: ExperienceEvidenceKind, record: Any, **extra: Any) -> None:
-        if f"{kind.value}:{record.id}" in covered:
+        if f"{kind.value}:{record.id}" in covered and not needs_exact_evidence:
             return
         mode = modes.get((kind, record.id), MemoryReferenceMode.SUPPRESS)
         if mode is MemoryReferenceMode.SUPPRESS:
             return
         if record.user_id != user_id:
             raise ValueError("cross-user evidence")
+        if kind is ExperienceEvidenceKind.MEMORY:
+            extra["authority"] = memory_authority(
+                record, memory_context.generated_at if memory_context else datetime.now(UTC)
+            )
         if kind is ExperienceEvidenceKind.MEMORY and record.metadata.get(
             "quoted_material_reference"
         ):
@@ -236,10 +261,30 @@ def compose_context(
             if (
                 f"turn:{turn_item.turn.id}" in covered
                 and turn_item.turn.id not in dialogue_pair_ids
+                and not needs_exact_evidence
             ):
                 continue
             mode = modes.get((ExperienceEvidenceKind.TURN, turn_item.turn.id))
             if mode is not None and mode is not MemoryReferenceMode.SUPPRESS:
+                recent_copy = visible_recent_turns.get(turn_item.turn.id)
+                if (
+                    recent_copy is not None
+                    and recent_copy.content == turn_item.turn.content
+                    and recent_copy.actor_id == turn_item.turn.actor_id
+                    and recent_copy.role == turn_item.turn.role
+                    and recent_copy.speech_spans == turn_item.turn.speech_spans
+                    and turn_item.evidence_text == recent_copy.content
+                ):
+                    evidence.append(
+                        {
+                            "kind": "turn",
+                            "id": turn_item.turn.id,
+                            "use_mode": mode.value,
+                            "content_in_recent_conversation": True,
+                        }
+                    )
+                    deduplicated_turn_ids.append(turn_item.turn.id)
+                    continue
                 # Only the filtered span is evidence, never the complete raw turn.
                 evidence.append(
                     {
@@ -248,11 +293,15 @@ def compose_context(
                         "use_mode": mode.value,
                         "actor_id": turn_item.turn.actor_id,
                         "role": turn_item.turn.role.value,
+                        "authority": "historical_user_utterance_not_settled_fact"
+                        if turn_item.turn.role is ConversationRole.USER
+                        else "assistant_words_not_user_testimony",
+                        "source_span": turn_item.evidence_span,
                         "reply_to_turn_id": turn_item.turn.reply_to_turn_id,
                         "occurred_at": turn_item.turn.occurred_at.isoformat(),
                         "server_sequence": turn_item.turn.server_sequence,
                         "speech_spans": [
-                            span.model_dump(mode="json") for span in turn_item.turn.speech_spans
+                            span.model_dump(mode="json") for span in turn_item.evidence_speech_spans
                         ],
                         "content": turn_item.evidence_text,
                     }
@@ -300,6 +349,7 @@ def compose_context(
                 recent.append(
                     {
                         "turn_index": None,
+                        "source_turn_id": turn.id,
                         "actor_id": turn.actor_id,
                         "role": turn.role.value,
                         "content": turn.content,
@@ -314,6 +364,7 @@ def compose_context(
             recent.append(
                 {
                     "turn_index": len(dialogue),
+                    "source_turn_id": turn.id,
                     "actor_id": turn.actor_id,
                     "role": turn.role.value,
                     "speech_spans": [span.model_dump(mode="json") for span in turn.speech_spans],
@@ -371,6 +422,7 @@ def compose_context(
             + dump(
                 {
                     "evidence": evidence,
+                    "grounding": search_grounding(memory_context),
                     "relevant_experiences": json.loads(experience_context.text)
                     if experience_context
                     else [],
@@ -409,4 +461,5 @@ def compose_context(
         experiences=experience_context,
         current_state=current_state_context,
         communication_preferences=communication_preferences or [],
+        deduplicated_turn_ids=deduplicated_turn_ids,
     )

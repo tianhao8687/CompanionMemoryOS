@@ -338,6 +338,7 @@ class RomanceHost:
                 self.injected_llm or self.resolved_key(self.settings, self.api_key)
             ),
             "embedding_status": self.memory.embedding_status,
+            "embedding_index_status": self.memory.index_worker.status,
             "embedding_backend": self.memory.embeddings.backend,
             "credential_persistence_supported": self.credential_store.available,
             "credential_store_error": self.credential_store_error,
@@ -764,6 +765,7 @@ def create_app(
         finally:
             host.tools.scheduler.stop()
             host.channels.stop()
+            host.memory.close_indexer()
 
     app = FastAPI(
         title="心隅 · AI 恋爱陪伴",

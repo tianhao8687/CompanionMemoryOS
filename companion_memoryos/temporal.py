@@ -13,7 +13,11 @@ from companion_memoryos.constants import (
     RELATIVE_YESTERDAY_DAYS,
 )
 
-_CHINESE_DATE = re.compile(r"(?P<year>\d{4})年(?P<month>\d{1,2})月(?P<day>\d{1,2})日?")
+_CHINESE_DATE = re.compile(
+    r"(?<![\d年月])(?:(?:(?P<year>\d{4})年|(?P<relative_year>去年|今年|明年))\s*)?"
+    r"(?P<month>\d{1,2})月"
+    r"(?P<day>\d{1,2})(?:日|号)?(?!\d)"
+)
 _ISO_DATE = re.compile(r"(?P<date>\d{4}-\d{1,2}-\d{1,2})")
 _EVENT_DAY = re.compile(rf"{_CHINESE_DATE.pattern}|{_ISO_DATE.pattern}|前天|昨天|昨日|今天|今日")
 
@@ -117,11 +121,22 @@ def temporal_similarity(event_at: datetime, hint: TemporalHint) -> float:
 
 
 def _explicit_date(query: str, as_of: datetime) -> TemporalHint | None:
-    chinese = _CHINESE_DATE.search(query)
+    chinese_dates = list(_CHINESE_DATE.finditer(query))
+    iso_dates = list(_ISO_DATE.finditer(query))
+    # A comparison of dates must not silently become a filter for just the first.
+    if len(chinese_dates) + len(iso_dates) > 1:
+        return TemporalHint()
+    chinese = chinese_dates[0] if chinese_dates else None
     if chinese is not None:
+        year = int(chinese.group("year")) if chinese.group("year") else as_of.year
+        if chinese.group("year") is None:
+            if chinese.group("relative_year") == "去年":
+                year -= 1
+            elif chinese.group("relative_year") == "明年":
+                year += 1
         try:
             start = as_of.replace(
-                year=int(chinese.group("year")),
+                year=year,
                 month=int(chinese.group("month")),
                 day=int(chinese.group("day")),
                 hour=0,
@@ -130,9 +145,9 @@ def _explicit_date(query: str, as_of: datetime) -> TemporalHint | None:
                 microsecond=0,
             )
         except ValueError:
-            return None
+            return TemporalHint()
         return TemporalHint(start, start + timedelta(days=RELATIVE_YESTERDAY_DAYS))
-    iso = _ISO_DATE.search(query)
+    iso = iso_dates[0] if iso_dates else None
     if iso is None:
         return None
     try:

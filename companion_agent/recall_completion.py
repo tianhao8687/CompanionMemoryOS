@@ -14,6 +14,7 @@ from companion_agent.memory_lifecycle import is_conversation_task, topics_overla
 from companion_memoryos.discourse import NONASSERTIVE, direct_clauses, negated_predicate
 from companion_memoryos.entity_resolution import entity_catalog
 from companion_memoryos.schemas import (
+    AnswerSemantics,
     ConsentState,
     ConversationRole,
     MemoryKind,
@@ -83,6 +84,25 @@ PAST_REPLY = re.compile(
     r"你.{0,8}(?:写过|算过|说过|给过)|(?:那句|那段|那版|那份).{0,12}(?:文案|话|稿|说明)|"
     r"(?:封底|扉页).{0,8}(?:那句|文案|说过)"
 )
+_SPEECH_ACTION = r"(?:推荐|建议|告诉|解释|提到|回答|分享|介绍|教|写|算|答|说|给)"
+_PAST_MARKER = r"(?:以前|之前|曾经|上次|上回|当时|那天)"
+_ASSISTANT_SUBJECT = r"(?<![跟向对和与给])你"
+_SPEECH_MODIFIERS = r"(?:(?:给|向|跟|和|与|对|帮|为)我|曾经|曾|已经|还|也|都|最早|最初|有|是){0,6}"
+ASSISTANT_HISTORY = re.compile(
+    rf"{_ASSISTANT_SUBJECT}{_SPEECH_MODIFIERS}{_SPEECH_ACTION}(?:过|了)|"
+    rf"{_ASSISTANT_SUBJECT}{_SPEECH_MODIFIERS}{_PAST_MARKER}"
+    rf"{_SPEECH_MODIFIERS}{_SPEECH_ACTION}|"
+    rf"{_PAST_MARKER}[，, ]*{_ASSISTANT_SUBJECT}{_SPEECH_MODIFIERS}{_SPEECH_ACTION}"
+)
+
+
+def wants_assistant_history(request: RecallRequest) -> bool:
+    return (
+        request.include_turn_evidence
+        and request.answer_semantics is AnswerSemantics.EVENT_RECALL
+        and not request.state_predicate
+        and bool(ASSISTANT_HISTORY.search(request.query))
+    )
 
 
 def specific_overlap(left: str, right: str, memory: ApplicationMemory) -> bool:
@@ -285,13 +305,34 @@ def dialogue_replies(
     hint: TemporalHint,
     selected: list[TurnRecallItem],
 ) -> list[TurnRecallItem]:
-    """An earlier writing/calculation request may already have a saved reply."""
-    if not PAST_REPLY.search(request.query):
+    """Retrieve actual assistant speech, either directly or through its user request."""
+    historical = wants_assistant_history(request)
+    if not historical and not PAST_REPLY.search(request.query):
         return []
-    output: list[TurnRecallItem] = []
+
+    def permitted(item: TurnRecallItem) -> bool:
+        turn = item.turn
+        return (
+            turn.role is ConversationRole.ASSISTANT
+            and turn.id not in request.exclude_turn_ids
+            and turn.reply_to_turn_id not in request.exclude_turn_ids
+            and (not request.event_after or turn.occurred_at >= request.event_after)
+            and (not request.event_before or turn.occurred_at < request.event_before)
+            and turn_reality_layer(
+                turn.content,
+                json.dumps(turn.metadata),
+                json.dumps([span.model_dump(mode="json") for span in turn.speech_spans]),
+            )
+            == request.state_reality_layer.value
+        )
+
+    output = {item.turn.id: item for item in selected if historical and permitted(item)}
+    matched_requests = 0
     for item in selected:
-        if not is_conversation_task(item.evidence_text) or not specific_overlap(
-            request.query, item.evidence_text, memory
+        if (
+            item.turn.role is not ConversationRole.USER
+            or (not historical and not is_conversation_task(item.evidence_text))
+            or not specific_overlap(request.query, item.evidence_text, memory)
         ):
             continue
         with memory.store.database.connection() as db:
@@ -305,11 +346,28 @@ def dialogue_replies(
             turn = memory.store._row_to_turn(row)
             if turn.scope != item.turn.scope:
                 continue
-            reply = memory._turn_item(TurnSearchCandidate(turn=turn), request, hint)
-            reply.recall_confidence = item.recall_confidence
-            reply.use_mode = item.use_mode
-            reply.reasons.append("associated_dialogue_reply_not_user_fact")
-            output.append(reply)
-        if len(output) == 2:
+            reply = output.get(turn.id) or memory._turn_item(
+                TurnSearchCandidate(turn=turn), request, hint
+            )
+            if permitted(reply):
+                reply.recall_confidence = max(reply.recall_confidence, item.recall_confidence)
+                reply.use_mode = memory._use_mode(reply.recall_confidence)
+                output[turn.id] = reply
+        matched_requests += 1
+        if matched_requests >= (request.turn_limit or memory.config.retrieval.default_turn_limit):
             break
-    return output
+        if not historical and len(output) == 2:
+            break
+    replies = list(output.values())
+    for reply in replies:
+        reply.reasons.append("associated_dialogue_reply_not_user_fact")
+    if historical:
+        replies.sort(
+            key=lambda item: (
+                -item.recall_confidence,
+                -item.total,
+                -item.turn.server_sequence,
+                item.turn.id,
+            )
+        )
+    return replies

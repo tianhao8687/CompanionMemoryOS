@@ -424,6 +424,33 @@ CREATE TABLE IF NOT EXISTS turn_embeddings (
     FOREIGN KEY (turn_id) REFERENCES conversation_turns(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS turn_embedding_passages (
+    turn_id TEXT NOT NULL,
+    start_offset INTEGER NOT NULL,
+    end_offset INTEGER NOT NULL,
+    source_hash TEXT NOT NULL,
+    space TEXT NOT NULL,
+    dimensions INTEGER NOT NULL,
+    vector BLOB NOT NULL,
+    PRIMARY KEY (turn_id, start_offset),
+    FOREIGN KEY (turn_id) REFERENCES conversation_turns(id) ON DELETE CASCADE,
+    CHECK (start_offset >= 0 AND end_offset > start_offset)
+);
+CREATE INDEX IF NOT EXISTS idx_turn_passages_space
+    ON turn_embedding_passages(space, dimensions);
+CREATE TRIGGER IF NOT EXISTS invalidate_turn_passages
+AFTER UPDATE ON conversation_turns
+WHEN old.content_hash IS NOT new.content_hash OR old.content IS NOT new.content
+    OR old.consent IS NOT new.consent OR old.deletion_state IS NOT new.deletion_state
+BEGIN
+    DELETE FROM turn_embeddings WHERE turn_id = OLD.id;
+    DELETE FROM turn_embedding_passages WHERE turn_id = OLD.id;
+END;
+CREATE TRIGGER IF NOT EXISTS delete_turn_passages_with_embedding
+AFTER DELETE ON turn_embeddings BEGIN
+    DELETE FROM turn_embedding_passages WHERE turn_id = OLD.turn_id;
+END;
+
 CREATE TABLE IF NOT EXISTS processing_watermarks (
     user_id TEXT NOT NULL,
     scope_key TEXT NOT NULL,
@@ -862,6 +889,7 @@ GROUP BY user_id
 
 
 _DROP_REFRESHED_TRIGGERS = """
+DROP TRIGGER IF EXISTS invalidate_turn_passages;
 DROP TRIGGER IF EXISTS turns_fts_insert;
 DROP TRIGGER IF EXISTS turns_fts_update;
 DROP TRIGGER IF EXISTS turns_fts_delete;

@@ -155,7 +155,9 @@ def scope_from_row(row: sqlite3.Row) -> MemoryScope:
 class MemoryStore:
     def __init__(self, database: Database, *, semantic_index: SemanticIndex | None = None) -> None:
         self.database = database
-        self.semantic_index = semantic_index or SQLiteSemanticIndex(database)
+        self.semantic_index = (
+            semantic_index if semantic_index is not None else SQLiteSemanticIndex(database)
+        )
 
     def find_duplicate(
         self,

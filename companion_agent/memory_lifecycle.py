@@ -41,6 +41,10 @@ GENERIC_TOPICS = {
 }
 DATE_TOPIC = re.compile(r"^[\d零一二三四五六七八九十年月日号周星期天上下午夜点时分半:：./-]+$")
 LOCATION_TOPIC = re.compile(r"(?:馆|厅|楼|站|室|中心|店|园|广场)$")
+TASK_REQUEST = r"(?:帮我|替我|给我|你(?:来|先|再|试着|试试)?)"
+TASK_ACTION = r"(?:写|算|翻译|解释|拟|起.{0,3}名|编|讲)"
+TASK_OBJECT = re.compile(rf"{TASK_REQUEST}\s*把")
+TASK_OUTPUT = re.compile(rf"{TASK_ACTION}(?:成|给|为|一下)")
 
 
 def topic_keys(keys: list[str]) -> list[str]:
@@ -97,13 +101,36 @@ def is_conversation_task(text: str) -> bool:
         not NONASSERTIVE.search(clause)
         and bool(
             re.search(
-                r"(?:帮我|替我|给我|你(?:来|先|再|试着|试试)?)(?:.{0,8}?)(?:写|算|翻译|解释|拟|起.{0,3}名|编|讲)|你问我|"
+                rf"{TASK_REQUEST}(?:.{{0,8}}?){TASK_ACTION}|你问我|"
                 r"^(?:给|替)(?!自己)[^，。]{1,12}?(?:写|算|翻译|拟|解释)",
                 clause,
             )
         )
         for clause in direct_clauses(text)
     )
+
+
+def task_reference_query(text: str) -> str | None:
+    """Keep a literal preposed task object separate from its output instructions."""
+    clauses = direct_clauses(text)
+    if len(clauses) != 1 or NONASSERTIVE.search(clauses[0]):
+        return None
+    clause = clauses[0]
+    heads = list(TASK_OBJECT.finditer(clause))
+    if len(heads) != 1 or negated_predicate(clause, heads[0].start()):
+        return None
+    # Result/recipient complements disambiguate verbs from words such as 预算.
+    actions = list(TASK_OUTPUT.finditer(clause, heads[0].end()))
+    if len(actions) != 1:
+        return None
+    action = actions[0]
+    reference = clause[heads[0].end() : action.start()].strip()
+    if len(reference) < 2 or "[引用]" in reference:
+        return None
+    # A past/nominalized verb may belong to the object, not the requested action.
+    if re.match(r"[过了的错]", clause[action.end() :]):
+        return None
+    return reference
 
 
 def reconcile_preference_correction(

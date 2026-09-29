@@ -143,7 +143,9 @@ def _render_turn(item: TurnRecallItem) -> str:
         "actor_id": turn.actor_id,
         "content": item.evidence_text,
     }
-    if item.evidence_text == turn.content:
+    if item.evidence_span is not None:
+        evidence["source_span"] = item.evidence_span
+    if item.evidence_text == turn.content or item.evidence_span is not None:
         evidence["speech_spans"] = [
             {
                 "start": span.start_offset,
@@ -156,7 +158,7 @@ def _render_turn(item: TurnRecallItem) -> str:
                 "machine_generated": span.machine_generated,
                 "confidence": span.confidence,
             }
-            for span in turn.speech_spans
+            for span in item.evidence_speech_spans
         ]
     else:
         evidence["non_direct_spans_excluded"] = True

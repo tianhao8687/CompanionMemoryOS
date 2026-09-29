@@ -155,7 +155,50 @@ Windows 测试目录收紧为当前账号访问，Unix 创建目录使用 0700�
 明确任务交付，均包含换会话与真实重启。实际失败、修复及验证边界见
 [小规模修复报告](TARGETED_134_REPAIR_REPORT.md)。
 
+## 公开数据的原话召回与延迟
+
+`python -m companion_agent.testing.retrieval_benchmark --dataset <locomo10.json> --modes fts hash`
+可在独立合成数据库上评估当前 `ApplicationMemory` 的原话召回、严格证据命中率及延迟。
+脚本校验固定上游数据哈希，保存评分规则、配置、源码指纹、排除项和全部逐题结果。
+可选的 `bge` 配置使用现有本地中文向量模型缓存，不发远程模型请求。
+这不运行自动提取和最终回答生成，也不是官方问答成绩；完整方法、中文辅助检查、规模测试和
+本次结果见 [记忆召回与速度实测](MEMORY_RETRIEVAL_BENCHMARK.md)。
+
+中文源文档评测可用 `python -m companion_agent.testing.chinese_retrieval_benchmark`
+并指定 `--source-dir <固定版本的PerLTQA中文数据目录> --label <批次名称>`。
+默认使用按人物预先留出的 585 道事件/对话题，官方证据 ID 不进入索引。它与逐条聊天原话评分
+不是同一粒度，不能混算。中文旧回复修复、独立复测、速度对照及真实进程记录见
+[中文召回优化报告](MEMORY_RETRIEVAL_ZH_OPTIMIZATION.md)。
+
+优化后的全新中文人物与原题测试另见
+[全新中文题冻结测试](MEMORY_RETRIEVAL_FRESH_ZH_TEST.md)：排除旧人物及同文问题，
+冻结来源与标签后一次性运行，不用看过成绩的新题继续调参再冒充独立验收。
+
+`python -m companion_agent.testing.long_context_benchmark --source-dir <CLongEval源目录>`
+可冻结中文长故事的长度/证据位置分层样本，再用 `--run <protocol.json>` 执行一次检索。
+它评估官方参考段落覆盖率，不是最终回答正确率，也不测试应用文件导入器。
+本轮日期修复、78 题回归与独立长文本测试见
+[中文日期优化与长上下文测试](MEMORY_RETRIEVAL_LONG_ZH_OPTIMIZATION.md)。
+
 ## 网页和平台
+
+聊天优先编排的单元与集成回归位于 `tests/test_chat_first_context.py`，覆盖理解前置、
+一次召回、即时更正、延迟期间来源失效、上下文去重、摘要不替代细节、整段来回裁剪与最终使用计划。
+测试检查真实编排和最终模型输入，不用离线替身的固定回复宣称自然度提高。
+本轮检查结果与隔离实例编号见 [聊天优先改造记录](CHAT_FIRST_ARCHITECTURE.md)。
+
+`tests/test_chat_context_contract.py` 补充正常聊天入口的独立行为预期：固定预算、
+真实经历生成、来源细节、原生历史去重及删除/引用限制。意图预期不引用生产映射表，
+不覆盖检索查询或手工注入摘要/采用计划；生成替身只记录最终输入。
+此前保留的写作召回缺口已修复，原题、历史和原文断言不变，严格预期失败标记已移除。
+`tests/test_task_reference_query.py` 另检查任务对象与输出格式分离，以及歧义时保留完整查询。
+这些题是开发回归，不作为未见中文盲测或语言质量得分。
+解耦方法、错误注入和本轮结果见 [测试解耦记录](TEST_DECOUPLING.md)。
+
+记忆索引、后台诊断和指代扩展的进一步解耦见
+[记忆模块解耦与新题验收](MEMORY_DECOUPLING_20260929.md)。
+该轮只执行新增的 34 项契约探针与独立冻结中文题，没有重跑旧回归集。
+隔离应用仍有一项候选未进入最终上下文，报告保留失败，不能将其写成全部通过。
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -e ".[browser]"

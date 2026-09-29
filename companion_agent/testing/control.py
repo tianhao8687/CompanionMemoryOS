@@ -95,6 +95,8 @@ class TestControl:
         self.traces: dict[str, dict[str, Any]] = {}
         self.current: dict[str, Any] | None = None
         self.lock = RLock()
+        self.accounting_lock = RLock()
+        self.trace_generation = 0
         self.secrets = [token]
         self.offset_seconds = 0.0
         self.accounting_path = self.directory / "accounting.json"
@@ -163,11 +165,18 @@ class TestControl:
 
     def invalidate(self) -> None:
         # Forget/correct cannot leave older prompt copies accessible in diagnostics.
-        self.traces.clear()
-        if self.current is not None:
-            self.current["calls"] = []
-            self.current.pop("prepared", None)
-            self.traces[self.current["trace_id"]] = self.current
+        with self.accounting_lock:
+            self.trace_generation += 1
+            self.traces.clear()
+            if self.current is not None:
+                self.current["calls"] = []
+                self.current.pop("prepared", None)
+                self.traces[self.current["trace_id"]] = self.current
+
+    def fork_background(self) -> BackgroundDiagnostics:
+        return BackgroundDiagnostics(
+            self, self.current["trace_id"] if self.current else None, self.trace_generation
+        )
 
     def discover(self, host: RomanceHost) -> dict[str, Any]:
         return {
@@ -232,8 +241,9 @@ class TestControl:
                 raise HTTPException(403, "test scope expired or conversation not authorized")
             if self.accounting["turns"] >= self.marker["budget"]["max_turns"]:
                 raise HTTPException(429, "test turn budget exhausted")
-            self.accounting["turns"] += 1
-            self.save_accounting()
+            with self.accounting_lock:
+                self.accounting["turns"] += 1
+                self.save_accounting()
             self.prune()
             trace: dict[str, Any] = {
                 "trace_id": str(uuid4()),
@@ -264,6 +274,10 @@ class TestControl:
                 self.current = None
 
     def begin_call(self, source: str, payload: dict[str, Any], live: bool) -> dict[str, Any]:
+        with self.accounting_lock:
+            return self._begin_call(source, payload, live)
+
+    def _begin_call(self, source: str, payload: dict[str, Any], live: bool) -> dict[str, Any]:
         from companion_agent.llm import MainLLMError
 
         budget = self.marker["budget"]
@@ -286,12 +300,43 @@ class TestControl:
         }
 
     def finish_call(self, call: dict[str, Any]) -> None:
-        if self.current is not None:
-            self.current["calls"].append(self.clean(call))
+        with self.accounting_lock:
+            if self.current is not None:
+                self.current["calls"].append(self.clean(call))
 
     def event(self, name: str, value: Any) -> None:
-        if self.current is not None:
-            self.current[name] = self.clean(value)
+        with self.accounting_lock:
+            if self.current is not None:
+                self.current[name] = self.clean(value)
+
+
+class BackgroundDiagnostics:
+    """Bind asynchronous accounting to its origin, never the next chat's trace."""
+
+    def __init__(self, control: TestControl, trace_id: str | None, generation: int) -> None:
+        self.control = control
+        self.trace_id = trace_id
+        self.generation = generation
+
+    def begin_call(self, source: str, payload: dict[str, Any], live: bool) -> dict[str, Any]:
+        from companion_agent.llm import MainLLMError
+
+        with self.control.accounting_lock:
+            if self.generation != self.control.trace_generation:
+                raise MainLLMError("test_background_trace_invalidated")
+            return self.control.begin_call(source, payload, live)
+
+    def finish_call(self, call: dict[str, Any]) -> None:
+        with self.control.accounting_lock:
+            trace = self.control.traces.get(self.trace_id or "")
+            if trace is not None and self.generation == self.control.trace_generation:
+                trace["calls"].append(self.control.clean({**call, "background": True}))
+
+    def event(self, name: str, value: Any) -> None:
+        with self.control.accounting_lock:
+            trace = self.control.traces.get(self.trace_id or "")
+            if trace is not None and self.generation == self.control.trace_generation:
+                trace["background_" + name] = self.control.clean(value)
 
 
 def install_routes(app: FastAPI, host: RomanceHost, control: TestControl, authorized: Any) -> None:

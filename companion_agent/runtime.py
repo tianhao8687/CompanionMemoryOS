@@ -15,6 +15,11 @@ from pydantic import Field
 from companion_agent.character_memory import CharacterMemoryStore
 from companion_agent.communication import project_preferences
 from companion_agent.context import ChatMessage, ComposedContext, compose_context
+from companion_agent.context.budget import (
+    BACKGROUND_MODES,
+    prune_background_evidence,
+    trim_oldest_exchange,
+)
 from companion_agent.current_state import CurrentStateConfig, CurrentStateService
 from companion_agent.current_state.compiler import CurrentStateBudgetError, compile_current_state
 from companion_agent.current_state.evaluator import analyze_current_turn
@@ -25,6 +30,7 @@ from companion_agent.experience import ExperienceConfig
 from companion_agent.experience.compiler import compile_experience_context
 from companion_agent.experience.evaluator import is_recall_question
 from companion_agent.llm import MainLLM, MainLLMError
+from companion_agent.memory_lifecycle import is_conversation_task
 from companion_agent.persona import PersonaDefinition, RelationshipStage, compile_persona_context
 from companion_agent.persona.models import PersonaModel
 from companion_agent.relationship import RelationshipConfig, RelationshipKey, RelationshipService
@@ -47,6 +53,7 @@ from companion_memoryos.schemas import (
     MemoryReferenceMode,
     ProcessTurnRequest,
     RealityLayer,
+    RecallIntent,
     ResponseBeatSentRequest,
     ResponseGoal,
     ResponsePlanRecord,
@@ -59,6 +66,16 @@ from companion_memoryos.service import CompanionMemoryService
 from companion_memoryos.turn_layers import turn_reality_layer
 
 logger = logging.getLogger(__name__)
+
+RECALL_INTENTS = {
+    ResponseGoal.DIRECT_ANSWER: RecallIntent.GENERAL,
+    ResponseGoal.LISTEN: RecallIntent.GENERAL,
+    ResponseGoal.COMFORT: RecallIntent.COMFORT,
+    ResponseGoal.CELEBRATE: RecallIntent.CELEBRATE,
+    ResponseGoal.REFLECT: RecallIntent.REFLECT,
+    ResponseGoal.PROBLEM_SOLVE: RecallIntent.PLAN,
+    ResponseGoal.CHECK_IN: RecallIntent.CHECK_IN,
+}
 
 
 class PreparedResponse(PersonaModel):
@@ -150,7 +167,7 @@ class CompanionAgent:
                     initial_key, self.initial_relationship_identity
                 )
         self.characters.install(self.persona, request.scope.companion_id)
-        result = self.memory.process_turn(request)
+        result = self.memory.process_turn(request, defer_recall=True)
         turn = result.storage.turn
         if turn is None or result.response_stale:
             raise ValueError("user turn unavailable or superseded")
@@ -179,16 +196,32 @@ class CompanionAgent:
                 )
         discourse = result.discourse
         goal = response_goal or (discourse.suggested_goal if discourse else None)
-        if goal is None and result.response_context is not None:
+        if goal is None and request.recall_request is not None:
             with suppress(ValueError):
-                goal = ResponseGoal(result.response_context.intent.value)
+                goal = ResponseGoal(request.recall_request.intent.value)
         goal = goal or ResponseGoal.DIRECT_ANSWER
         base_goal = goal
         if self.current_state_config.enabled:
             goal = choose_response_goal(base_goal, state_preparation, host_goal=response_goal)
 
+        record(
+            "recall_focus",
+            {
+                "goal": goal.value,
+                "intent": (
+                    request.recall_request.intent
+                    if request.recall_request
+                    else RECALL_INTENTS[goal]
+                ).value,
+                "intent_source": "caller" if request.recall_request else "current_goal",
+            },
+        )
+        result = self.memory.recall_processed_turn(request, result, intent=RECALL_INTENTS[goal])
+        if result.storage.turn is None or result.response_stale:
+            raise ValueError("user turn unavailable or superseded during recall")
+
         def make_plan(chosen_goal: ResponseGoal) -> ResponsePlanRecord:
-            return self.memory.plan_response(
+            return self.memory.preview_response(
                 ResponsePlanRequest(
                     user_id=request.user_id,
                     scope=request.scope,
@@ -239,9 +272,6 @@ class CompanionAgent:
                 base_goal, state_preparation, host_goal=response_goal
             )
             if filtered_goal is not goal:
-                self.memory.cancel_response_plan(
-                    plan.id, request.user_id, "current_state_policy_changed_goal"
-                )
                 goal = filtered_goal
                 plan = make_plan(goal)
         recent = [
@@ -453,6 +483,26 @@ class CompanionAgent:
                 and item.reply_to_turn_id not in omitted_emotion_sources
             ]
             context_tokens_before_trimming: int | None = None
+            context_budget_omissions: list[str] = []
+            facts_required = (
+                state_preparation.analysis.concrete_task
+                or state_preparation.analysis.recalling_history
+                or is_conversation_task(request.content)
+                or is_recall_question(request.content)
+                or bool(discourse and discourse.user_asked_memory_question)
+            )
+            protected_sources = set(compiled_relationship.evidence_ids)
+            protected_sources.update(
+                ref.split(":", 1)[1]
+                for ref in compiled_relationship.evidence_ids
+                if ref.startswith(("turn:", "user_correction:"))
+            )
+            for preference in preferences:
+                protected_sources.update(preference["source_turn_ids"])
+                if preference.get("memory_id"):
+                    protected_sources.add(f"memory:{preference['memory_id']}")
+            if compiled_state:
+                protected_sources.update(compiled_state.source_turn_ids)
             quoted = None
             if turn.reply_to_turn_id:
                 quoted = self.memory.store.get_turn(turn.reply_to_turn_id, request.user_id)
@@ -482,6 +532,7 @@ class CompanionAgent:
                     experience_context=compiled_experiences,
                     current_state_context=compiled_state,
                     communication_preferences=preferences,
+                    preserve_source_details=facts_required,
                 )
                 if quoted is not None:
                     # Quoted history is data, never a new user assertion or system rule.
@@ -507,18 +558,57 @@ class CompanionAgent:
                     context_tokens_before_trimming = self.memory.token_counter.count(serialized)
                 if self.memory.token_counter.count(serialized) <= self.max_context_tokens:
                     break
-                if recent:
-                    recent.pop(0)
-                elif characters:
-                    characters.pop()
-                elif compiled_state is not None and not compiled_state.has_explicit_requests:
-                    compiled_state = None
-                else:
-                    raise ValueError(
-                        "main context exceeds budget; evidence and rules not truncated"
+                if characters and not facts_required:
+                    context_budget_omissions.append(f"character:{characters.pop().seed.id}")
+                    continue
+                background_experiences = [
+                    item
+                    for item in recalled_experiences
+                    if item.use_mode in BACKGROUND_MODES
+                    and item.experience.experience_id in compiled_experiences.experience_ids
+                ]
+                if not facts_required and background_experiences:
+                    dropped = background_experiences[-1]
+                    recalled_experiences.remove(dropped)
+                    context_budget_omissions.append(
+                        f"experience:{dropped.experience.experience_id}"
                     )
-        except Exception:
-            self.memory.cancel_response_plan(plan.id, request.user_id, "composition_failed")
+                    compiled_experiences = compile_experience_context(
+                        relationship_key,
+                        recalled_experiences,
+                        self.memory.token_counter,
+                        max_tokens=self.experiences.config.max_context_tokens,
+                    )
+                    continue
+                pruned = (
+                    prune_background_evidence(
+                        result.response_context,
+                        plan.memory_use_plan,
+                        protected_sources,
+                        self.memory.token_counter,
+                    )
+                    if not facts_required
+                    else None
+                )
+                if pruned is not None:
+                    result.response_context, omitted = pruned
+                    context_budget_omissions.append(omitted)
+                    plan = make_plan(goal)
+                    continue
+                if compiled_state is not None and not compiled_state.has_explicit_requests:
+                    context_budget_omissions.append("optional_current_state")
+                    compiled_state = None
+                    continue
+                if trim_oldest_exchange(recent, {quoted.id} if quoted else set()):
+                    continue
+                raise ValueError(
+                    "main context exceeds budget; "
+                    "required dialogue, evidence and rules not truncated"
+                )
+            # Only admitted evidence becomes a durable use plan. Previewing never records use.
+            plan = self.memory.store.create_response_plan(plan)
+        except Exception as error:
+            record("composition_failed", {"error_type": type(error).__name__})
             raise
         record(
             "prepared",
@@ -552,6 +642,8 @@ class CompanionAgent:
                 ],
                 "context_tokens": self.memory.token_counter.count(serialized),
                 "context_tokens_before_trimming": context_tokens_before_trimming,
+                "context_budget_omissions": context_budget_omissions,
+                "deduplicated_turn_ids": context.deduplicated_turn_ids,
                 "context_limit": self.max_context_tokens,
                 "persona_version": compiled.persona_version,
                 "context_variant": self.context_variant,
@@ -569,6 +661,11 @@ class CompanionAgent:
                     [
                         *[item.id for item in recent],
                         *([quoted.id] if quoted else []),
+                        *(
+                            result.response_context.query_context_turn_ids
+                            if result.response_context
+                            else []
+                        ),
                     ]
                 )
             ),

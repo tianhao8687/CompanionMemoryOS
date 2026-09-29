@@ -16,6 +16,8 @@ from collections.abc import Callable
 from dataclasses import replace
 from datetime import datetime
 from itertools import pairwise
+from threading import Event
+from time import monotonic
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -25,6 +27,7 @@ from companion_agent.communication import communication_preferences
 from companion_agent.deepseek import DeepSeekConfig
 from companion_agent.directives import remember_directive
 from companion_agent.evidence_policy import filter_recent_turns, filter_superseded_context
+from companion_agent.index_worker import IndexWorker
 from companion_agent.memory_language import (
     SENSITIVE,
     LiteralMemory,
@@ -34,13 +37,17 @@ from companion_agent.memory_language import (
     shared_material,
     supported_literal,
 )
+from companion_agent.passages import EVIDENCE_CHARACTERS, evidence_window
 from companion_agent.persona.models import PersonaModel
 from companion_agent.relationship.models import RelationshipKey
 from companion_memoryos.config import InterpreterConfig
-from companion_memoryos.diagnostics import model_call
+from companion_memoryos.diagnostics import background_context, model_call
+from companion_memoryos.diagnostics import record as record_diagnostic
 from companion_memoryos.interpreter import OpenAICompatibleInterpreter
 from companion_memoryos.schemas import (
     AnswerCardinality,
+    AnswerSemantics,
+    CompanionContext,
     ConsentState,
     ConversationRole,
     ConversationTurnRecord,
@@ -55,6 +62,7 @@ from companion_memoryos.schemas import (
     ProcessTurnRequest,
     ProcessTurnResult,
     RealityLayer,
+    RecallIntent,
     RecallRequest,
     ReferenceFeedbackKind,
     ResolutionStatus,
@@ -63,12 +71,9 @@ from companion_memoryos.schemas import (
     TurnDeletionState,
     TurnRecallItem,
 )
-from companion_memoryos.semantic_index import (
-    SemanticDocument,
-    SemanticKind,
-    SQLiteSemanticIndex,
-)
+from companion_memoryos.semantic_index import PassageSemanticIndex
 from companion_memoryos.service import CompanionMemoryService
+from companion_memoryos.store import TurnSearchCandidate
 from companion_memoryos.temporal import TemporalHint
 
 
@@ -204,6 +209,8 @@ class ApplicationMemory(CompanionMemoryService):
         model: DeepSeekConfig,
         key: str | None,
     ) -> None:
+        self.close_indexer()
+        self.index_worker = IndexWorker(context_factory=background_context)
         self.learning = settings
         self.embeddings = Embeddings(settings, offline=offline)
         self.embedding_status = "ready"
@@ -236,8 +243,10 @@ class ApplicationMemory(CompanionMemoryService):
                 "PRIMARY KEY(id, space))"
             )
 
-    def process_turn(self, request: ProcessTurnRequest) -> ProcessTurnResult:
-        result = super().process_turn(request)
+    def process_turn(
+        self, request: ProcessTurnRequest, *, defer_recall: bool = False
+    ) -> ProcessTurnResult:
+        result = super().process_turn(request, defer_recall=True)
         turn = result.storage.turn
         if turn is None or request.consent is not ConsentState.GRANTED or result.response_stale:
             return result
@@ -382,9 +391,17 @@ class ApplicationMemory(CompanionMemoryService):
                         "SELECT result_json FROM agent_memory_actions WHERE turn_id=?", (turn.id,)
                     ).fetchone()
                     actions = json.loads(receipt[0]) if receipt else {}
-        if result.response_context is None:
-            # Preserve core attention / policy gates instead of creating a new recall path.
-            return result
+        return result if defer_recall else self.recall_processed_turn(request, result)
+
+    def _recall_for_processed_turn(
+        self,
+        request: ProcessTurnRequest,
+        result: ProcessTurnResult,
+        *,
+        intent: RecallIntent | None = None,
+    ) -> CompanionContext:
+        turn = result.storage.turn
+        assert turn is not None
         recall = request.recall_request or RecallRequest(
             user_id=request.user_id,
             scope=request.scope,
@@ -401,11 +418,19 @@ class ApplicationMemory(CompanionMemoryService):
             turn_limit=6,
             max_tokens=2500,
             max_characters=12000,
+            intent=intent or RecallIntent.GENERAL,
         )
+        from companion_agent.recall_focus import contextual_query
+
+        query, anchors = contextual_query(self, request, result, recall)
+        recall = recall.model_copy(update={"query": query})
+        record_diagnostic(
+            "retrieval_query",
+            {"original": request.content, "query": query, "context_turn_ids": anchors},
+        )
+        started = monotonic()
         if self.embeddings.backend != "off":
             try:
-                self.index_active(request.user_id, request.scope)
-                self.index_turns(request.user_id, request.scope, recall.as_of)
                 recall = recall.model_copy(
                     update={
                         "query_embedding": self.embeddings.encode(recall.query),
@@ -416,10 +441,82 @@ class ApplicationMemory(CompanionMemoryService):
             except ValueError:
                 # Retrieval remains available through FTS when a provider is unavailable.
                 self.embedding_status = "unavailable_using_fts"
-        result.response_context = self.recall(recall)
+        context = self.recall(recall)
+        context.query_context_turn_ids = anchors
+        record_diagnostic(
+            "retrieval_timing",
+            {
+                "foreground_seconds": monotonic() - started,
+                "historical_backfill_in_foreground": False,
+                "historical_index_status": self.index_worker.status,
+            },
+        )
+        if self.embeddings.backend != "off":
+            self._schedule_index(request.user_id, request.scope, recall.as_of)
+        with self.store.database.connection() as db:
+            receipt = db.execute(
+                "SELECT result_json FROM agent_memory_actions WHERE turn_id=?", (turn.id,)
+            ).fetchone()
+        actions = json.loads(receipt[0]) if receipt else {}
         if actions:
-            result.response_context.guidance.append("application_memory:" + json.dumps(actions))
-        return result
+            context.guidance.append("application_memory:" + json.dumps(actions))
+        return context
+
+    def close_indexer(self) -> None:
+        worker = getattr(self, "index_worker", None)
+        if worker is not None:
+            worker.close()
+
+    def _schedule_index(self, user_id: str, scope: MemoryScope, as_of: datetime) -> None:
+        from companion_agent.embedding_backfill import EmbeddingBackfill
+
+        embeddings = self.embeddings
+
+        def work(cancelled: Event) -> bool:
+            batch = EmbeddingBackfill(self, embeddings, user_id, scope, as_of, cancelled)
+            memories_complete = batch.memories()
+            turns_complete = batch.turns()
+            return memories_complete and turns_complete
+
+        self.index_worker.submit(user_id + ":" + scope.model_dump_json(), work)
+
+    def _turn_item(
+        self,
+        candidate: TurnSearchCandidate,
+        request: RecallRequest,
+        temporal_hint: TemporalHint,
+    ) -> TurnRecallItem:
+        turn = candidate.turn
+        if (
+            not request.include_turn_evidence
+            or request.answer_semantics is not AnswerSemantics.EVENT_RECALL
+            or len(turn.content) <= EVIDENCE_CHARACTERS
+        ):
+            return super()._turn_item(candidate, request, temporal_hint)
+        index = self.store.semantic_index
+        vectors = (
+            index.passage_vectors(
+                turn.id, turn.user_id, request.embedding_space or "", turn.content_hash
+            )
+            if request.query_embedding and isinstance(index, PassageSemanticIndex)
+            else []
+        )
+        span = evidence_window(
+            turn.content, request.query, self.config, request.query_embedding, vectors
+        )
+        excerpt = turn.content[slice(*span)]
+        item = super()._turn_item(
+            replace(candidate, turn=turn.model_copy(update={"content": excerpt})),
+            request,
+            temporal_hint,
+        )
+        return item.model_copy(
+            update={
+                "turn": turn,
+                "evidence_span": span,
+                "reasons": [*item.reasons, "source_addressed_passage"],
+            }
+        )
 
     def _resolve_favorite(
         self, fact: LiteralMemory, turn: ConversationTurnRecord, direct: str
@@ -461,8 +558,30 @@ class ApplicationMemory(CompanionMemoryService):
     ) -> list[TurnRecallItem]:
         if not turn_limit:
             return []
+        from companion_agent.memory_lifecycle import task_reference_query
+        from companion_agent.recall_completion import (
+            complete_candidates,
+            dialogue_replies,
+            wants_assistant_history,
+        )
+        from companion_memoryos.scoring import build_fts_query
+
+        reference = (
+            task_reference_query(request.query)
+            if request.include_turn_evidence
+            and request.answer_semantics is AnswerSemantics.EVENT_RECALL
+            and not request.state_predicate
+            and not wants_assistant_history(request)
+            else None
+        )
+        search_request = request
+        if reference:
+            search_request = request.model_copy(update={"query": reference})
+            fts_query = build_fts_query(reference, self.config)
+        # Only lexical lookup/scoring uses the task object. Original semantics,
+        # time bounds, source restrictions and the full model input stay intact.
         items = super()._recall_turns(
-            request,
+            search_request,
             temporal_hint,
             fts_query,
             event_after,
@@ -470,7 +589,9 @@ class ApplicationMemory(CompanionMemoryService):
             self.config.retrieval.turn_candidate_pool,
             has_cues,
         )
-        from companion_agent.recall_completion import complete_candidates, dialogue_replies
+        if reference:
+            for item in items:
+                item.reasons.append("literal_task_reference_query")
 
         items = complete_candidates(self, request, temporal_hint, items)
         # Apply the same source/dependency restrictions as recent conversation.
@@ -483,7 +604,10 @@ class ApplicationMemory(CompanionMemoryService):
         eligible = filter_recent_turns(
             self, key, [item.turn for item in items], MemoryUsePlan(), request.as_of
         )
-        if not re.search(r"以前|曾经|最初|原来|改过|变过|变化|历史", request.query):
+        historical_reply = wants_assistant_history(request)
+        if not historical_reply and not re.search(
+            r"以前|曾经|最初|原来|改过|变过|变化|历史", request.query
+        ):
             eligible = filter_superseded_context(self, key, request.scope, eligible)
             # A current, explicitly versioned favourite already has a complete
             # structured value. Its correction's quoted old answer adds no detail
@@ -512,7 +636,15 @@ class ApplicationMemory(CompanionMemoryService):
                     item.reasons.append("dated_plan_for_overview")
             retained.sort(key=lambda item: "dated_plan_for_overview" not in item.reasons)
         selected = retained[:turn_limit]
-        replies = dialogue_replies(self, request, temporal_hint, selected)
+        eligible_ids = {turn.id for turn in eligible}
+        replies = dialogue_replies(
+            self,
+            request,
+            temporal_hint,
+            [item for item in items if item.turn.id in eligible_ids]
+            if historical_reply
+            else selected,
+        )
         reply_sources = (
             filter_recent_turns(
                 self, key, [item.turn for item in replies], MemoryUsePlan(), request.as_of
@@ -523,6 +655,10 @@ class ApplicationMemory(CompanionMemoryService):
         allowed_replies = {turn.id for turn in reply_sources}
         # Stay in the requested evidence limit. Actual assistant words retain
         # their role and normal use-plan validation; they are not user facts.
+        if historical_reply:
+            return [*(reply for reply in replies if reply.turn.id in allowed_replies), *selected][
+                :turn_limit
+            ]
         for reply in replies:
             if reply.turn.id in allowed_replies:
                 selected.insert(min(1, len(selected)), reply)
@@ -763,87 +899,14 @@ class ApplicationMemory(CompanionMemoryService):
             return self.store.get(memory_id, user_id)
 
     def index_active(self, user_id: str, scope: object) -> None:
-        from companion_memoryos.schemas import MemoryScope
+        from companion_agent.embedding_backfill import EmbeddingBackfill
+        from companion_memoryos.store import utc_now
 
         assert isinstance(scope, MemoryScope)
-        index = SQLiteSemanticIndex(self.store.database)
-        with self.store.database.connection() as db:
-            cached = {
-                row["id"]: row["digest"]
-                for row in db.execute(
-                    "SELECT id, digest FROM agent_embedding_cache WHERE space=?",
-                    (self.embeddings.space,),
-                )
-            }
-        for record in self.store.list_memories(user_id, {MemoryStatus.ACTIVE}, scope=scope):
-            digest = hashlib.sha256(record.content.encode()).hexdigest()
-            if cached.get(record.id) == digest:
-                continue
-            vector = self.embeddings.encode(record.content)
-            index.upsert(
-                SemanticDocument(
-                    SemanticKind.MEMORY,
-                    record.id,
-                    user_id,
-                    record.scope,
-                    self.embeddings.space,
-                    vector,
-                )
-            )
-            with self.store.database.connection() as db:
-                db.execute(
-                    "INSERT OR REPLACE INTO agent_embedding_cache VALUES (?, ?, ?)",
-                    (record.id, self.embeddings.space, digest),
-                )
+        EmbeddingBackfill(self, self.embeddings, user_id, scope, utc_now(), Event()).memories()
 
     def index_turns(self, user_id: str, scope: MemoryScope, as_of: datetime) -> None:
-        """Index original user evidence, independently of successful fact extraction.
+        """Explicit bounded maintenance; ordinary chat schedules this off its critical path."""
+        from companion_agent.embedding_backfill import EmbeddingBackfill
 
-        Backfill is bounded per chat. Retrieval rechecks scope, consent, realm and
-        source restrictions; an embedding is never authority to assert a fact.
-        """
-        if not scope.companion_id or not scope.relationship_id:
-            return
-        domain = scope.model_copy(update={"conversation_id": None})
-        with self.store.database.connection() as db:
-            cached = {
-                row["id"]: row["digest"]
-                for row in db.execute(
-                    "SELECT c.id, c.digest FROM agent_embedding_cache c JOIN turn_embeddings e "
-                    "ON e.turn_id=c.id AND e.space=c.space WHERE c.space=?",
-                    (self.embeddings.space,),
-                )
-            }
-        turns = [
-            turn
-            for turn in self.store.list_turns(user_id, domain)
-            if turn.role is ConversationRole.USER
-            and turn.scope.group_id == scope.group_id
-            and cached.get(turn.id) != hashlib.sha256(turn.content[:16000].encode()).hexdigest()
-        ]
-        turns = filter_recent_turns(
-            self,
-            RelationshipKey(
-                user_id=user_id,
-                companion_id=scope.companion_id,
-                relationship_id=scope.relationship_id,
-            ),
-            turns,
-            MemoryUsePlan(),
-            as_of,
-        )
-        index = SQLiteSemanticIndex(self.store.database)
-        for turn in turns[:32]:
-            text = turn.content[:16000]
-            digest = hashlib.sha256(text.encode()).hexdigest()
-            vector = self.embeddings.encode(text)
-            index.upsert(
-                SemanticDocument(
-                    SemanticKind.TURN, turn.id, user_id, turn.scope, self.embeddings.space, vector
-                )
-            )
-            with self.store.database.connection() as db:
-                db.execute(
-                    "INSERT OR REPLACE INTO agent_embedding_cache VALUES (?, ?, ?)",
-                    (turn.id, self.embeddings.space, digest),
-                )
+        EmbeddingBackfill(self, self.embeddings, user_id, scope, as_of, Event()).turns()
