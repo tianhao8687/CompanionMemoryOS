@@ -278,7 +278,7 @@ class _JournalSheetState extends State<JournalSheet> {
                 item['title'] as String? ?? '记住的小事',
                 style: const TextStyle(
                   fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
@@ -404,7 +404,7 @@ class _JournalSheetState extends State<JournalSheet> {
                   item['title'] as String,
                   style: const TextStyle(
                     fontSize: 17,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -525,7 +525,7 @@ class _JournalSheetState extends State<JournalSheet> {
                         '我们的手账',
                         style: TextStyle(
                           fontSize: 23,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),

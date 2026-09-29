@@ -375,7 +375,7 @@ class _StickerLibraryState extends State<_StickerLibrary> {
                 const Expanded(
                   child: Text(
                     '我们的表情包',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
                   ),
                 ),
                 IconButton(

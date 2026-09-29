@@ -67,7 +67,7 @@ class _CharacterHomeState extends State<_CharacterHome> {
                         '角色主页',
                         style: TextStyle(
                           fontSize: 23,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
@@ -112,7 +112,7 @@ class _CharacterHomeState extends State<_CharacterHome> {
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 25,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                         if (!isUser) ...[
@@ -200,7 +200,7 @@ class _CharacterHomeState extends State<_CharacterHome> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         SelectableText(text, style: const TextStyle(height: 1.7, fontSize: 13)),
       ],

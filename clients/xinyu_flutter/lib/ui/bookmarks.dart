@@ -91,7 +91,7 @@ class _BookmarksState extends State<_Bookmarks> {
                 const Expanded(
                   child: Text(
                     '收藏夹',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
                   ),
                 ),
                 IconButton(

@@ -123,7 +123,7 @@ class _ChatSearchState extends State<_ChatSearch> {
                 const Expanded(
                   child: Text(
                     '翻翻我们的聊天',
-                    style: TextStyle(fontSize: 21, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 21, fontWeight: FontWeight.w500),
                   ),
                 ),
                 IconButton(

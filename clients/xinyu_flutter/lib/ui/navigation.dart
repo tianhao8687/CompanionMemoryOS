@@ -78,7 +78,7 @@ class _CompanionNavigationState extends State<CompanionNavigation> {
                 const Expanded(
                   child: Text(
                     '对话',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
                   ),
                 ),
                 if (widget.close != null)
@@ -215,7 +215,7 @@ class _CompanionNavigationState extends State<CompanionNavigation> {
                                                     height: 1.45,
                                                     fontWeight:
                                                         item.id == c.active
-                                                        ? FontWeight.w600
+                                                        ? FontWeight.w500
                                                         : FontWeight.w400,
                                                   ),
                                                 ),

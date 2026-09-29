@@ -82,7 +82,7 @@ class _RemarkEditorState extends State<_RemarkEditor> {
                         '设置备注',
                         style: TextStyle(
                           fontSize: 20,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),

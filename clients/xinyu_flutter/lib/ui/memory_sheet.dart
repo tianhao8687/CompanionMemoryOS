@@ -153,7 +153,7 @@ class _MemorySheetState extends State<MemorySheet> {
                         '记住的小事',
                         style: TextStyle(
                           fontSize: 22,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),

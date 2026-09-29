@@ -255,7 +255,7 @@ class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: compact ? 18 : 24,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
@@ -382,7 +382,7 @@ class _FramePanel extends StatelessWidget {
                     const Expanded(
                       child: Text(
                         '渲染记录',
-                        style: TextStyle(fontWeight: FontWeight.w600),
+                        style: TextStyle(fontWeight: FontWeight.w500),
                       ),
                     ),
                     IconButton(

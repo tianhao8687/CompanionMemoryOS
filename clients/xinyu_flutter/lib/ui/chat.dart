@@ -12,6 +12,7 @@ import 'stickers.dart';
 import 'journal_sheet.dart';
 import 'message_context.dart';
 import 'character_home.dart';
+import 'typography.dart';
 export 'chat_reader.dart' show ConversationView;
 
 class MessageBubble extends StatelessWidget {
@@ -257,14 +258,10 @@ class MessageBubble extends StatelessWidget {
                                       line.text == '[表情包]'))
                                 Text(
                                   part,
-                                  style: TextStyle(
-                                    fontSize:
-                                        MediaQuery.sizeOf(context).width < 880
-                                        ? 16
-                                        : 19,
-                                    height: 1.5,
-                                    color: XinYuColors.ink,
-                                  ),
+                                  style: XinYuTypography.message(
+                                    compact:
+                                        MediaQuery.sizeOf(context).width < 880,
+                                  ).copyWith(color: XinYuColors.ink),
                                 ),
                             ],
                           ),
@@ -493,7 +490,8 @@ class _ComposerState extends State<Composer> {
       maxLength: 6000,
       textInputAction: TextInputAction.newline,
       keyboardType: TextInputType.multiline,
-      style: const TextStyle(fontSize: 16, height: 1.5, color: XinYuColors.ink),
+      style: XinYuTypography.message(compact: compact)
+          .copyWith(color: XinYuColors.ink),
       decoration: InputDecoration(
         filled: false,
         counterText: '',

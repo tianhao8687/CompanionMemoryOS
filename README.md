@@ -1,13 +1,47 @@
-# CompanionMemoryOS
+# 心隅 XinYu · CompanionMemoryOS
 
-一个面向情感陪伴应用的、本地优先、同意优先的记忆基础设施。
+一个本地优先的 AI 陪伴与长期记忆项目。**心隅**提供 Windows / Android 客户端和本机网页聊天界面，
+**CompanionMemoryOS**提供可独立接入的 Python 记忆引擎，让称呼、偏好、共同经历和约定能够延续到后续对话。
+支持自定义角色与相处风格，可连接 DeepSeek 等兼容的模型 API。
 
-## 心隅：DeepSeek 人机恋 Agent
+聊天、角色设置和记忆保存在当前设备的 SQLite 数据库中，Windows 与手机各自使用、各自保存。
+连接在线模型时，对话请求会发送到用户配置的服务商；默认离线模式用于功能演示，不包含本地大语言模型。
 
-现在可以直接在本机运行带中文聊天界面的 AI 恋爱陪伴应用，复用下方记忆项目的
-人格、关系、经历和短期状态层。支持自定义名字与性格、DeepSeek API、历史对话、
-自动记忆与更正遗忘、事件关心、Agent Loop、MCP 工具和定时任务，并提供微信文本／模拟消息
-与安卓 ADB 接入能力。聊天、设置、记忆手札和工具面板使用统一的温馨玻璃界面。
+[客户端使用与构建](clients/xinyu_flutter/README.md) · [公开测试版](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.9) · [交付状态](docs/LOCAL_APP_DELIVERY.md) · [网页使用说明](docs/ROMANCE_AGENT.md) · [记忆引擎接入](docs/INTEGRATION_0.7.5.md)
+
+## 心隅能做什么
+
+- **日常聊天**：流式回复、图片与表情、引用、搜索、收藏、多选复制；切换会话保留草稿和阅读位置。
+- **自定义相处方式**：角色名字、头像、资料、性格和说话偏好；支持独立备注名与私人备注。
+- **延续记忆**：在授权范围内保存偏好、经历、关系和短期状态，支持查看来源、更正、遗忘和清理。
+- **记忆手账**：保存共同回忆、照片、纪念日与约定；Android 可按授权和免打扰设置主动通知。
+- **简洁的玻璃界面**：暖白底色、双方消息颜色区分、统一工具按钮；桌面双栏、手机单列，聊天与设置使用同一套组件。
+- **可控的数据与阅读体验**：备份恢复、系统安全 Key 存储、应用字号和系统无障碍缩放；最新源码内置 Noto Sans SC，统一两端字体。
+
+客户端复用同一套 Python 记忆逻辑，SQLite 记录及证据、版本链是事实来源。
+Windows 随包附带引擎进程，Android 使用嵌入式运行时，无需手机依赖电脑运行，也不要求自行租用服务器。
+
+## 下载与当前进展
+
+截至 2026-09-30，源码、安装包和公开测试版的状态如下：
+
+| 内容 | 状态与入口 |
+| --- | --- |
+| 最新源码 | 当前 `codex/local-apps-20260925` 分支包含玻璃界面改版、私人备注、统一字体与字号；见 [字体调整与验证](docs/FONT_UNIFICATION_20260930.md) |
+| 0.2.10 安装包 | Windows 安装版 / 免安装版和 Android APK 已手动构建并保存本地；尚未发布新 Release，且不包含 9 月 30 日的字体调整；见 [成品与验收记录](docs/XINYU_0210_DELIVERY.md) |
+| 公开测试版 0.2.9 | 可从 [GitHub Releases](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.9) 下载 Windows / Android 安装文件；界面与字体早于最新源码 |
+
+0.2.10 的打包和引擎检查已完成，原生窗口自动化与 Android 真机验收仍有未完成项，
+具体通过、失败和未测试范围保留在交付记录中。安装包仅手动构建，推送代码只运行常规源码 CI。
+
+## 开始使用
+
+**Windows / Android**：下载安装文件，打开应用后在“设置”中填写角色与相处方式。
+使用在线模型需在“连接与数据”配置 API 地址、模型名称和 Key，并确认聊天处理及保存选项。
+Key 默认仅供本次运行使用，也可选择 Windows 凭据管理器或 Android Keystore 保存。
+安装、备份与开发构建步骤见 [客户端说明](clients/xinyu_flutter/README.md)。
+
+**本机网页界面**：使用 Python 3.12+ 在源码目录运行：
 
 ```powershell
 python -m venv .venv
@@ -25,14 +59,22 @@ Key 不写入数据库或浏览器存储。默认仅在本次运行中使用；W
 在「相处的模样 → 相处的感觉 → 自定义」可填写最多 6000 字的相处风格或角色提示词。
 切换预设会保留自定义草稿；再次选择自定义才会启用。设置保存后即可继续当前对话。
 
-完整使用方式、API、真实模型测试方法见 [心隅使用说明](docs/ROMANCE_AGENT.md)。
-功能范围与接入方法见 [功能说明](docs/FUNCTIONAL_COMPANION.md) 和 [工具接入说明](docs/AGENT_TOOLS.md)，
-本轮界面验证见 [控件检查记录](docs/UI_CONTROLS_VALIDATION.md)。真实模型、个人微信账号和手机设备仍需在配置后单独验收。
-以下内容为记忆基础设施及前序 Agent 的说明与验证记录。
+网页 / Agent 另提供 Agent Loop、MCP 工具、定时任务、微信文本／模拟消息和 Android ADB 接入。
+这些外部能力不由本地客户端自动启动；真实账号、设备及模型需按各自授权和环境单独验证。
+用法见 [心隅使用说明](docs/ROMANCE_AGENT.md)、[功能说明](docs/FUNCTIONAL_COMPANION.md)
+及 [工具接入说明](docs/AGENT_TOOLS.md)。
 
-Windows / Android 软件位于 [Flutter 本地客户端](clients/xinyu_flutter/README.md)：
-保留玻璃界面，两台设备各自保存数据。已加入内置引擎接入、记忆管理和备份恢复；
-当前构建产物、测试结果和未完成的平台验证见 [本地版交付记录](docs/LOCAL_APP_DELIVERY.md)。
+## 开发与验证入口
+
+- [Flutter 客户端](clients/xinyu_flutter/README.md)：共享界面、Windows / Android 构建与运行方式。
+- [前端改版](docs/FRONTEND_REDESIGN_20260929.md) 与 [统一字体](docs/FONT_UNIFICATION_20260930.md)：实现范围、字体许可和实际组件验证。
+- [真实应用测试](docs/CHAT_QUALITY_TESTING.md)：在全新合成目录启动独立应用，验证聊天、存储、上下文及进程生命周期。
+- [记忆引擎接入指南](docs/INTEGRATION_0.7.5.md) 与 [架构](docs/ARCHITECTURE.md)：Python API、HTTP API、SQLite、证据链与扩展接口。
+
+客户端版本与记忆 SDK 版本分别管理。下方介绍底层记忆引擎，并保留此前版本的技术记录。
+
+<details>
+<summary>Agent 与记忆引擎历史版本记录</summary>
 
 **CompanionAgent v0.4.1：语义修复与表达策略精简。** 修复否定、主体和修复对象误判；
 保留可持续、可更改的用户要求，将推断的回应风格改为建议，不再因久未聊天自动收紧距离。
@@ -62,9 +104,11 @@ Windows / Android 软件位于 [Flutter 本地客户端](clients/xinyu_flutter/R
 人格编译、上下文组合和连续对话入口。功能与原系统共 279 项测试通过，
 真实模型人格实验按计划留待后续。参见 [接入与运行说明](docs/COMPANION_AGENT_0.1.md)。
 
-当前为 **0.7.5 实用接入 alpha（早期版本），整批实现与集中验证完成，真实聊天验收与生产发布尚未完成**。在 0.7.4 上新增普通消息统一入口、可选单次模型解释、轻量人物/别名解析及事件移出操作；默认仍只需要 SQLite，不启用模型也能工作。242 项测试通过，源码包/wheel 独立安装与实际命令行服务检查通过。
+**记忆 SDK 0.7.5 实用接入 alpha（早期版本）**：该版本整批实现与集中验证完成，真实聊天验收与生产发布尚未完成。在 0.7.4 上新增普通消息统一入口、可选单次模型解释、轻量人物/别名解析及事件移出操作；默认仍只需要 SQLite，不启用模型也能工作。该批 242 项测试通过，源码包/wheel 独立安装与实际命令行服务检查通过。
 
 新接入请先看 [0.7.5 接入指南](docs/INTEGRATION_0.7.5.md) 和 [本批完成与验证报告](docs/RELEASE_REPORT_0.7.5.md)。0.7.4 基线保留在 [0.7 实现报告](docs/IMPLEMENTATION_REPORT_0.7.md)、[0.7 验证报告](docs/VALIDATION_REPORT_0.7.md) 和 [0.7 接入指南](docs/INTEGRATION_0.7.md)。既有分阶段回复协议仍见 [陪伴体验层](docs/COMPANION_EXPERIENCE_LAYER.md)。
+
+</details>
 
 它从 [`tianhao8687/MemoryOS`](https://github.com/tianhao8687/MemoryOS) 的可靠机制演化而来：SQLite 是唯一事实源、证据与审计可追踪、稳定事实形成版本链、用户可以遗忘或清除当前主库对象。这个独立项目重新设计了陪伴场景最在意的部分：小事找回、中文连续文本、人物与时间消歧、真实 token 预算、自然带入、关系演化和克制的主动关怀。
 
@@ -141,7 +185,7 @@ Windows / Android 软件位于 [Flutter 本地客户端](clients/xinyu_flutter/R
 | `shared_moment` | 值得延续的共同经历 | long-term |
 | `wellbeing_signal` | 睡眠、精力等短暂状态 | ephemeral |
 
-## 快速开始
+## 记忆引擎快速接入
 
 要求 Python 3.12+：
 
@@ -338,7 +382,7 @@ companion-memoryos --config ./my-config.toml show-config
 ```bash
 ruff check .
 ruff format --check .
-mypy companion_memoryos
+mypy companion_agent companion_memoryos
 pytest
 ```
 
@@ -351,3 +395,9 @@ pytest
 ### 聊天修复与直连测试（2026-09-24）
 
 沟通偏好与临时倾听活动分开处理，并提供独立真实进程的 HTTP 测试驱动、逐轮诊断、重启和网页冒烟入口。用法见 [测试说明](docs/CHAT_QUALITY_TESTING.md)，修改范围、实测证据及真实模型未验收项见 [交付记录](docs/CHAT_QUALITY_REPAIR_REPORT.md)。
+
+## 许可
+
+项目源码采用 [Apache-2.0](LICENSE)。客户端内置的 Noto Sans SC 字体采用
+[SIL Open Font License 1.1](clients/xinyu_flutter/assets/fonts/OFL.txt)，
+其版权、固定来源版本与文件哈希见 [字体资产说明](clients/xinyu_flutter/assets/fonts/README.md)。

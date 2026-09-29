@@ -1,6 +1,6 @@
 // Isolated visual review. This entry point uses synthetic DemoRepository data.
 // flutter test tool/layout_preview.dart --dart-define=XINYU_PREVIEW_DIR=<absolute path>
-// Supply XINYU_PREVIEW_FONT on hosts without Microsoft YaHei UI.
+// Uses the same bundled font as the application on both platforms.
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -14,6 +14,7 @@ import 'package:xinyu_flutter/main.dart';
 import 'package:xinyu_flutter/state/companion_controller.dart';
 import 'package:xinyu_flutter/ui/chat.dart';
 import 'package:xinyu_flutter/ui/glass.dart';
+import 'package:xinyu_flutter/ui/typography.dart';
 
 class _PreviewRepository extends DemoRepository {
   _PreviewRepository({this.avatar, this.flowers});
@@ -106,13 +107,8 @@ void main() {
       avatar = await File('$assetDirectory/avatar.png').readAsBytes();
       flowers = await File('$assetDirectory/flowers.png').readAsBytes();
     }
-    const fontPath = String.fromEnvironment(
-      'XINYU_PREVIEW_FONT',
-      defaultValue: 'C:/Windows/Fonts/msyh.ttc',
-    );
-    final bytes = await File(fontPath).readAsBytes();
-    final font = FontLoader('Microsoft YaHei UI')
-      ..addFont(Future.value(ByteData.sublistView(bytes)));
+    final font = FontLoader(XinYuTypography.family)
+      ..addFont(rootBundle.load(XinYuTypography.fontAsset));
     await font.load();
     final icons = FontLoader('MaterialIcons')
       ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
@@ -256,7 +252,8 @@ class _MessageComponentSheet extends StatelessWidget {
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
       useMaterial3: true,
-      fontFamily: 'Microsoft YaHei UI',
+      fontFamily: XinYuTypography.family,
+      textTheme: XinYuTypography.textTheme,
       colorScheme: ColorScheme.fromSeed(seedColor: XinYuColors.accent)
           .copyWith(onSurface: XinYuColors.ink),
     ),
@@ -272,7 +269,7 @@ class _MessageComponentSheet extends StatelessWidget {
                 children: [
                   const Text(
                     '消息气泡',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 32),
                   Row(

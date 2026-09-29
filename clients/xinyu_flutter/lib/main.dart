@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -9,6 +8,7 @@ import 'data/managed_repository.dart';
 import 'state/frame_probe.dart';
 import 'ui/glass.dart';
 import 'ui/home.dart';
+import 'ui/typography.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -69,12 +69,8 @@ class _XinYuAppState extends State<XinYuApp> {
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
     theme: ThemeData(
       useMaterial3: true,
-      fontFamily: Platform.isWindows ? 'Microsoft YaHei UI' : null,
-      fontFamilyFallback: const [
-        'Microsoft YaHei',
-        'PingFang SC',
-        'Noto Sans CJK SC',
-      ],
+      fontFamily: XinYuTypography.family,
+      textTheme: XinYuTypography.textTheme,
       colorScheme:
           ColorScheme.fromSeed(
             seedColor: XinYuColors.accent,

@@ -43,7 +43,7 @@ Future<bool?> showProblemDialog(
                           problem.title,
                           style: const TextStyle(
                             fontSize: 18,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),

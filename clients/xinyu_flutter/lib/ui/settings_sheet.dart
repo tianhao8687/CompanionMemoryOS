@@ -230,7 +230,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
                           '设置',
                           style: TextStyle(
                             fontSize: 22,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
@@ -393,7 +393,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
         const SizedBox(height: 10),
         ClipRRect(
           borderRadius: avatar
@@ -489,7 +489,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
           onChanged: (v) => setState(() => values['proactive_enabled'] = v),
         ),
         if (values['proactive_enabled'] == true) ...[
-          const Text('频率上限', style: TextStyle(fontWeight: FontWeight.w600)),
+          const Text('频率上限', style: TextStyle(fontWeight: FontWeight.w500)),
           const SizedBox(height: 8),
           RoundedChoiceField<String>(
             initialValue: values['proactive_frequency'] as String? ?? 'normal',
@@ -501,7 +501,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
             onChanged: (v) => setState(() => values['proactive_frequency'] = v),
           ),
           const SizedBox(height: 16),
-          const Text('免打扰时间', style: TextStyle(fontWeight: FontWeight.w600)),
+          const Text('免打扰时间', style: TextStyle(fontWeight: FontWeight.w500)),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -1108,7 +1108,7 @@ class _SettingsTab extends StatelessWidget {
                   label,
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
                   ),
                 ),
               ),
@@ -1155,7 +1155,7 @@ class _SettingsGroup extends StatelessWidget {
               child: Text(
                 title,
                 style: const TextStyle(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                   fontSize: 14,
                 ),
               ),
@@ -1206,7 +1206,7 @@ class _ChoiceCard extends StatelessWidget {
       children: [
         Text(
           title,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 5),
         Text(
