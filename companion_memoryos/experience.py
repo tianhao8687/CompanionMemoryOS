@@ -6,6 +6,7 @@ from uuid import uuid4
 from companion_memoryos.config import CompanionConfig
 from companion_memoryos.schemas import (
     AnswerCardinality,
+    AnswerSemantics,
     BeatReleaseCondition,
     CompanionContext,
     ConversationRole,
@@ -261,10 +262,27 @@ def plan_memory_use(
             )
         )
     for turn_item in context.turn_fallback:
+        mode = _fallback_mode(turn_item.use_mode, context, request)
+        if (
+            context.answer_cardinality is AnswerCardinality.OPEN
+            and context.answer_semantics is AnswerSemantics.EVENT_RECALL
+            and context.state_result is None
+            and not context.ambiguity_detected
+            and turn_item.turn.role is ConversationRole.USER
+            and turn_item.use_mode is RecallUseMode.DO_NOT_ASSERT
+            and "independent_literal_query_matches" in turn_item.reasons
+            and request.goal in {ResponseGoal.DIRECT_ANSWER, ResponseGoal.PROBLEM_SOLVE}
+            and not request.current_turn_requires_full_attention
+        ):
+            # Open retrieval collects sources for the answering model to read.
+            # Weak query overlap is not a source-access prohibition or proof
+            # that the source lacks the requested fact. Preserve its score and
+            # attribution; do not promote it to an established memory/callback.
+            mode = MemoryReferenceMode.SOURCE_CONTEXT
         mode, reasons = _fallback_history_mode(
             ExperienceEvidenceKind.TURN,
             turn_item.turn.id,
-            _fallback_mode(turn_item.use_mode, context, request),
+            mode,
             request,
             feedback_by_evidence,
             repeated_evidence,
@@ -282,7 +300,15 @@ def plan_memory_use(
                     id=turn_item.turn.id,
                 ),
                 mode=mode,
-                reasons=["raw_turn_evidence", *reasons],
+                reasons=[
+                    "raw_turn_evidence",
+                    *(
+                        ["source_relevance_requires_reading"]
+                        if mode is MemoryReferenceMode.SOURCE_CONTEXT
+                        else []
+                    ),
+                    *reasons,
+                ],
                 usage_scope=(
                     "retrieved_evidence"
                     if (
@@ -583,7 +609,7 @@ def _fallback_history_mode(
         config.experience.avoid_repeat_within_conversation
         and key in repeated_evidence
         and not request.user_asked_memory_question
-        and mode is not MemoryReferenceMode.SUPPRESS
+        and mode not in {MemoryReferenceMode.SUPPRESS, MemoryReferenceMode.SOURCE_CONTEXT}
     ):
         return MemoryReferenceMode.SILENT_INFLUENCE, ["already_referenced_in_conversation"]
     return mode, []

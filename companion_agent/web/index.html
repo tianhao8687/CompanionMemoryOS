@@ -118,9 +118,9 @@
           <details class="advanced"><summary>记忆提取与检索</summary>
             <label class="check-label"><input id="extract-memory" type="checkbox"><span>自动整理聊天记忆</span></label>
             <label class="check-label"><input id="model-extraction" type="checkbox"><span>API 模式下启用模型语义提取<small>证据充分的明确偏好自动生效，模糊信息暂不采用；增加一次模型调用。离线模式不会调用。</small></span></label>
-            <label>检索方式<select id="embedding-backend"><option value="local">本地词语特征匹配（演示）</option><option value="api">独立 Embedding API</option><option value="off">只用文本检索</option></select></label>
+            <label>检索方式<select id="embedding-backend"><option value="local">本地词语特征匹配（演示）</option><option value="local_api">本机语义检索（离线聊天可用）</option><option value="api">独立 Embedding API</option><option value="off">只用文本检索</option></select></label>
             <label>Embedding 地址<input id="embedding-url" type="url"></label><label>Embedding 模型<input id="embedding-model" maxlength="128"></label><label>Key 环境变量名<input id="embedding-key-env" maxlength="128"></label>
-            <p class="field-hint">Embedding 使用独立服务与凭证。离线模式始终使用本地匹配，不发送记忆到此地址。</p>
+            <p class="field-hint">本机语义检索需先启动本机向量服务，离线聊天也可使用。独立 API 使用单独凭证，离线聊天时仍使用词语匹配。</p>
           </details>
         </div>
       </div>

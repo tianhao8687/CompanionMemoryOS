@@ -72,9 +72,13 @@ def test_real_http_process_handshake_final_trace_restart_and_idempotency(tmp_pat
         before = client.read_state(conversation)
         database_path = next((instance.directory / "data").glob("*.db"))
         with sqlite3.connect(database_path) as database:
+            # Background embedding backfill is a legitimate independent writer.
+            # Hold its write admission during this check, while WAL readers can
+            # continue. A state endpoint that writes would now fail or time out;
+            # a background cache commit cannot race the two snapshots.
+            database.execute("BEGIN IMMEDIATE")
             fingerprint_before = "\n".join(database.iterdump())
-        assert client.read_state(conversation) == before
-        with sqlite3.connect(database_path) as database:
+            assert client.read_state(conversation) == before
             assert "\n".join(database.iterdump()) == fingerprint_before
         client = instance.restart()
         assert client.identity["instance_id"] != identity["instance_id"]

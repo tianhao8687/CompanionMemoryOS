@@ -39,7 +39,7 @@ from companion_agent.directives import directive_recall
 from companion_agent.images import MAX_IMAGE_BYTES, ImageAwareModel, ImagePurpose, ImageStore
 from companion_agent.journal import Journal, JournalError
 from companion_agent.journal import install_routes as install_journal_routes
-from companion_agent.llm import MainLLM, MainLLMError
+from companion_agent.llm import ContextBudgetError, MainLLM, MainLLMError
 from companion_agent.offline import OfflineModel
 from companion_agent.outreach import Outreach
 from companion_agent.persona.models import PersonaModel
@@ -79,6 +79,7 @@ LOCAL_RELATIONSHIP = "romance-relationship"
 COOKIE = "companion_romance_session"
 DEFAULT_PORT = 8765
 MAX_BODY_BYTES = 32_768
+CONTEXT_LIMIT_MESSAGE = "这条消息与必须保留的上下文过长，暂时无法生成回复。原文已保留，请分段发送。"
 MODEL_ERRORS = {
     "main_llm_api_key_missing": "请先在设置中填写 DeepSeek API Key，或设置 DEEPSEEK_API_KEY。",
     "main_llm_cancelled": "本轮已停止，尚未完成的回复没有写入历史。",
@@ -173,6 +174,7 @@ class RomanceHost:
         self.images = ImageStore(database, self.memory.store, LOCAL_USER)
         self.memory.store.repair_empty_redactions(LOCAL_USER)
         self.lock = RLock()
+        self._writer_admission = RLock()
         self.session = secrets.token_urlsafe(32)
         self.api_key: str | None = None
         self.credential_store = credentials or CredentialStore(data_dir, enabled=testing is None)
@@ -260,10 +262,10 @@ class RomanceHost:
         if self.testing:
             if settings.model_mode == "api" and not self.testing.marker["allow_live"]:
                 raise problem(403, "test_live_not_authorized", "此测试实例未授权真实模型调用。")
-            if (
-                settings.cognition.embedding_backend == "api"
-                and not self.testing.allows_local_embedding(settings.cognition.embedding.base_url)
-            ):
+            if settings.cognition.embedding_backend in {
+                "api",
+                "local_api",
+            } and not self.testing.allows_local_embedding(settings.cognition.embedding.base_url):
                 raise problem(
                     403, "test_embedding_not_authorized", "此测试实例未授权该向量服务地址。"
                 )
@@ -288,6 +290,7 @@ class RomanceHost:
                 )
             ),
             self.tools,
+            token_counter=self.memory.token_counter,
         )
         self.loop.on_pending = self.persist_suspension
         return CompanionAgent(
@@ -310,12 +313,16 @@ class RomanceHost:
 
     @contextmanager
     def exclusive(self) -> Iterator[None]:
-        if not self.lock.acquire(blocking=False):
+        if not self._writer_admission.acquire(blocking=False):
             raise problem(409, "busy", "正在回复上一条消息，请等回复完成后再操作。")
         try:
-            yield
+            # Read-only snapshots share the state lock, but do not represent a
+            # competing chat writer. Wait for their short read, retaining the
+            # existing nonblocking rejection for another admitted mutation.
+            with self.lock:
+                yield
         finally:
-            self.lock.release()
+            self._writer_admission.release()
 
     def credentials_ready(self) -> bool:
         return bool(
@@ -879,6 +886,13 @@ def create_app(
             status_code=502,
         )
 
+    @app.exception_handler(ContextBudgetError)
+    async def context_error(request: Request, error: ContextBudgetError) -> JSONResponse:
+        return JSONResponse(
+            {"detail": {"code": "context_budget_exceeded", "message": CONTEXT_LIMIT_MESSAGE}},
+            status_code=422,
+        )
+
     @app.exception_handler(ValueError)
     async def state_error(request: Request, error: ValueError) -> JSONResponse:
         logger.warning("romance_request_state_conflict")
@@ -1071,6 +1085,14 @@ def create_app(
             token = listener.set(queue.put)
             try:
                 queue.put({"type": "result", "result": host.chat(item)})
+            except ContextBudgetError:
+                queue.put(
+                    {
+                        "type": "error",
+                        "code": "context_budget_exceeded",
+                        "message": CONTEXT_LIMIT_MESSAGE,
+                    }
+                )
             except MainLLMError as error:
                 queue.put(
                     {"type": "error", "message": MODEL_ERRORS.get(str(error), "模型暂未完成回复。")}

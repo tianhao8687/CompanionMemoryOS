@@ -52,6 +52,7 @@ FACT_REFERENCE = re.compile(
     r"(?:回到|说回).{0,18}(?:那|这)|"
     r"(?:之前|以前|前面|最初|当初|上次).{0,8}(?:说|提|讲)"
 )
+RECALL_REQUEST = re.compile(r"^(?:请(?:你)?|(?:帮|替|给)我|麻烦(?:你)?)(?:再|先)?(?:回忆|回顾)")
 PROSPECTIVE_QUESTION = re.compile(
     r"应该|应当|该(?:不该|怎么|怎样|选|买|穿|放|去)|要不要|怎么办|怎么(?:办|选|挑)|"
     r"建议|推荐|适合|打算|准备|计划|想买|想选|一般|通常|假装|演一下|扮演|设定|"
@@ -169,15 +170,18 @@ def fact_recall_clauses(content: str) -> list[str]:
     clauses = [
         clause
         for clause in direct_clauses(content)
-        if not PROSPECTIVE_QUESTION.search(clause)
+        if (RECALL_REQUEST.search(clause) or not PROSPECTIVE_QUESTION.search(clause))
         and not re.search(r"(?:不|别|无需|不用|不要).{0,5}(?:问|答|查|提|说|告诉|回忆)", clause)
     ]
     reference = any(FACT_REFERENCE.search(clause) for clause in clauses)
     return [
         clause
         for clause in clauses
-        if FACT_QUESTION.search(clause)
-        and (FACT_ANCHOR.search(clause) or (reference and clause.startswith("它")))
+        if RECALL_REQUEST.search(clause)
+        or (
+            FACT_QUESTION.search(clause)
+            and (FACT_ANCHOR.search(clause) or (reference and clause.startswith("它")))
+        )
     ]
 
 

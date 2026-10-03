@@ -18,7 +18,7 @@ from datetime import datetime
 from itertools import pairwise
 from threading import Event
 from time import monotonic
-from typing import Literal
+from typing import Literal, Self
 from urllib.parse import urlsplit
 
 from pydantic import Field, model_validator
@@ -80,7 +80,7 @@ from companion_memoryos.temporal import TemporalHint
 class CognitionSettings(PersonaModel):
     extract_memory: bool = True
     model_extraction: bool = False
-    embedding_backend: Literal["local", "api", "off"] = "local"
+    embedding_backend: Literal["local", "local_api", "api", "off"] = "local"
     # Separate embedding endpoint and environment credential; never reuse chat credentials.
     embedding: DeepSeekConfig = Field(
         default_factory=lambda: DeepSeekConfig(
@@ -98,6 +98,14 @@ class CognitionSettings(PersonaModel):
             value.pop("confirm_preferences_automatically", None)
         return value
 
+    @model_validator(mode="after")
+    def local_embedding_endpoint(self) -> Self:
+        if self.embedding_backend == "local_api":
+            endpoint = urlsplit(self.embedding.base_url)
+            if endpoint.scheme != "http" or endpoint.hostname not in {"127.0.0.1", "::1"}:
+                raise ValueError("local embedding requires an HTTP literal loopback endpoint")
+        return self
+
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *args: object, **kwargs: object) -> None:
@@ -107,6 +115,9 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 class Embeddings:
     def __init__(self, settings: CognitionSettings, *, offline: bool) -> None:
         self.settings = settings
+        # Chat being offline must not silently replace an explicitly selected local
+        # semantic service with lexical hashing. Legacy `api` keeps its no-network
+        # offline behavior; `local_api` is a separate, validated loopback opt-in.
         self.backend = (
             "local"
             if offline and settings.embedding_backend == "api"
@@ -399,6 +410,7 @@ class ApplicationMemory(CompanionMemoryService):
         result: ProcessTurnResult,
         *,
         intent: RecallIntent | None = None,
+        candidate_budget: tuple[int, int] | None = None,
     ) -> CompanionContext:
         turn = result.storage.turn
         assert turn is not None
@@ -416,8 +428,8 @@ class ApplicationMemory(CompanionMemoryService):
             answer_cardinality=AnswerCardinality.OPEN,
             limit=4,
             turn_limit=6,
-            max_tokens=2500,
-            max_characters=12000,
+            max_tokens=candidate_budget[0] if candidate_budget else 2500,
+            max_characters=candidate_budget[1] if candidate_budget else 12000,
             intent=intent or RecallIntent.GENERAL,
         )
         from companion_agent.recall_focus import contextual_query
@@ -560,6 +572,7 @@ class ApplicationMemory(CompanionMemoryService):
             return []
         from companion_agent.memory_lifecycle import task_reference_query
         from companion_agent.recall_completion import (
+            complementary_sources,
             complete_candidates,
             dialogue_replies,
             wants_assistant_history,
@@ -635,7 +648,7 @@ class ApplicationMemory(CompanionMemoryService):
                 if has_dated_plan(self._direct_user_discourse_text(item.turn)):
                     item.reasons.append("dated_plan_for_overview")
             retained.sort(key=lambda item: "dated_plan_for_overview" not in item.reasons)
-        selected = retained[:turn_limit]
+        selected = complementary_sources(retained, request, self.config)[:turn_limit]
         eligible_ids = {turn.id for turn in eligible}
         replies = dialogue_replies(
             self,

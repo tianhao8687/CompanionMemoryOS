@@ -260,6 +260,7 @@ class FollowUpAction(StrEnum):
 
 
 class MemoryReferenceMode(StrEnum):
+    SOURCE_CONTEXT = "source_context"
     SILENT_INFLUENCE = "silent_influence"
     SOFT_REFERENCE = "soft_reference"
     EXPLICIT_RECALL = "explicit_recall"

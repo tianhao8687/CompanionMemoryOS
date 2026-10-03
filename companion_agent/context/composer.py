@@ -63,6 +63,8 @@ Promise that a detail was saved for future chats only when the application_memor
 successful learning; conversational acknowledgement alone is not a durable storage receipt.
 Likewise, claim a detail was forgotten only when application_memory reports forgotten > 0.
 silent_influence: adapt the response without mentioning or hinting at the remembered event.
+source_context: read this retrieved source to assess relevance to the current request; its
+retrieval score alone establishes no fact. Use only details supported by its exact attribution.
 soft_reference: make a tentative, natural reference. explicit_recall: recall only supported facts.
 clarify: acknowledge uncertainty and ask only what is needed. suppress: do not use this evidence.
 A decision with usage_scope=retrieved_evidence only restricts retrieved testimony. Supplied
@@ -159,6 +161,7 @@ def compose_context(
     application_rules: str = "",
     communication_preferences: list[dict[str, Any]] | None = None,
     preserve_source_details: bool = False,
+    budget_omitted_turn_ids: list[str] | None = None,
 ) -> ComposedContext:
     if not current_user_turn.strip():
         raise ValueError("current user turn cannot be blank")
@@ -193,7 +196,11 @@ def compose_context(
     needs_exact_evidence = (
         preserve_source_details
         or is_conversation_task(current_user_turn)
-        or any(decision.mode is MemoryReferenceMode.EXPLICIT_RECALL for decision in plan.decisions)
+        or any(
+            decision.mode
+            in {MemoryReferenceMode.EXPLICIT_RECALL, MemoryReferenceMode.SOURCE_CONTEXT}
+            for decision in plan.decisions
+        )
     )
     visible_recent_turns = {
         turn.id: turn
@@ -304,6 +311,7 @@ def compose_context(
                             span.model_dump(mode="json") for span in turn_item.evidence_speech_spans
                         ],
                         "content": turn_item.evidence_text,
+                        "retrieval_confidence": turn_item.recall_confidence,
                     }
                 )
     for character in character_memories or []:
@@ -440,6 +448,11 @@ def compose_context(
                 {
                     "recent_turns": recent,
                     "current_actor_id": user_id,
+                    **(
+                        {"budget_omitted_turn_ids": budget_omitted_turn_ids}
+                        if budget_omitted_turn_ids
+                        else {}
+                    ),
                     **(
                         {"expression_observations": {"advisory_only": True, "patterns": patterns}}
                         if patterns

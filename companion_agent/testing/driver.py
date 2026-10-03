@@ -219,9 +219,12 @@ class ManagedInstance:
             raise ValueError("local embedding URL must be http://127.0.0.1:<port>/v1")
         if variant not in {"full", "no_examples", "no_history", "no_old_conditions"}:
             raise ValueError("unknown context experiment")
+        # A long local-only run counts query, passage backfill and chat calls.
+        # Keep the paid/live ceiling unchanged; all calls retain the same ledger.
+        call_ceiling = 10000 if local_embedding_url and not allow_live else 2000
         if not (
             1 <= max_turns <= 1000
-            and 1 <= max_calls <= 2000
+            and 1 <= max_calls <= call_ceiling
             and 128 <= max_output_tokens <= 32768
             and 10 <= timeout <= LEASE_SECONDS
         ):

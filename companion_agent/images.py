@@ -10,7 +10,7 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from companion_agent.context import ChatMessage
-from companion_agent.llm import MainLLM, ModelResponse
+from companion_agent.llm import MainLLM, ModelResponse, model_input_tokens
 from companion_memoryos.database import Database
 from companion_memoryos.schemas import (
     ConsentState,
@@ -19,6 +19,7 @@ from companion_memoryos.schemas import (
     TurnDeletionState,
 )
 from companion_memoryos.store import MemoryStore
+from companion_memoryos.tokens import TokenCounter
 
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_IMAGES = 4
@@ -304,7 +305,9 @@ class ImageAwareModel:
     def __init__(self, model: MainLLM, images: ImageStore, enabled: bool) -> None:
         self.model, self.images, self.enabled = model, images, enabled
 
-    def generate(self, messages: list[ChatMessage]) -> ModelResponse:
+    def _prepare(
+        self, messages: list[ChatMessage], *, attach_images: bool = True
+    ) -> list[ChatMessage]:
         remaining = MAX_IMAGES
         result: list[ChatMessage] = []
         for message in reversed(messages):
@@ -318,6 +321,7 @@ class ImageAwareModel:
                         "data:image/png;base64,"
                         + base64.b64encode(self.images.read(i)).decode("ascii")
                         for i in selected
+                        if attach_images
                     ]
                     remaining -= len(selected)
                     if len(selected) != len(ids):
@@ -326,4 +330,10 @@ class ImageAwareModel:
                     copy.content += "\n[本轮未启用识图，图片内容不可见。]"
             copy.source_turn_id = None
             result.append(copy)
-        return self.model.generate(list(reversed(result)))
+        return list(reversed(result))
+
+    def input_tokens(self, messages: list[ChatMessage], counter: TokenCounter) -> int:
+        return model_input_tokens(self.model, self._prepare(messages, attach_images=False), counter)
+
+    def generate(self, messages: list[ChatMessage]) -> ModelResponse:
+        return self.model.generate(self._prepare(messages))
