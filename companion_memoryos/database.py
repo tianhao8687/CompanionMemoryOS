@@ -133,6 +133,14 @@ class Database:
                 connection.execute("DROP INDEX IF EXISTS idx_temporal_anchors_active_name")
             connection.executescript(_DROP_REFRESHED_TRIGGERS)
             connection.executescript(_SCHEMA)
+            if current < 9:
+                # Install the selective FTS trigger before backfilling a derived
+                # column. Retry on the schema version, not column existence: a
+                # failed migration may already have committed its ALTER TABLE.
+                connection.execute(
+                    "UPDATE conversation_turns SET reality_layer = "
+                    "companion_turn_reality(content, metadata_json, speech_spans_json)"
+                )
             connection.execute(_BACKFILL_POLICY_VERSIONS)
             if current == 1:
                 connection.execute(_BACKFILL_MEMORY_FTS)
@@ -176,6 +184,7 @@ class Database:
                 "retrieval_keys_json": "TEXT NOT NULL DEFAULT '[]'",
                 "embedding_space": "TEXT",
                 "episode_id": "TEXT",
+                "reality_layer": "TEXT NOT NULL DEFAULT 'real_world'",
             },
             "response_plans": {
                 "revision": "INTEGER NOT NULL DEFAULT 0",
@@ -411,6 +420,7 @@ CREATE TABLE IF NOT EXISTS conversation_turns (
     content_hash TEXT NOT NULL,
     deletion_state TEXT NOT NULL,
     metadata_json TEXT NOT NULL,
+    reality_layer TEXT NOT NULL DEFAULT 'real_world',
     FOREIGN KEY (reply_to_turn_id) REFERENCES conversation_turns(id) ON DELETE SET NULL,
     FOREIGN KEY (supersedes_turn_id) REFERENCES conversation_turns(id) ON DELETE SET NULL
 );
@@ -436,8 +446,33 @@ CREATE TABLE IF NOT EXISTS turn_embedding_passages (
     FOREIGN KEY (turn_id) REFERENCES conversation_turns(id) ON DELETE CASCADE,
     CHECK (start_offset >= 0 AND end_offset > start_offset)
 );
-CREATE INDEX IF NOT EXISTS idx_turn_passages_space
-    ON turn_embedding_passages(space, dimensions);
+-- Match the full join key. A space-only index can make a scoped query rescan
+-- that whole space for every source turn (quadratic work without ANALYZE).
+-- Rebuild the derived index on existing databases as well as fresh installs.
+DROP INDEX IF EXISTS idx_turn_passages_space;
+CREATE INDEX IF NOT EXISTS idx_turn_passages_lookup
+    ON turn_embedding_passages(space, dimensions, turn_id, source_hash);
+CREATE INDEX IF NOT EXISTS idx_turns_reality_scope
+    ON conversation_turns(
+        user_id, companion_id, relationship_id, group_id,
+        reality_layer, deletion_state, occurred_at
+    );
+-- This projection is maintained in the source transaction, including raw SQL
+-- updates and redaction. Source metadata/spans remain authoritative.
+CREATE TRIGGER IF NOT EXISTS turns_reality_insert
+AFTER INSERT ON conversation_turns
+BEGIN
+    UPDATE conversation_turns SET reality_layer =
+        companion_turn_reality(new.content, new.metadata_json, new.speech_spans_json)
+    WHERE id = new.id;
+END;
+CREATE TRIGGER IF NOT EXISTS turns_reality_update
+AFTER UPDATE OF content, metadata_json, speech_spans_json ON conversation_turns
+BEGIN
+    UPDATE conversation_turns SET reality_layer =
+        companion_turn_reality(new.content, new.metadata_json, new.speech_spans_json)
+    WHERE id = new.id;
+END;
 CREATE TRIGGER IF NOT EXISTS invalidate_turn_passages
 AFTER UPDATE ON conversation_turns
 WHEN old.content_hash IS NOT new.content_hash OR old.content IS NOT new.content
@@ -838,7 +873,7 @@ BEGIN
 END;
 
 CREATE TRIGGER IF NOT EXISTS turns_fts_update
-AFTER UPDATE ON conversation_turns
+AFTER UPDATE OF content, retrieval_keys_json, deletion_state ON conversation_turns
 BEGIN
     DELETE FROM turn_fts WHERE turn_id = old.id;
     INSERT INTO turn_fts(turn_id, content, search_terms)

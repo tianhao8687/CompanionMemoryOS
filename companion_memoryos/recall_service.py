@@ -33,9 +33,12 @@ from companion_memoryos.schemas import (
 )
 from companion_memoryos.scoring import (
     build_fts_query,
+    complementary_evidence_order,
     event_entity_similarity,
+    has_independent_query_matches,
     lexical_similarity,
     recency_score,
+    relative_evidence_relevance,
     score_memory,
 )
 from companion_memoryos.service_rules import (
@@ -631,9 +634,40 @@ def _recall_turns(
         for item in items
         if item.recall_confidence >= self.config.retrieval.minimum_query_match
     ]
+    # BM25 carries corpus rarity and document-length information. Throwing it
+    # away and comparing token overlap directly with cosine made generic vector
+    # neighbours displace exact sources (especially for multi-part questions).
+    # Normalize within this candidate pool for ranking only: never promote the
+    # evidence's assertion confidence or change its original source/use mode.
+    lexical_peak = max((candidate.lexical_relevance for candidate in pool), default=0.0)
+    lexical_rank = {
+        candidate.turn.id: candidate.lexical_relevance / lexical_peak
+        for candidate in pool
+        if lexical_peak > 0.0
+    }
+    excerpt_rank = (
+        dict(
+            zip(
+                (item.turn.id for item in items),
+                relative_evidence_relevance(
+                    request.query, [item.evidence_text for item in items], self.config
+                ),
+                strict=True,
+            )
+        )
+        if request.include_turn_evidence
+        else {}
+    )
     items.sort(
         key=lambda item: (
-            -max(item.lexical, item.semantic, item.temporal)
+            -(
+                max(
+                    lexical_rank.get(item.turn.id, 0.0),
+                    excerpt_rank.get(item.turn.id, 0.0),
+                    item.temporal,
+                )
+                + item.semantic
+            )
             if request.include_turn_evidence
             else 0,
             -item.total,
@@ -641,6 +675,22 @@ def _recall_turns(
             item.turn.id,
         )
     )
+    if (
+        request.include_turn_evidence
+        and request.answer_semantics is AnswerSemantics.EVENT_RECALL
+        and request.answer_cardinality in {AnswerCardinality.MULTI, AnswerCardinality.OPEN}
+    ):
+        # Do this before the candidate cutoff; otherwise complementary evidence
+        # can already be gone when the application selects its final sources.
+        items = [
+            items[index]
+            for index in complementary_evidence_order(
+                request.query,
+                [item.evidence_text for item in items],
+                self.config,
+                [item.temporal for item in items],
+            )
+        ]
     diversified: list[TurnRecallItem] = []
     seen_episode_ids: set[str] = set()
     for item in items:
@@ -707,6 +757,8 @@ def _turn_item(
     reasons = ["raw_turn_fallback"]
     if lexical > EMPTY_SCORE:
         reasons.append("query_match")
+    if has_independent_query_matches(request.query, recall_text, self.config):
+        reasons.append("independent_literal_query_matches")
     if retrieval_key_match > EMPTY_SCORE:
         reasons.append("retrieval_key_match")
     if semantic > EMPTY_SCORE:

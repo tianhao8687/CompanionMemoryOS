@@ -10,9 +10,10 @@ from uuid import uuid4
 
 from companion_agent.context import ChatMessage
 from companion_agent.images import validate_png
-from companion_agent.llm import MainLLM, MainLLMError, ModelResponse
+from companion_agent.llm import MainLLM, MainLLMError, ModelResponse, model_input_tokens
 from companion_agent.streaming import listener
 from companion_memoryos.database import Database
+from companion_memoryos.tokens import TokenCounter
 
 MAX_STICKER_BYTES = 2 * 1024 * 1024
 BUILTINS = {
@@ -184,10 +185,9 @@ class StickerModel:
     def __init__(self, model: MainLLM, store: StickerStore, enabled: bool) -> None:
         self.model, self.store, self.enabled = model, store, enabled
 
-    def generate(self, messages: list[ChatMessage]) -> ModelResponse:
-        if not self.enabled:
-            return self.model.generate(messages)
-        catalog = self.store.catalog()
+    def _prepare(
+        self, messages: list[ChatMessage], catalog: list[dict[str, Any]]
+    ) -> list[ChatMessage]:
         # The fixed protocol adds no character traits. Imported labels are user data.
         protocol = ChatMessage(
             role="system",
@@ -227,6 +227,17 @@ class StickerModel:
                 prepared.insert(1, catalog_message)
         else:
             prepared = [protocol, catalog_message, *messages]
+        return prepared
+
+    def input_tokens(self, messages: list[ChatMessage], counter: TokenCounter) -> int:
+        prepared = self._prepare(messages, self.store.catalog()) if self.enabled else messages
+        return model_input_tokens(self.model, prepared, counter)
+
+    def generate(self, messages: list[ChatMessage]) -> ModelResponse:
+        if not self.enabled:
+            return self.model.generate(messages)
+        catalog = self.store.catalog()
+        prepared = self._prepare(messages, catalog)
         sink = listener.get()
         stream = _MediaStream(sink) if sink else None
         token = listener.set(stream) if stream else None

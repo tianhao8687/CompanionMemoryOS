@@ -48,3 +48,19 @@ def test_holdout_uses_official_documents_not_answers_and_reports_exclusions():
     assert [row["evidence"] for row in samples[0]["qa"]] == [["e"], ["d"]]
     assert all("禁止进入索引" not in row["text"] for row in samples[0]["conversation"]["session_1"])
     assert sum(len(audit["excluded"]) for audit in audits) == 1
+
+    previous_ids = {row["source_question_id"] for row in samples[0]["qa"]}
+    excluded = {samples[0]["qa"][0]["source_question_id"]}
+    next_samples, next_audits = prepare_samples(
+        memories,
+        [{name: sections} for name in ["张小红", "未查看角色"]],
+        split="holdout",
+        exclude_ids=excluded,
+    )
+    assert {row["source_question_id"] for row in next_samples[0]["qa"]} == previous_ids - excluded
+    assert next_samples[0]["conversation"] == samples[0]["conversation"]
+    assert any(
+        row["reason"] == "previously_evaluated"
+        for audit in next_audits
+        for row in audit["excluded"]
+    )

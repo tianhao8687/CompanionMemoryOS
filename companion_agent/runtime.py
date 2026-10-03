@@ -29,7 +29,7 @@ from companion_agent.evidence_policy import filter_recent_turns, filter_supersed
 from companion_agent.experience import ExperienceConfig
 from companion_agent.experience.compiler import compile_experience_context
 from companion_agent.experience.evaluator import is_recall_question
-from companion_agent.llm import MainLLM, MainLLMError
+from companion_agent.llm import ContextBudgetError, MainLLM, MainLLMError, model_input_tokens
 from companion_agent.memory_lifecycle import is_conversation_task
 from companion_agent.persona import PersonaDefinition, RelationshipStage, compile_persona_context
 from companion_agent.persona.models import PersonaModel
@@ -43,6 +43,7 @@ from companion_agent.relationship.models import (
 )
 from companion_agent.semantics import RelationshipDistance, RelationshipIdentityType
 from companion_agent.streaming import cancelled
+from companion_memoryos.context_budget import fit_context_budget
 from companion_memoryos.diagnostics import record
 from companion_memoryos.schemas import (
     ConsentState,
@@ -110,6 +111,7 @@ class CompanionAgent:
         initial_relationship_identity: RelationshipIdentityType | None = None,
         current_state_config: CurrentStateConfig | None = None,
         context_variant: Literal["full", "no_examples", "no_history", "no_old_conditions"] = "full",
+        adaptive_memory_budget: bool = True,
     ) -> None:
         if min(max_persona_tokens, max_context_tokens, recent_turn_limit) < 1:
             raise ValueError("agent budgets and history limit must be positive")
@@ -121,6 +123,7 @@ class CompanionAgent:
         self.recent_turn_limit = recent_turn_limit
         self.application_rules = application_rules
         self.context_variant = context_variant
+        self.adaptive_memory_budget = adaptive_memory_budget
         self.characters = CharacterMemoryStore(memory.store.database)
         self.relationships = RelationshipService(memory, relationship_config)
         self.relationship_evaluator = relationship_evaluator or LocalRelationshipEvaluator()
@@ -216,7 +219,20 @@ class CompanionAgent:
                 "intent_source": "caller" if request.recall_request else "current_goal",
             },
         )
-        result = self.memory.recall_processed_turn(request, result, intent=RECALL_INTENTS[goal])
+        facts_required = (
+            state_preparation.analysis.concrete_task
+            or state_preparation.analysis.recalling_history
+            or is_conversation_task(request.content)
+            or is_recall_question(request.content)
+            or bool(discourse and discourse.user_asked_memory_question)
+        )
+        adaptive_budget = self.adaptive_memory_budget and request.recall_request is None
+        # This is a candidate ceiling, not a reserved quota. Final admission accounts for
+        # persona, current input, dialogue, source metadata and the memory-use plan together.
+        candidate_budget = (8000 if facts_required else 4000, 20000) if adaptive_budget else None
+        result = self.memory.recall_processed_turn(
+            request, result, intent=RECALL_INTENTS[goal], candidate_budget=candidate_budget
+        )
         if result.storage.turn is None or result.response_stale:
             raise ValueError("user turn unavailable or superseded during recall")
 
@@ -484,13 +500,7 @@ class CompanionAgent:
             ]
             context_tokens_before_trimming: int | None = None
             context_budget_omissions: list[str] = []
-            facts_required = (
-                state_preparation.analysis.concrete_task
-                or state_preparation.analysis.recalling_history
-                or is_conversation_task(request.content)
-                or is_recall_question(request.content)
-                or bool(discourse and discourse.user_asked_memory_question)
-            )
+            history_budget_omissions: list[str] = []
             protected_sources = set(compiled_relationship.evidence_ids)
             protected_sources.update(
                 ref.split(":", 1)[1]
@@ -515,7 +525,10 @@ class CompanionAgent:
                     allow_sensitive=request.allow_sensitive_model_input,
                 ):
                     raise ValueError("quoted source is unavailable")
-            while True:
+            memory_candidates = result.response_context
+            candidate_plan = plan
+
+            def compose_current() -> tuple[ComposedContext, str, int]:
                 context = compose_context(
                     persona=compiled,
                     user_id=request.user_id,
@@ -533,6 +546,7 @@ class CompanionAgent:
                     current_state_context=compiled_state,
                     communication_preferences=preferences,
                     preserve_source_details=facts_required,
+                    budget_omitted_turn_ids=history_budget_omissions,
                 )
                 if quoted is not None:
                     # Quoted history is data, never a new user assertion or system rule.
@@ -554,9 +568,62 @@ class CompanionAgent:
                 serialized = json.dumps(
                     [m.model_dump() for m in context.messages], ensure_ascii=False
                 )
+                tokens = self.memory.token_counter.count(serialized)
+                if self.main_llm is not None:
+                    tokens = max(
+                        tokens,
+                        model_input_tokens(
+                            self.main_llm, context.messages, self.memory.token_counter
+                        ),
+                    )
+                return context, serialized, tokens
+
+            allocation_attempts = 0
+            while True:
+                # If optional background/history changed, try the retained candidates again.
+                # Otherwise trimming dialogue could leave new free space with lost evidence.
+                if adaptive_budget:
+                    result.response_context = memory_candidates
+                    plan = candidate_plan
+                context, serialized, context_tokens = compose_current()
                 if context_tokens_before_trimming is None:
-                    context_tokens_before_trimming = self.memory.token_counter.count(serialized)
-                if self.memory.token_counter.count(serialized) <= self.max_context_tokens:
+                    context_tokens_before_trimming = context_tokens
+                if (
+                    adaptive_budget
+                    and result.response_context is not None
+                    and context_tokens > self.max_context_tokens
+                    and result.response_context.token_budget > 1
+                ):
+                    selected = result.response_context
+                    assert memory_candidates is not None
+                    lower, upper = 1, min(selected.token_budget, selected.rendered_tokens) - 1
+                    available = max(lower, upper - (context_tokens - self.max_context_tokens))
+                    best = None
+                    # Source JSON and plan overhead shrink with the admitted evidence too.
+                    # Search bounded allocations against the *complete* serialized request,
+                    # keeping only measured fits. No additional retrieval or model call.
+                    while lower <= upper:
+                        result.response_context = fit_context_budget(
+                            memory_candidates, self.memory.token_counter, max_tokens=available
+                        )
+                        plan = make_plan(goal)
+                        context, serialized, context_tokens = compose_current()
+                        allocation_attempts += 1
+                        if context_tokens <= self.max_context_tokens:
+                            best = (
+                                result.response_context,
+                                plan,
+                                context,
+                                serialized,
+                                context_tokens,
+                            )
+                            lower = available + 1
+                        else:
+                            upper = available - 1
+                        available = (lower + upper) // 2
+                    if best is not None:
+                        result.response_context, plan, context, serialized, context_tokens = best
+                if context_tokens <= self.max_context_tokens:
                     break
                 if characters and not facts_required:
                     context_budget_omissions.append(f"character:{characters.pop().seed.id}")
@@ -587,7 +654,7 @@ class CompanionAgent:
                         protected_sources,
                         self.memory.token_counter,
                     )
-                    if not facts_required
+                    if not facts_required and not adaptive_budget
                     else None
                 )
                 if pruned is not None:
@@ -599,13 +666,49 @@ class CompanionAgent:
                     context_budget_omissions.append("optional_current_state")
                     compiled_state = None
                     continue
-                if trim_oldest_exchange(recent, {quoted.id} if quoted else set()):
+                removed = trim_oldest_exchange(recent, {quoted.id} if quoted else set())
+                if not removed:
+                    # Two individually valid long messages can exceed the window
+                    # together. Native history is a preference, not an unbounded
+                    # reservation. Keep the current message and explicit quotes;
+                    # older sources remain in SQLite and the recall candidates.
+                    removed = trim_oldest_exchange(
+                        recent, {quoted.id} if quoted else set(), preserve_latest=False
+                    )
+                if removed:
+                    history_budget_omissions.extend(removed)
                     continue
-                raise ValueError(
+                raise ContextBudgetError(
                     "main context exceeds budget; "
                     "required dialogue, evidence and rules not truncated"
                 )
             # Only admitted evidence becomes a durable use plan. Previewing never records use.
+            selected_memory = result.response_context
+            record(
+                "memory_allocation",
+                {
+                    "mode": "adaptive" if adaptive_budget else "caller_or_fixed",
+                    "facts_required": facts_required,
+                    "candidate_token_ceiling": memory_candidates.token_budget
+                    if memory_candidates
+                    else 0,
+                    "allocated_token_budget": selected_memory.token_budget
+                    if selected_memory
+                    else 0,
+                    "rendered_memory_tokens": selected_memory.rendered_tokens
+                    if selected_memory
+                    else 0,
+                    "budget_omitted_count": selected_memory.budget_omitted_count
+                    if selected_memory
+                    else 0,
+                    "retained_turn_ids": [item.turn.id for item in selected_memory.turn_fallback]
+                    if selected_memory
+                    else [],
+                    "context_tokens": context_tokens,
+                    "context_limit": self.max_context_tokens,
+                    "allocation_attempts": allocation_attempts,
+                },
+            )
             plan = self.memory.store.create_response_plan(plan)
         except Exception as error:
             record("composition_failed", {"error_type": type(error).__name__})
@@ -640,7 +743,7 @@ class CompanionAgent:
                     for identifier in recent_candidates
                     if identifier not in {item.id for item in recent}
                 ],
-                "context_tokens": self.memory.token_counter.count(serialized),
+                "context_tokens": context_tokens,
                 "context_tokens_before_trimming": context_tokens_before_trimming,
                 "context_budget_omissions": context_budget_omissions,
                 "deduplicated_turn_ids": context.deduplicated_turn_ids,

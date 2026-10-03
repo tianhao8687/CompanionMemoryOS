@@ -11,7 +11,12 @@ import re
 from typing import TYPE_CHECKING
 
 from companion_agent.memory_lifecycle import is_conversation_task, topics_overlap
-from companion_memoryos.discourse import NONASSERTIVE, direct_clauses, negated_predicate
+from companion_memoryos.discourse import (
+    NONASSERTIVE,
+    direct_clauses,
+    fact_recall_clauses,
+    negated_predicate,
+)
 from companion_memoryos.entity_resolution import entity_catalog
 from companion_memoryos.schemas import (
     AnswerSemantics,
@@ -24,13 +29,20 @@ from companion_memoryos.schemas import (
     TurnDeletionState,
     TurnRecallItem,
 )
-from companion_memoryos.scoring import build_fts_query, lexical_similarity, query_tokens, tokenize
+from companion_memoryos.scoring import (
+    build_fts_query,
+    complementary_evidence_order,
+    lexical_similarity,
+    query_tokens,
+    tokenize,
+)
 from companion_memoryos.store import TurnSearchCandidate
 from companion_memoryos.temporal import TemporalHint
 from companion_memoryos.turn_layers import turn_reality_layer
 
 if TYPE_CHECKING:
     from companion_agent.cognition import ApplicationMemory
+    from companion_memoryos.config import CompanionConfig
 
 
 UPDATE = re.compile(
@@ -108,6 +120,59 @@ def wants_assistant_history(request: RecallRequest) -> bool:
 def specific_overlap(left: str, right: str, memory: ApplicationMemory) -> bool:
     shared = query_tokens(left, memory.config) & tokenize(right, memory.config)
     return any(len(word) >= 2 and word not in GENERIC_CUES for word in shared)
+
+
+def complementary_sources(
+    items: list[TurnRecallItem], request: RecallRequest, config: CompanionConfig
+) -> list[TurnRecallItem]:
+    """Keep the best source, then cover query cues before repeating the same ones.
+
+    Called only after the application's source eligibility checks. Open evidence
+    collection must not fill its budget with near neighbours of one sub-question
+    while dropping a different requested detail. No source score is promoted.
+    """
+    from companion_memoryos.schemas import AnswerCardinality
+
+    if (
+        not items
+        or not request.include_turn_evidence
+        or request.answer_semantics is not AnswerSemantics.EVENT_RECALL
+        or request.answer_cardinality not in {AnswerCardinality.MULTI, AnswerCardinality.OPEN}
+    ):
+        return items
+    # Repeated recall requests are not independent answer evidence. The ledger
+    # keeps them, but their perfect lexical matches must not crowd out assertions
+    # after many conversations. Mixed turns that also assert a fact stay eligible.
+    from companion_agent.current_state.evaluator import analyze_current_turn
+    from companion_agent.experience.evaluator import is_recall_question
+
+    echoes: list[TurnRecallItem] = []
+    if not wants_assistant_history(request) and (
+        analyze_current_turn(request.query).concrete_task or is_recall_question(request.query)
+    ):
+
+        def only_recall_request(text: str) -> bool:
+            clauses = direct_clauses(text)
+            recall_clauses = fact_recall_clauses(text)
+            return bool(clauses) and all(clause in recall_clauses for clause in clauses)
+
+        echoes = [
+            item
+            for item in items
+            if item.turn.content.strip() == request.query.strip()
+            or only_recall_request(item.turn.content)
+        ]
+        echo_ids = {item.turn.id for item in echoes}
+        items = [item for item in items if item.turn.id not in echo_ids]
+    return [
+        items[index]
+        for index in complementary_evidence_order(
+            request.query,
+            [item.evidence_text for item in items],
+            config,
+            [item.temporal for item in items],
+        )
+    ] + echoes
 
 
 def explicit_update(text: str) -> bool:

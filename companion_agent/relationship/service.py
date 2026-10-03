@@ -852,7 +852,11 @@ class RelationshipService:
         modes: dict[str, MemoryReferenceMode] = {}
         for decision in (memory_use_plan or MemoryUsePlan()).decisions:
             ref = f"{decision.evidence.kind.value}:{decision.evidence.id}"
-            modes[ref] = decision.mode
+            modes[ref] = (
+                MemoryReferenceMode.SILENT_INFLUENCE
+                if decision.mode is MemoryReferenceMode.SOURCE_CONTEXT
+                else decision.mode
+            )
             if decision.mode is MemoryReferenceMode.SUPPRESS:
                 blocked.add(ref)
         excluded = {

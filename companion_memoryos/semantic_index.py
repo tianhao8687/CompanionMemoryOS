@@ -11,7 +11,7 @@ import math
 import sys
 from array import array
 from collections.abc import Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
@@ -75,6 +75,19 @@ class SemanticIndex(Protocol):
     def delete(self, kind: SemanticKind, record_id: str, user_id: str) -> None: ...
 
     def search(self, query: SemanticQuery) -> list[SemanticHit]: ...
+
+
+@runtime_checkable
+class CandidateScoringIndex(SemanticIndex, Protocol):
+    """Score an existing bounded candidate set using the same source filters.
+
+    Not appearing in the semantic top-k does not mean a cosine of zero. Hybrid
+    lookup may obtain a relevant long source through the lexical channel instead.
+    """
+
+    def score_candidates(
+        self, query: SemanticQuery, candidate_ids: list[str]
+    ) -> list[SemanticHit]: ...
 
 
 @runtime_checkable
@@ -206,6 +219,15 @@ class SQLiteSemanticIndex:
             )
 
     def search(self, query: SemanticQuery) -> list[SemanticHit]:
+        return self._search(query)
+
+    def score_candidates(self, query: SemanticQuery, candidate_ids: list[str]) -> list[SemanticHit]:
+        identifiers = list(dict.fromkeys(candidate_ids))
+        return self._search(replace(query, limit=len(identifiers)), identifiers)
+
+    def _search(
+        self, query: SemanticQuery, candidate_ids: list[str] | None = None
+    ) -> list[SemanticHit]:
         from companion_memoryos.store import MemoryStore, datetime_to_text
 
         if query.limit <= 0 or not query.vector:
@@ -258,6 +280,10 @@ class SQLiteSemanticIndex:
             placeholders = ", ".join("?" for _ in query.exclude_ids)
             where += f" AND {parent}.id NOT IN ({placeholders})"
             parameters.extend(query.exclude_ids)
+        if candidate_ids is not None:
+            placeholders = ", ".join("?" for _ in candidate_ids)
+            where += f" AND {parent}.id IN ({placeholders})"
+            parameters.extend(candidate_ids)
         query_norm = math.sqrt(math.sumprod(query.vector, query.vector))
         with self.database.connection() as connection:
             rows = connection.execute(

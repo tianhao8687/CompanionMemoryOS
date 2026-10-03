@@ -142,6 +142,13 @@ class CompanionMemoryService:
         )
 
     def remember(self, item: MemoryInput) -> StorageResult:
+        # Duplicate detection, source checks and revision publication must see
+        # one serializable state, including when called outside process_turn.
+        with self.store.database.atomic():
+            self.store.expire_due(datetime.now(UTC))
+            return self._remember(item)
+
+    def _remember(self, item: MemoryInput) -> StorageResult:
         directive_detected = has_explicit_memory_directive(item.content)
         directive_reasons: list[str] = []
         directly_attributed = self._is_direct_user_evidence(item)
@@ -300,6 +307,13 @@ class CompanionMemoryService:
         )
 
     def correct(self, memory_id: str, request: MemoryCorrectionRequest) -> MemoryCorrectionResult:
+        # A deletion or another correction may win the writer slot while this
+        # request waits. Read the target only after acquiring that slot.
+        with self.store.database.atomic():
+            self.store.expire_due(datetime.now(UTC))
+            return self._correct(memory_id, request)
+
+    def _correct(self, memory_id: str, request: MemoryCorrectionRequest) -> MemoryCorrectionResult:
         current = self.store.get(memory_id, request.user_id)
         if current.status is not MemoryStatus.ACTIVE:
             raise ValueError("only active memories can be corrected")
@@ -511,9 +525,10 @@ class CompanionMemoryService:
         result: ProcessTurnResult,
         *,
         intent: RecallIntent | None = None,
+        candidate_budget: tuple[int, int] | None = None,
     ) -> ProcessTurnResult:
         """Complete deferred retrieval without replaying ingestion or interpretation."""
-        return finish_turn(self, request, result, intent=intent)
+        return finish_turn(self, request, result, intent=intent, candidate_budget=candidate_budget)
 
     def _recall_for_processed_turn(
         self,
@@ -521,6 +536,7 @@ class CompanionMemoryService:
         result: ProcessTurnResult,
         *,
         intent: RecallIntent | None = None,
+        candidate_budget: tuple[int, int] | None = None,
     ) -> CompanionContext:
         from companion_memoryos.constants import RECALL_QUERY_MAX_CHARACTERS
 
@@ -534,6 +550,8 @@ class CompanionMemoryService:
             state_reality_layer=request.reality_layer,
             exclude_turn_ids=[turn.id],
             intent=intent or RecallIntent.GENERAL,
+            max_tokens=candidate_budget[0] if candidate_budget else None,
+            max_characters=candidate_budget[1] if candidate_budget else None,
         )
         return self.recall(recall)
 
