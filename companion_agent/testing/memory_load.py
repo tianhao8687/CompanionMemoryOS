@@ -15,6 +15,7 @@ import os
 import platform
 import random
 import statistics
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
@@ -65,7 +66,7 @@ def latency(values: list[float]) -> dict[str, float | int]:
 
 def process_resources() -> dict[str, float | int]:
     result: dict[str, float | int] = {"cpu_seconds": time.process_time()}
-    if os.name == "nt":
+    if sys.platform == "win32":
 
         class Counters(ctypes.Structure):
             _fields_ = [
