@@ -114,9 +114,11 @@ def pair(
     return user.turn, assistant.turn
 
 
-def employment(service: CompanionMemoryService) -> tuple[ExperienceService, Any]:
+def employment(
+    service: CompanionMemoryService, *, as_of: datetime | None = None
+) -> tuple[ExperienceService, Any]:
     experiences = ExperienceService(service)
-    start = datetime.now(UTC) - timedelta(days=4)
+    start = (as_of or datetime.now(UTC)) - timedelta(days=4)
     for day, message in enumerate(("我想辞职。", "老板又找我谈了。", "我决定再待一个月。")):
         experiences.observe(*pair(service, message, start + timedelta(days=day)))
     shared = [
@@ -567,12 +569,12 @@ def test_experience_status_and_merge_revisions(service: CompanionMemoryService) 
 
 
 def test_temporal_recall_uses_memoryos_calendar_windows(service: CompanionMemoryService) -> None:
-    experiences, shared = employment(service)
-    assert not experiences.recall(KEY, "上个月辞职", explicit_recall=True)
-    assert (
-        experiences.recall(KEY, "本月辞职", explicit_recall=True)[0].experience.experience_id
-        == shared.experience_id
-    )
+    # Keep the three-day fixture within one month, including when run on the 1st.
+    as_of = datetime(2026, 9, 15, 12, tzinfo=UTC)
+    experiences, shared = employment(service, as_of=as_of)
+    assert not experiences.recall(KEY, "上个月辞职", explicit_recall=True, as_of=as_of)
+    current = experiences.recall(KEY, "本月辞职", explicit_recall=True, as_of=as_of)
+    assert current[0].experience.experience_id == shared.experience_id
 
 
 def test_observe_same_pair_twice_is_idempotent(service: CompanionMemoryService) -> None:

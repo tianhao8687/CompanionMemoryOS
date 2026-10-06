@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#faf5e9">
+  <title>回忆小窝 · 像素试摆</title>
+  <link rel="stylesheet" href="samples.css">
+  <script src="samples.js" defer></script>
+</head>
+<body>
+  <main class="sample-page">
+    <header class="sample-heading">
+      <div><p class="eyebrow">心隅 · 回忆小窝</p><h1>让小日子，住进小窝。</h1></div>
+      <span class="sample-tag">像素画风试摆</span>
+    </header>
+    <div class="sample-layout">
+      <section class="room-area" aria-label="小窝摆放效果">
+        <nav id="sample-views" aria-label="查看区域">
+          <button type="button" data-view="all" aria-pressed="true">整个小窝</button>
+          <button type="button" data-view="window" aria-pressed="false">窗台</button>
+          <button type="button" data-view="shelf" aria-pressed="false">纪念架</button>
+          <button type="button" data-view="desk" aria-pressed="false">桌面</button>
+        </nav>
+        <div class="room-stage">
+          <canvas id="sample-room" width="1254" height="1254" role="img" aria-label="窗台上有雏菊花盆，纪念架上有月亮灯，桌面上有咖啡小火箭。也可以使用物品按钮靠近查看。"></canvas>
+          <p id="sample-status" role="status">正在把小物件摆进小窝…</p>
+        </div>
+        <div class="room-caption">
+          <p id="sample-caption" aria-live="polite">三件小物件，三个温暖的角落。</p>
+          <label class="size-control" for="sample-size">摆件大小 <input id="sample-size" type="range" min="100" max="170" value="135" step="5"><output id="sample-size-value" for="sample-size">135%</output></label>
+        </div>
+      </section>
+      <aside class="sample-collection" aria-label="三件像素样品">
+        <div class="collection-heading"><h2>今天的小物件</h2><p>点一件，靠近看看。</p></div>
+        <button type="button" class="sample-card" data-item="daisy" aria-pressed="false">
+          <span class="sample-art"><canvas width="240" height="240" aria-hidden="true"></canvas></span>
+          <span class="sample-copy"><span class="sample-location">窗台 · 一点生机</span><strong>向阳的小雏菊</strong><span class="sample-description">把一点好心情，种在阳光里。</span></span>
+        </button>
+        <button type="button" class="sample-card" data-item="moon" aria-pressed="false">
+          <span class="sample-art"><canvas width="240" height="240" aria-hidden="true"></canvas></span>
+          <span class="sample-copy"><span class="sample-location">纪念架 · 一句晚安</span><strong>晚安月亮灯</strong><span class="sample-description">今晚，也留一盏温柔的灯。</span></span>
+        </button>
+        <button type="button" class="sample-card" data-item="coffee" aria-pressed="false">
+          <span class="sample-art"><canvas width="240" height="240" aria-hidden="true"></canvas></span>
+          <span class="sample-copy"><span class="sample-location">桌面 · 一点元气</span><strong>咖啡小火箭</strong><span class="sample-description">喝口咖啡，再向前飞一点。</span></span>
+        </button>
+      </aside>
+    </div>
+    <footer>三件 AI 绘图样品，用来感受画风和摆放效果。</footer>
+  </main>
+</body>
+</html>

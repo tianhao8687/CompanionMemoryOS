@@ -27,8 +27,8 @@ input:focus,textarea:focus,select:focus{outline:3px solid #b9876c33;border-color
 .sidebar{display:flex;flex-direction:column;min-height:0;padding:32px 20px 18px;background:linear-gradient(160deg,#f0ece6db,#f3f1edeb 65%,#eaece6b3);border-right:1px solid #dedbd466;backdrop-filter:blur(24px)}
 .sidebar-heading{display:flex;justify-content:space-between;align-items:center}
 .brand{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--ink);font-size:21px;font-weight:650;letter-spacing:2px}
-.brand-mark{display:grid;place-items:center;width:41px;height:41px;border-radius:14px;color:#ad7b66;background:linear-gradient(140deg,#fffaf4,#eee0d5);border:1px solid #fff9;box-shadow:0 3px 8px #72503908}
-.brand-mark .icon{width:23px;height:23px;stroke-width:1.65}
+.brand-mark{display:grid;place-items:center;flex-shrink:0;width:41px;height:41px;overflow:hidden;border-radius:10px;background:#fff;box-shadow:0 3px 8px #72503908}
+.brand-mark img{display:block;width:100%;height:100%;object-fit:contain}
 .brand small{display:block;color:#9a9186;font-size:8px;font-weight:500;letter-spacing:1.7px;margin-top:3px}
 .sidebar-caption{color:#7e8175;font-size:12px;line-height:1.8;margin:19px 0 25px}
 .new-chat{display:flex;align-items:center;justify-content:center;gap:9px;min-height:46px;width:100%;border:1px solid #fff;border-radius:14px;background:#ffffffbd;box-shadow:var(--shadow);color:#5c625a;font-size:12px;font-weight:550}

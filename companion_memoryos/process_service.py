@@ -529,6 +529,7 @@ def finish_turn(
     *,
     defer_recall: bool = False,
     intent: RecallIntent | None = None,
+    candidate_budget: tuple[int, int] | None = None,
 ) -> ProcessTurnResult:
     turn = result.storage.turn
     result.response_context = None
@@ -567,7 +568,9 @@ def finish_turn(
     ):
         if len(turn.content) > RECALL_QUERY_MAX_CHARACTERS and request.recall_request is None:
             result.reasons.append("long_turn_recalled_with_bounded_query_prefix")
-        result.response_context = service._recall_for_processed_turn(request, result, intent=intent)
+        result.response_context = service._recall_for_processed_turn(
+            request, result, intent=intent, candidate_budget=candidate_budget
+        )
         # Do not deliver an old context if a new turn arrived during retrieval.
         result.response_stale = _is_stale(service, turn)
         source_active = _source_active(service, turn)

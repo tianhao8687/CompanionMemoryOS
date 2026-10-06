@@ -75,6 +75,16 @@ class _CompanionNavigationState extends State<CompanionNavigation> {
           _inset(
             Row(
               children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.asset(
+                    'assets/branding/xinyu-logo.png',
+                    width: 32,
+                    height: 32,
+                    semanticLabel: '心隅',
+                  ),
+                ),
+                const SizedBox(width: 10),
                 const Expanded(
                   child: Text(
                     '对话',

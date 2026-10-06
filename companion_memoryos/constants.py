@@ -1,7 +1,7 @@
 """Structural constants. User-tunable behavior belongs in defaults.toml."""
 
 CONFIG_SCHEMA_VERSION = "1.0"
-DATABASE_SCHEMA_VERSION = 8
+DATABASE_SCHEMA_VERSION = 9
 MEMORY_SCHEMA_VERSION = "1.7"
 APPLICATION_VERSION = "0.7.5"
 

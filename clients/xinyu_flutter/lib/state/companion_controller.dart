@@ -107,6 +107,24 @@ class CompanionController extends ChangeNotifier {
     if (collecting) _scheduleCollected();
   }
 
+  bool composeKeepsakeChat(String title) {
+    if (busy || active == null) return false;
+    final invitation = '我们聊聊小窝里的「$title」吧。';
+    final text = [
+      composerText.trim(),
+      invitation,
+    ].where((part) => part.isNotEmpty).join('\n');
+    if (text.length > 6000) {
+      reportProblem('先发出或整理输入框里的内容，再聊这件物品吧。');
+      return false;
+    }
+    composerText = text;
+    composerRevision++;
+    _rememberComposer();
+    _emit();
+    return true;
+  }
+
   void _rememberComposer() {
     final id = active;
     if (id == null) return;

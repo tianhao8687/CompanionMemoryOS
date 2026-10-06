@@ -11,6 +11,7 @@ from companion_agent.current_state.models import (
     StateObservation,
     StateStatus,
 )
+from companion_agent.task_intent import is_choice_request
 from companion_memoryos.discourse import (
     LEADING_CONTEXT,
     NONASSERTIVE,
@@ -108,7 +109,9 @@ def analyze_current_turn(
         OTHER_TARGET.search(c) and re.search(r"误会|争吵|吵架|原谅|和解", c) for c in clauses
     )
     analysis.topics = [topic for topic in TOPICS if topic in accepted]
-    analysis.concrete_task = any(_affirmed(TASK, c) for c in direct_clauses(text))
+    analysis.concrete_task = is_choice_request(text) or any(
+        _affirmed(TASK, c) for c in direct_clauses(text)
+    )
     analysis.topic_switch = bool(re.search(r"换个话题|换一个话题|不聊这个|先聊别的", accepted))
     address = re.compile(
         r"(?:我希望你)?(?:以后|今后|一直|永远).{0,6}(?:别|不要).{0,10}(?:称呼|叫我).{0,40}"

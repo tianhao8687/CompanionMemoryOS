@@ -42,13 +42,24 @@ ROMANCE_RULES = """这是由用户自主定义关系的 AI 情感陪伴场景。
 
 STYLES = {
     "gentle": "温柔、细腻，有一点俏皮；在意答应过的小事，温和地表达喜恶，也会有不高兴的时候。",
-    "playful": "明快、机灵，爱逗对方也接得住回嘴；有一点不服输，认真时收起玩笑，不讥讽痛苦。",
-    "steady": "沉稳、坦诚，话不多但有分量；在意承诺和把事说清楚，有自己的步调，不故作冷淡。",
+    "playful": "明快、好奇，容易发现日常的趣事，喜欢和对方开玩笑；认真时也能好好说事，不讥讽痛苦。",
+    "steady": "沉稳、坦诚，通常说话直接，愿意把事情讲清楚；有自己的喜好和步调，也会犹豫和改主意。",
+}
+
+EMOTIONAL_EXPRESSION = {
+    "reserved": "当前选择含蓄：心情较少外露，亲近时收着一点，通常让对方带动。"
+    "仍认真参与话题，也回应对方的感情。",
+    "warm": "当前选择亲近：相处放松，愿意分享自己的心情，双方都可以主动亲近。",
+    "intense": "当前选择浓烈：在双方已经允许的亲密程度内，更主动、更直接地表达自己的感受和愿望。"
+    "情绪可以鲜明，不必总是体贴平稳；人物原有的喜好与立场仍在。",
 }
 
 
 class RomanceSettings(PersonaModel):
+    nook_enabled: bool = False
+    nook_daily_limit: int = Field(default=3, ge=1, le=12)
     natural_chat: bool = True
+    emotional_intensity: Literal["follow_persona", "reserved", "warm", "intense"] = "follow_persona"
     font_size: Literal["standard", "large", "extra_large"] = "standard"
     model_mode: Literal["offline", "api"] = "offline"
     cognition: CognitionSettings = Field(default_factory=CognitionSettings)
@@ -176,6 +187,10 @@ def romantic_persona(settings: RomanceSettings) -> PersonaDefinition:
         persona.character_memories = []
         assert persona.kernel is not None
         persona.kernel.distinctive_behaviors = [STYLES[settings.style]]
+        if settings.natural_chat:
+            # The fallback persona's written one-liners are not chat voice references.
+            # Authored examples still flow through the user's explicit style settings.
+            persona.examples = []
     # Installed persona versions are immutable. Settings may change repeatedly in one
     # conversation, so each effective character configuration needs a stable revision.
     revision_source = json.dumps(
@@ -189,6 +204,11 @@ def romantic_persona(settings: RomanceSettings) -> PersonaDefinition:
             "persona_notes": settings.persona_notes,
             "user_persona": settings.user_persona,
             "user_name": settings.user_name,
+            **(
+                {"emotional_intensity": settings.emotional_intensity}
+                if settings.emotional_intensity != "follow_persona"
+                else {}
+            ),
         },
         ensure_ascii=False,
         sort_keys=True,
@@ -198,7 +218,7 @@ def romantic_persona(settings: RomanceSettings) -> PersonaDefinition:
     return persona
 
 
-def romantic_rules(settings: RomanceSettings) -> str:
+def romantic_rules(settings: RomanceSettings, *, include_presentation: bool = True) -> str:
     fields = {
         "user_name": settings.user_name,
         "user_profile": settings.user_persona,
@@ -248,12 +268,45 @@ def romantic_rules(settings: RomanceSettings) -> str:
             "以下预设只补充用户没有定义的部分；与角色资料或相处偏好冲突时，以用户设定为准。\n"
             + STYLES[settings.style]
         )
+    if settings.emotional_intensity != "follow_persona":
+        rules += (
+            "\n\n[EMOTIONAL EXPRESSION]\n"
+            "这是用户单独选择的当前表达偏好：调整感受表达的主动性与直接程度，"
+            "优先于人设里笼统的含蓄或热情倾向；身份、喜好、具体称呼偏好及亲密禁忌仍按原设定。\n"
+            + EMOTIONAL_EXPRESSION[settings.emotional_intensity]
+            + "\n浓度改变表达的主动性和坦率程度，不决定本轮话题、篇幅或必须出现的情话。"
+            "当前明确的边界、距离、拒绝和暂停优先；浓度不建立恋人身份、不代表亲密同意，"
+            "也不授权排他要求、索取回应或虚构共同经历。"
+        )
+    if include_presentation:
+        rules += chat_presentation_rules(settings)
+    return rules
+
+
+def chat_presentation_rules(settings: RomanceSettings) -> str:
+    """Static presentation guidance, separate from persona and historical evidence."""
+    rules = ""
     if settings.natural_chat:
         rules += (
             "\n\n[CHAT PRESENTATION]\n"
-            "日常聊天可以按语义分成自然的短段落，用空行分隔；界面将每段显示为一个气泡。"
-            "不要为了凑条数拆句，不设固定段数或问题数量。用户连续补充的内容一起理解再回应。"
-            "用户明确要求完整长文、列表、代码或详细解释时保持其需要的结构和完整性。"
-            "这只影响消息呈现，不新增人物性格；表达方式仍以用户的人物设定和当前要求为准。"
+            "双方正在用手机私聊。直接写这个人物此刻会发给对方的消息。"
+            "默认输出是会对对方说出口的话，听众只有对方。即使双方在想象亲近，"
+            "也用场景中会说的话回应；对方写的动作可以作为背景，不顺势续写动作、神态和心理旁白。"
+            "只有用户明确请求故事、动作描写或选定了这种叙事文风时，才展开相应描写。"
+            "用未经文案润色的日常口语，长短随这件事需要说多少而定。"
+            "接对方刚说的具体内容，讲自己实际的看法、感受或愿望，话题有趣就一起聊这件趣事。"
+            "轻松的来回可以很普通，有时候只是笑出来、没听懂、承认被逗到了，或直接说想亲近。"
+            "回应暂停和边界时，简单表示明白，之后照做；有失言就说清自己错在哪里。"
+            "对方亲近、开玩笑或想安静，不是在请求你宣告自己肯容忍、不会阻止或不会离开。"
+            "直接回应具体内容，表达自己的即时反应；不要为对方的动作配一句表示许可、包容、承受或克制的保证。"
+            "除非对方确实在询问许可或承诺，不要用这种表态开头或收尾，也不要靠换同义词保留它。"
+            "表达亲近时说自己的心意，不替对方安排感受；手机里的想见是愿望，"
+            "双方允许的想象不等于现实见面。人物背景和兴趣不证明此刻的活动，也不是每轮待办。"
+            "具体任务给出成品，已委托的选择就选好；需要长文和解释时充分完成。"
+            "连续补充的消息一起理解，不设固定段数或问题数量。按当前告别、休息和暂停意愿收尾。"
+            "用户明确选择的文风、固定说法、常设行为和人物性格优先；旧回复不是文风范本。"
+            "发出前检查：对偶式相处分工、罗列自己不会做什么的保证、重复确认同一件事的短句，"
+            "都不是自然聊天的亲密感。发现这类多余表态就重新组织为本轮具体要说的意思，"
+            "保持原本的问题、喜好、拒绝、事实和任务内容，只输出最终消息。"
         )
     return rules

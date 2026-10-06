@@ -245,6 +245,14 @@ class RelationshipService:
             at = source.occurred_at
         else:
             source = self.memory.store.get_open_loop(ref.id, key.user_id)
+            if source.metadata.get("candidate_only") and source.metadata.get(
+                "interpretation_model"
+            ):
+                # A valid source turn proves the words were said, not the model's
+                # explanation of a hidden concern. Keep the candidate in MemoryOS
+                # without projecting it as a confirmed relationship problem.
+                # This also invalidates projections made by older app versions.
+                raise ValueError("model open-loop candidate is not confirmed relationship evidence")
             if not source.source_turn_id:
                 raise ValueError("open loop requires a source turn")
             source_at = self._evidence_time(
@@ -852,7 +860,11 @@ class RelationshipService:
         modes: dict[str, MemoryReferenceMode] = {}
         for decision in (memory_use_plan or MemoryUsePlan()).decisions:
             ref = f"{decision.evidence.kind.value}:{decision.evidence.id}"
-            modes[ref] = decision.mode
+            modes[ref] = (
+                MemoryReferenceMode.SILENT_INFLUENCE
+                if decision.mode is MemoryReferenceMode.SOURCE_CONTEXT
+                else decision.mode
+            )
             if decision.mode is MemoryReferenceMode.SUPPRESS:
                 blocked.add(ref)
         excluded = {

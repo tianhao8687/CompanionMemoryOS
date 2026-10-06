@@ -52,6 +52,9 @@ FACT_REFERENCE = re.compile(
     r"(?:回到|说回).{0,18}(?:那|这)|"
     r"(?:之前|以前|前面|最初|当初|上次).{0,8}(?:说|提|讲)"
 )
+RECALL_REQUEST = re.compile(r"^(?:请(?:你)?|(?:帮|替|给)我|麻烦(?:你)?)(?:再|先)?(?:回忆|回顾)")
+RECAP_ACTION = re.compile(r"捋(?:一捋|捋|一下)?|理一理|整理|汇总|总结|回顾|归纳|列一下")
+RECAP_SOURCE = re.compile(r"刚才|之前|前面|先前|说过|聊过|说好|商量|聊的|谈的|定的|约好的")
 PROSPECTIVE_QUESTION = re.compile(
     r"应该|应当|该(?:不该|怎么|怎样|选|买|穿|放|去)|要不要|怎么办|怎么(?:办|选|挑)|"
     r"建议|推荐|适合|打算|准备|计划|想买|想选|一般|通常|假装|演一下|扮演|设定|"
@@ -159,6 +162,44 @@ def asserted_clause(clause: str) -> bool:
     return not NONASSERTIVE.search(clause) and not re.search(r"[？?]|吗(?:[。！!]?)$", clause)
 
 
+def conversation_recap_clauses(content: str) -> list[str]:
+    """A request to collect prior discussion, including imperative rather than question form."""
+    clauses = direct_clauses(content)
+    if not any(
+        RECAP_SOURCE.search(clause)
+        and re.search(r"说|聊|讲|谈|商量|定|约|记|信息|内容|事|安排|东一句|西一句", clause)
+        for clause in clauses
+    ):
+        return []
+    return [
+        clause
+        for clause in clauses
+        if (action := RECAP_ACTION.search(clause))
+        and not negated_predicate(clause, action.start())
+        and not re.search(r"(?:别|不要|不用|无需).{0,6}$", clause[: action.start()])
+        and not NONASSERTIVE.search(clause)
+        and re.search(r"帮我|替我|给我|你|请|把|捋捋|理一理", clause)
+    ]
+
+
+def shared_plan_recall_clauses(content: str) -> list[str]:
+    """Retrieve agreed arrangements for conversational time/place questions.
+
+    This permits looking for a prior agreement; it does not assert one exists.
+    Explicit requests for a new choice still remain prospective tasks.
+    """
+    return [
+        clause
+        for clause in direct_clauses(content)
+        if re.search(r"咱们|我们|咱俩|我俩", clause)
+        and re.search(r"明天|后天|周[一二三四五六日天末]|下周|下个月", clause)
+        and re.search(r"几点|在哪|哪儿|哪里|干什么|做什么|怎么排|安排", clause)
+        and not NONASSERTIVE.search(clause)
+        and not PROSPECTIVE_QUESTION.search(clause)
+        and not re.search(r"合适|比较好|你觉得|(?:别|不要|不用).{0,6}(?:查|问|说|回顾)", clause)
+    ]
+
+
 def fact_recall_clauses(content: str) -> list[str]:
     """Questions about an established personal fact also authorize explicit recall.
 
@@ -169,16 +210,27 @@ def fact_recall_clauses(content: str) -> list[str]:
     clauses = [
         clause
         for clause in direct_clauses(content)
-        if not PROSPECTIVE_QUESTION.search(clause)
+        if (RECALL_REQUEST.search(clause) or not PROSPECTIVE_QUESTION.search(clause))
         and not re.search(r"(?:不|别|无需|不用|不要).{0,5}(?:问|答|查|提|说|告诉|回忆)", clause)
     ]
     reference = any(FACT_REFERENCE.search(clause) for clause in clauses)
-    return [
-        clause
-        for clause in clauses
-        if FACT_QUESTION.search(clause)
-        and (FACT_ANCHOR.search(clause) or (reference and clause.startswith("它")))
-    ]
+    return list(
+        dict.fromkeys(
+            [
+                *conversation_recap_clauses(content),
+                *shared_plan_recall_clauses(content),
+                *[
+                    clause
+                    for clause in clauses
+                    if RECALL_REQUEST.search(clause)
+                    or (
+                        FACT_QUESTION.search(clause)
+                        and (FACT_ANCHOR.search(clause) or (reference and clause.startswith("它")))
+                    )
+                ],
+            ]
+        )
+    )
 
 
 def grounded_model_signals(

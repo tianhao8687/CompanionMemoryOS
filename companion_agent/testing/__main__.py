@@ -28,7 +28,7 @@ def main() -> None:
     parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument(
         "--variant",
-        choices=["full", "no_examples", "no_history", "no_old_conditions"],
+        choices=["full", "no_examples", "no_history", "no_old_conditions", "no_tools"],
         default="full",
     )
     args = parser.parse_args()

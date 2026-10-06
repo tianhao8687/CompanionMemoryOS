@@ -241,6 +241,7 @@ function openSettings() {
   $("custom-style").value = settings.custom_style || "";
   $("custom-style-examples").value = settings.custom_style_examples || "";
   $("custom-style-avoid").value = settings.custom_style_avoid || "";
+  $("emotional-intensity").value = settings.emotional_intensity || "follow_persona";
   document.querySelector(`input[name="style"][value="${settings.style}"]`).checked = true;
   updateStyleFields();
   $("romance-consent").checked = settings.romance_consent;
@@ -289,6 +290,7 @@ async function saveSettings(test = false) {
     custom_style: $("custom-style").value.trim(),
     custom_style_examples: $("custom-style-examples").value.trim(),
     custom_style_avoid: $("custom-style-avoid").value.trim(),
+    emotional_intensity: $("emotional-intensity").value,
     persona_notes: $("persona-notes").value.trim(),
     romance_consent: $("romance-consent").checked,
     storage_consent: $("storage-consent").checked,

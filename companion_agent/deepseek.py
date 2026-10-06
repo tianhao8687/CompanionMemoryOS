@@ -19,8 +19,8 @@ class DeepSeekConfig(PersonaModel):
     base_url: str = "https://api.deepseek.com"
     model: str = Field(default="deepseek-flash", min_length=1, max_length=128)
     api_key_env: str = Field(default="DEEPSEEK_API_KEY", pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
-    timeout_seconds: float = Field(default=120, gt=0, le=300, allow_inf_nan=False)
-    max_tokens: int = Field(default=4096, ge=128, le=32768)
+    timeout_seconds: float = Field(default=120, gt=0, le=600, allow_inf_nan=False)
+    max_tokens: int = Field(default=4096, ge=128, le=65536)
     temperature: float = Field(default=0.9, ge=0, le=2, allow_inf_nan=False)
     thinking: Literal["disabled", "enabled"] = "disabled"
 

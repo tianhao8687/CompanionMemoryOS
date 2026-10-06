@@ -339,7 +339,7 @@ class Journal:
                     consent=ConsentState.GRANTED,
                     source_ref="journal:moment",
                     idempotency_key=stable,
-                    metadata={"reality_layer": item.reality_layer},
+                    metadata={"process_reality_layer": item.reality_layer},
                 )
             ).turn
             assert source is not None
@@ -357,8 +357,11 @@ class Journal:
                     reality_layer=RealityLayer(item.reality_layer),
                     source_ref="journal:moment",
                     evidence_turn_ids=[source.id, *[t.id for t in sources]],
-                    event_at=datetime.combine(
-                        item.happened_on, time(12), ZoneInfo(host.settings.calendar_timezone)
+                    event_at=min(
+                        datetime.combine(
+                            item.happened_on, time(12), ZoneInfo(host.settings.calendar_timezone)
+                        ),
+                        datetime.now(UTC),
                     ),
                     metadata={
                         "journal_moment": True,

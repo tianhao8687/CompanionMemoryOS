@@ -252,7 +252,12 @@ class Outreach:
             m
             for m in memories
             if modes.get(m.id)
-            not in (None, MemoryReferenceMode.SUPPRESS, MemoryReferenceMode.CLARIFY)
+            not in (
+                None,
+                MemoryReferenceMode.SUPPRESS,
+                MemoryReferenceMode.CLARIFY,
+                MemoryReferenceMode.SOURCE_CONTEXT,
+            )
             and f"memory:{m.id}" not in blocked
             and not any(f"turn:{i}" in blocked for i in m.evidence_turn_ids)
         ]

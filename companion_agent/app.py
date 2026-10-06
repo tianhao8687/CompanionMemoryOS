@@ -39,7 +39,9 @@ from companion_agent.directives import directive_recall
 from companion_agent.images import MAX_IMAGE_BYTES, ImageAwareModel, ImagePurpose, ImageStore
 from companion_agent.journal import Journal, JournalError
 from companion_agent.journal import install_routes as install_journal_routes
-from companion_agent.llm import MainLLM, MainLLMError
+from companion_agent.llm import ContextBudgetError, MainLLM, MainLLMError
+from companion_agent.nook import MemoryNook
+from companion_agent.nook import install_routes as install_nook_routes
 from companion_agent.offline import OfflineModel
 from companion_agent.outreach import Outreach
 from companion_agent.persona.models import PersonaModel
@@ -47,6 +49,7 @@ from companion_agent.relationship import RelationshipKey
 from companion_agent.romance import (
     RomanceSettings,
     SettingsUpdate,
+    chat_presentation_rules,
     romantic_persona,
     romantic_rules,
 )
@@ -79,6 +82,7 @@ LOCAL_RELATIONSHIP = "romance-relationship"
 COOKIE = "companion_romance_session"
 DEFAULT_PORT = 8765
 MAX_BODY_BYTES = 32_768
+CONTEXT_LIMIT_MESSAGE = "这条消息与必须保留的上下文过长，暂时无法生成回复。原文已保留，请分段发送。"
 MODEL_ERRORS = {
     "main_llm_api_key_missing": "请先在设置中填写 DeepSeek API Key，或设置 DEEPSEEK_API_KEY。",
     "main_llm_cancelled": "本轮已停止，尚未完成的回复没有写入历史。",
@@ -173,6 +177,7 @@ class RomanceHost:
         self.images = ImageStore(database, self.memory.store, LOCAL_USER)
         self.memory.store.repair_empty_redactions(LOCAL_USER)
         self.lock = RLock()
+        self._writer_admission = RLock()
         self.session = secrets.token_urlsafe(32)
         self.api_key: str | None = None
         self.credential_store = credentials or CredentialStore(data_dir, enabled=testing is None)
@@ -231,11 +236,16 @@ class RomanceHost:
             | self.chat_experience.protected_images()
         )
         self.tools = ToolHub(database)
+        if testing and testing.marker.get("variant") == "no_tools":
+            # A disclosed diagnostic ablation uses the existing no-loop path.
+            # It cannot enable actions or persist a change to ordinary app settings.
+            self.tools.config.loop.enabled = False
         self.tools.available = lambda: self.settings.storage_consent
         self.stickers = StickerStore(database)
         self.agent = self.make_agent(self.settings, self.api_key)
         self.continuity = Continuity(self)
         self.journal = Journal(self)
+        self.nook = MemoryNook(self)
         self.outreach = Outreach(self)
         self.memory.on_user_turn = self.continuity.observe
         self.channels = Channels(self)
@@ -260,10 +270,10 @@ class RomanceHost:
         if self.testing:
             if settings.model_mode == "api" and not self.testing.marker["allow_live"]:
                 raise problem(403, "test_live_not_authorized", "此测试实例未授权真实模型调用。")
-            if (
-                settings.cognition.embedding_backend == "api"
-                and not self.testing.allows_local_embedding(settings.cognition.embedding.base_url)
-            ):
+            if settings.cognition.embedding_backend in {
+                "api",
+                "local_api",
+            } and not self.testing.allows_local_embedding(settings.cognition.embedding.base_url):
                 raise problem(
                     403, "test_embedding_not_authorized", "此测试实例未授权该向量服务地址。"
                 )
@@ -288,6 +298,7 @@ class RomanceHost:
                 )
             ),
             self.tools,
+            token_counter=self.memory.token_counter,
         )
         self.loop.on_pending = self.persist_suspension
         return CompanionAgent(
@@ -298,9 +309,15 @@ class RomanceHost:
                 self.stickers,
                 settings.stickers_enabled,
             ),
-            application_rules=romantic_rules(settings),
+            application_rules=romantic_rules(settings, include_presentation=False),
+            presentation_rules=chat_presentation_rules(settings),
+            application_context_provider=lambda request: self.nook.chat_context(request),
             max_persona_tokens=1600,
-            context_variant=self.testing.marker.get("variant", "full") if self.testing else "full",
+            context_variant=(
+                self.testing.marker.get("variant", "full")
+                if self.testing and self.testing.marker.get("variant") != "no_tools"
+                else "full"
+            ),
             initial_relationship_identity=(
                 RelationshipIdentityType.ROMANTIC_PARTNER
                 if settings.romance_consent
@@ -310,12 +327,16 @@ class RomanceHost:
 
     @contextmanager
     def exclusive(self) -> Iterator[None]:
-        if not self.lock.acquire(blocking=False):
+        if not self._writer_admission.acquire(blocking=False):
             raise problem(409, "busy", "正在回复上一条消息，请等回复完成后再操作。")
         try:
-            yield
+            # Read-only snapshots share the state lock, but do not represent a
+            # competing chat writer. Wait for their short read, retaining the
+            # existing nonblocking rejection for another admitted mutation.
+            with self.lock:
+                yield
         finally:
-            self.lock.release()
+            self._writer_admission.release()
 
     def credentials_ready(self) -> bool:
         return bool(
@@ -331,6 +352,7 @@ class RomanceHost:
             "vision_ready": self.settings.vision_ready,
             "chat_features": True,
             "journal_features": True,
+            "nook_features": True,
             "chat_experience": True,
             "last_conversation": self.chat_experience.last_conversation(),
             "journal_background": self.outreach.background_enabled(),
@@ -451,6 +473,7 @@ class RomanceHost:
                         + datetime.now(UTC).isoformat(),
                     )
             self.settings = update.settings.model_copy(deep=True)
+            self.nook.invalidate()
             if not self.settings.storage_consent:
                 self.chat_experience.clear_private_ui()
             self.api_key = proposed_key
@@ -550,6 +573,8 @@ class RomanceHost:
                         item.conversation_id,
                     ),
                 )
+            if not result.reused:
+                self.nook.start(item.conversation_id)
             return {
                 "user": self.public_turn(source),
                 "assistant": self.public_turn(result.turn),
@@ -763,6 +788,7 @@ def create_app(
         try:
             yield
         finally:
+            host.nook.close()
             host.tools.scheduler.stop()
             host.channels.stop()
             host.memory.close_indexer()
@@ -849,6 +875,7 @@ def create_app(
             raise problem(401, "session_expired", "本地会话已失效，请刷新页面。")
 
     install_journal_routes(app, host, authorized)
+    install_nook_routes(app, host, authorized)
     install_chat_experience_routes(app, host, authorized)
 
     @app.exception_handler(RequestValidationError)
@@ -877,6 +904,13 @@ def create_app(
                 }
             },
             status_code=502,
+        )
+
+    @app.exception_handler(ContextBudgetError)
+    async def context_error(request: Request, error: ContextBudgetError) -> JSONResponse:
+        return JSONResponse(
+            {"detail": {"code": "context_budget_exceeded", "message": CONTEXT_LIMIT_MESSAGE}},
+            status_code=422,
         )
 
     @app.exception_handler(ValueError)
@@ -1071,6 +1105,14 @@ def create_app(
             token = listener.set(queue.put)
             try:
                 queue.put({"type": "result", "result": host.chat(item)})
+            except ContextBudgetError:
+                queue.put(
+                    {
+                        "type": "error",
+                        "code": "context_budget_exceeded",
+                        "message": CONTEXT_LIMIT_MESSAGE,
+                    }
+                )
             except MainLLMError as error:
                 queue.put(
                     {"type": "error", "message": MODEL_ERRORS.get(str(error), "模型暂未完成回复。")}

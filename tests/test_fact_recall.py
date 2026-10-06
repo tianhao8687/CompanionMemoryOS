@@ -132,6 +132,28 @@ def test_custom_style_does_not_inherit_default_character_kernel_or_response_tone
     assert "不能假装已有共同经历" in context
 
 
+def test_empty_recall_does_not_prescribe_comfort_or_override_authored_voice(tmp_path: Path) -> None:
+    model = RecordingLLM()
+    host = host_for(
+        tmp_path,
+        model,
+        style="custom",
+        custom_style="直率爱开玩笑的成年恋人。",
+        emotional_intensity="intense",
+    )
+    chat(host, "想和你聊点无聊的小事。")
+    system, data = model.inputs[-1][:2]
+    relevant = json.loads(data.content.split("[RELEVANT MEMORY]\n")[1].split("\n\n")[0])
+    assert relevant["retrieval_outcome"] == "no_match"
+    assert relevant["evidence"] == []
+    assert "[EMOTIONAL EXPRESSION]" in system.content
+    assert "直率爱开玩笑的成年恋人。" in system.content
+    assert "先回应用户此刻的感受" not in data.content
+    assert "轻柔试探" not in data.content
+    assert "do_not_assert 不得断言" in data.content
+    assert "不要补写或猜测共同记忆" in data.content
+
+
 def test_compound_query_recalls_known_fields_without_inventing_unknown_fields(
     tmp_path: Path,
 ) -> None:

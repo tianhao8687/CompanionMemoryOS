@@ -782,6 +782,45 @@ class _SettingsSheetState extends State<SettingsSheet> {
     ),
     const SizedBox(height: 14),
     _SettingsGroup(
+      title: '情感浓度',
+      icon: Icons.favorite_border_rounded,
+      subtitle: '调整 TA 表达在意和想念的主动程度，保留原本的性格。',
+      children: [
+        RoundedChoiceField<String>(
+          key: const Key('emotional-intensity'),
+          initialValue:
+              values['emotional_intensity'] as String? ?? 'follow_persona',
+          choices: const {
+            'follow_persona': '跟随人设',
+            'reserved': '含蓄',
+            'warm': '亲近',
+            'intense': '浓烈',
+          },
+          onChanged: (v) => setState(() => values['emotional_intensity'] = v),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          switch (values['emotional_intensity'] ?? 'follow_persona') {
+            'reserved' => '表达收着一点，把在意放在具体的小事里。',
+            'warm' => '更愿意说出喜欢，主动分享心情、回应亲近。',
+            'intense' => '更直接地表达想念和吸引，也会有自己的小情绪。',
+            _ => '按你写的人物设定相处，不额外调整浓度。',
+          },
+          style: const TextStyle(
+            fontSize: 12,
+            height: 1.6,
+            color: XinYuColors.muted,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          '随时可以改；你当下想要的距离始终优先。',
+          style: TextStyle(fontSize: 12, height: 1.6, color: XinYuColors.muted),
+        ),
+      ],
+    ),
+    const SizedBox(height: 14),
+    _SettingsGroup(
       title: '我的人物资料',
       icon: Icons.person_outline_rounded,
       subtitle: '你的身份、背景和偏好；与 TA 的资料分别保存。',

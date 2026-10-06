@@ -7,7 +7,10 @@ Flutter 玻璃界面 + 原有 Python 记忆引擎。电脑和手机各自保存�
 已发布测试版：[心隅 0.2.9 Windows / Android](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.9)。
 Windows 安装、覆盖更新、数据保留与桌面检查见 [交付记录](../../docs/WINDOWS_029_DELIVERY.md)。
 
-2026-09-29 的新前端已按确认的 Android / Windows 原型完成，源码版本为 `0.2.10+13`：
+当前源码版本为 `0.2.11+14`，包含回忆小窝、应用图标、统一字体、情感浓度和记忆修复。
+本次安装包构建与发布状态见 [0.2.11 交付记录](../../docs/XINYU_0211_DELIVERY.md)。
+
+2026-09-29 的新前端已按确认的 Android / Windows 原型完成，当时源码版本为 `0.2.10+13`：
 暖白底色、蓝灰消息、统一玻璃组件，Windows 双栏与 Android 单列适配；设置、角色主页、
 手账和收藏等弹窗也使用同一套颜色。源码变化、备注功能和本轮验证状态见
 [前端改版记录](../../docs/FRONTEND_REDESIGN_20260929.md)。本机工具链受限后，经用户批准
@@ -17,6 +20,10 @@ Windows 安装、覆盖更新、数据保留与桌面检查见 [交付记录](..
 2026-09-30 的字体调整已接入源码：Windows / Android 内置同一份 Noto Sans SC，
 正文常规字重、标题中等字重，输入和消息采用相同字号规则。此改动尚未生成新安装包；
 字体来源、授权及实际字体下的布局复核见 [字体统一记录](../../docs/FONT_UNIFICATION_20260930.md)。
+
+2026-10-02 接入用户确认的心隅 Logo，统一 Windows 应用 / 安装程序图标、Android 启动器图标、
+Flutter 会话侧栏与网页品牌标识。原图、尺寸和重新生成方式见 [品牌资源](../../assets/branding/README.md)。
+此改动尚未生成新安装包，已下载或已安装的旧版本仍使用原图标。
 
 旧 Android `0.2.0+2` APK 已确认存在启动缺陷，请使用
 [启动修复记录](../../docs/ANDROID_STARTUP_REPAIR.md)列出的修正版本。

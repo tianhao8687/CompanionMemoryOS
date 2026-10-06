@@ -144,8 +144,12 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(c.messages, hasLength(4));
-      // Complete the real Image.memory decoding before exporting the widgets.
+      // Complete asset and photo decoding before exporting the widgets.
       await tester.runAsync(() async {
+        await precacheImage(
+          const AssetImage('assets/branding/xinyu-logo.png'),
+          boundaryKey.currentContext!,
+        );
         if (avatar != null) {
           await precacheImage(
             MemoryImage(avatar!),
@@ -176,6 +180,14 @@ void main() {
       }
 
       await capture(layout.$1);
+      if (layout.$1 == 'android') {
+        await tester.tap(find.byTooltip('打开对话列表'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await capture('android-navigation');
+        await tester.tap(find.byTooltip('收起对话列表'));
+        await tester.pumpAndSettle();
+      }
       if (layout.$1 == 'windows') {
         await tester.tap(find.byKey(const Key('edit-companion-remark')));
         await tester.pumpAndSettle();

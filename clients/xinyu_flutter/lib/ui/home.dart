@@ -9,6 +9,7 @@ import 'local_image.dart';
 import 'navigation.dart';
 import 'settings_sheet.dart';
 import 'memory_sheet.dart';
+import 'nook_sheet.dart';
 import 'chat_search.dart';
 import 'character_home.dart';
 import 'companion_remark.dart';
@@ -281,6 +282,13 @@ class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
                 ? () => showChatSearch(context, widget.controller)
                 : null,
             icon: const Icon(Icons.search_rounded),
+          ),
+        if (widget.controller.capabilities['nook_features'] == true)
+          IconButton(
+            key: const Key('open-nook'),
+            tooltip: '回忆小窝',
+            onPressed: () => showMemoryNook(context, widget.controller),
+            icon: const Icon(Icons.cottage_outlined),
           ),
         IconButton(
           key: const Key('open-memories'),

@@ -4,7 +4,7 @@
   #error BundleDirectory must point to the complete XinYu application bundle
 #endif
 #ifndef AppVersion
-  #define AppVersion "0.2.10"
+  #define AppVersion "0.2.11"
 #endif
 
 [Setup]
@@ -23,6 +23,7 @@ OutputBaseFilename=XinYu-Windows-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\windows\runner\resources\app_icon.ico
 UninstallDisplayIcon={app}\xinyu_flutter.exe
 CloseApplications=yes
 RestartApplications=no

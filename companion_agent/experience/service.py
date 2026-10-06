@@ -513,7 +513,11 @@ class ExperienceService:
         from companion_memoryos.temporal import extract_temporal_hint
 
         modes = {
-            f"{d.evidence.kind.value}:{d.evidence.id}": d.mode
+            f"{d.evidence.kind.value}:{d.evidence.id}": (
+                MemoryReferenceMode.SILENT_INFLUENCE
+                if d.mode is MemoryReferenceMode.SOURCE_CONTEXT
+                else d.mode
+            )
             for d in (memory_use_plan or MemoryUsePlan()).decisions
         }
         query_topic, _ = topic_for(query)

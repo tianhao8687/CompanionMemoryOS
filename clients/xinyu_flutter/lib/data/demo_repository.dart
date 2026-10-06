@@ -81,6 +81,7 @@ class DemoRepository extends CompanionRepository {
     'companion_name': '小禾',
     'user_name': '',
     'style': 'gentle',
+    'emotional_intensity': 'follow_persona',
     'persona_notes': '',
     'model_mode': 'offline',
     'storage_consent': false,

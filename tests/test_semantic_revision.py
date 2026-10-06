@@ -261,12 +261,16 @@ def test_explicit_correction_recovers_old_conflict_without_announcing_repair(
             )
         ],
     )
-    agent.chat(request("你记错了，我们没有吵架。", "correct-conflict"))
+    response = agent.chat(request("你记错了，我们没有吵架。", "correct-conflict"))
     dynamics = agent.relationships.get_relationship(KEY).recent_dynamics
     assert dynamics.recent_conflict_level == 0 and dynamics.interaction_tone.value == "neutral"
     assert dynamics.recent_closeness_change.value == "stable"
     assert dynamics.evidence_ids[0].startswith("user_correction:")
-    assert "goal_authority" in state_payload(model)
+    # The correction repairs evidence, not an invented need for relationship advice.
+    # Keep the fallback in diagnostics without presenting it as the user's task.
+    assert response.turn.metadata["response_goal"] == "direct_answer"
+    assert "response_goal" not in state_payload(model)
+    assert "goal_authority" not in state_payload(model)
 
 
 def test_denied_repair_corrects_a_previous_false_resolution(

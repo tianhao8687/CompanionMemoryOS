@@ -243,6 +243,26 @@ class LocalRepository extends CompanionRepository {
   Future<Map<String, dynamic>> bookmarks({int offset = 0}) =>
       _json('GET', '/api/bookmarks?offset=$offset');
 
+  Future<Map<String, dynamic>> nook({String? at}) => _json(
+    'GET',
+    '/api/nook${at == null ? '' : '?at=${Uri.encodeComponent(at)}'}',
+  );
+  Future<Map<String, dynamic>> nookSettings(bool enabled, int limit) => _json(
+    'PUT',
+    '/api/nook/settings',
+    {'enabled': enabled, 'daily_limit': limit},
+  );
+  Future<Map<String, dynamic>> cherishNookObject(String id, bool pinned) =>
+      _json('PUT', '/api/nook/objects/${Uri.encodeComponent(id)}', {
+        'pinned': pinned,
+      });
+  Future<Map<String, dynamic>> createNookObject(String conversation) =>
+      _json('POST', '/api/nook/create', {'conversation_id': conversation});
+  Future<Map<String, dynamic>> displayNookObject(String id, bool displayed) =>
+      _json('PUT', '/api/nook/objects/${Uri.encodeComponent(id)}', {
+        'displayed': displayed,
+      });
+
   Future<Map<String, dynamic>> journal({
     bool moments = false,
     String category = 'all',

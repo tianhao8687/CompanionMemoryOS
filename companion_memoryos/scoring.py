@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import math
 import re
+from collections import Counter
 from datetime import datetime
 
 from companion_memoryos.config import CompanionConfig
@@ -67,6 +69,27 @@ def query_tokens(text: str, config: CompanionConfig) -> set[str]:
         if normalized:
             return normalized
     return tokenize(text, config)
+
+
+def has_independent_query_matches(query: str, text: str, config: CompanionConfig) -> bool:
+    """Require corroborating literal anchors before exposing a weak raw match.
+
+    Overlapping CJK n-grams from one short word count as one anchor. This is
+    independent of the ranking/ assertion score and contains no topic vocabulary.
+    """
+    shared = query_tokens(query, config) & tokenize(text, config)
+    occupied: list[tuple[int, int]] = []
+    for token in sorted(shared, key=lambda value: (-len(value), value)):
+        if len(token) < config.retrieval.minimum_token_length:
+            continue
+        for match in re.finditer(re.escape(token), query.casefold()):
+            start, end = match.span()
+            if all(end <= left or start >= right for left, right in occupied):
+                occupied.append((start, end))
+                break
+        if len(occupied) > 1:
+            return True
+    return False
 
 
 def score_memory(
@@ -153,6 +176,76 @@ def event_entity_similarity(
 
 def lexical_similarity(left_text: str, right_text: str, config: CompanionConfig) -> float:
     return _weighted_overlap(query_tokens(left_text, config), tokenize(right_text, config))
+
+
+def relative_evidence_relevance(
+    query: str, evidence: list[str], config: CompanionConfig
+) -> list[float]:
+    """Relative lexical rank for source-addressed excerpts, never assertion confidence.
+
+    Whole-document BM25 penalizes a short relevant passage inside a long original
+    turn. Score the actual excerpts too, discounting words shared across this
+    bounded candidate set; unrelated padding must not erase a distinct query cue.
+    """
+    terms = query_tokens(query, config)
+    matches = [terms & tokenize(text, config) for text in evidence]
+    frequencies = Counter(token for tokens in matches for token in tokens)
+    weights = {
+        token: len(token) * (1.0 + math.log((len(evidence) + 1) / (count + 1)))
+        for token, count in frequencies.items()
+    }
+    scores = [sum(weights[token] for token in tokens) for tokens in matches]
+    peak = max(scores, default=0.0)
+    return [score / peak if peak else 0.0 for score in scores]
+
+
+def complementary_evidence_order(
+    query: str,
+    evidence: list[str],
+    config: CompanionConfig,
+    temporal_priorities: list[float] | None = None,
+) -> list[int]:
+    """Prefer complementary cues only without losing literal query coverage."""
+    if not evidence:
+        return []
+    if temporal_priorities is not None:
+        # Preserve the ranked time tiers. A new lexical cue must not move an
+        # undated neighbour ahead of evidence answering the requested date.
+        ordered: list[int] = []
+        start = 0
+        for end in range(1, len(evidence) + 1):
+            if end == len(evidence) or temporal_priorities[end] != temporal_priorities[start]:
+                ordered.extend(
+                    start + index
+                    for index in complementary_evidence_order(query, evidence[start:end], config)
+                )
+                start = end
+        return ordered
+    terms = query_tokens(query, config)
+    matches = [terms & tokenize(text, config) for text in evidence]
+    selected, pending = [0], list(range(1, len(evidence)))
+    covered = set(matches[0])
+    while pending:
+        next_index = pending[0]
+        if not matches[next_index] - covered:
+            # Matching the same cues does not make two sources interchangeable:
+            # they may contain different answers. A weak new cue must not evict
+            # a substantially better literal match. Diversify only when the new
+            # source covers at least as much query text as the one it passes.
+            weight = sum(len(token) for token in matches[next_index])
+            next_index = next(
+                (
+                    index
+                    for index in pending
+                    if matches[index] - covered
+                    and sum(len(token) for token in matches[index]) >= weight
+                ),
+                next_index,
+            )
+        pending.remove(next_index)
+        selected.append(next_index)
+        covered.update(matches[next_index])
+    return selected
 
 
 def _weighted_overlap(left: set[str], right: set[str]) -> float:

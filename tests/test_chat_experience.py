@@ -2,11 +2,13 @@
 
 from pathlib import Path
 
+import pytest
+
 from companion_agent.app import LOCAL_USER
-from companion_agent.romance import RomanceSettings, romantic_rules
+from companion_agent.romance import RomanceSettings, romantic_persona, romantic_rules
 from tests.test_chat_features import seed
 from tests.test_chat_images import png
-from tests.test_romance_app import client_for, configure
+from tests.test_romance_app import RecordingLLM, client_for, configure, message
 
 
 def test_bookmarks_atomic_batch_restart_and_forget(tmp_path: Path) -> None:
@@ -104,3 +106,69 @@ def test_natural_rhythm_is_presentation_not_a_personality_override() -> None:
     assert "[CHAT PRESENTATION]" not in romantic_rules(
         setting.model_copy(update={"natural_chat": False})
     )
+
+
+def test_natural_chat_omits_fallback_voice_but_preserves_authored_references() -> None:
+    preset = RomanceSettings(style="steady")
+    natural = romantic_persona(preset)
+    legacy = romantic_persona(preset.model_copy(update={"natural_chat": False}))
+    assert not natural.examples
+    assert legacy.examples
+    assert natural.version != legacy.version
+    # A change to presentation must not discard the user-selected voice or character.
+    authored = RomanceSettings(
+        style="custom",
+        custom_style="角色擅长写诗，喜欢用诗句回话。",
+        custom_style_examples="把心事写进风里。",
+        custom_style_avoid="不用职场口吻。",
+    )
+    for natural_chat in (True, False):
+        settings = authored.model_copy(update={"natural_chat": natural_chat})
+        rules = romantic_rules(settings)
+        assert romantic_persona(settings).kind == "custom"
+        assert authored.custom_style in rules
+        assert authored.custom_style_examples in rules
+        assert authored.custom_style_avoid in rules
+
+
+def test_emotional_intensity_updates_existing_chat_and_survives_restart(tmp_path: Path) -> None:
+    model = RecordingLLM()
+    client = client_for(tmp_path, model)
+    settings = configure(client, style="custom", custom_style="成年花艺师，安静，有自己的主意。")
+    assert settings["emotional_intensity"] == "follow_persona"
+    payload = message(client, "今天想和你聊聊。")
+    versions = set()
+    for index, level in enumerate(("reserved", "warm", "intense", "follow_persona")):
+        settings.update(emotional_intensity=level, natural_chat=index % 2 == 0)
+        saved = client.put("/api/settings", json={"settings": settings})
+        assert saved.status_code == 200
+        result = client.post("/api/chat", json={**payload, "request_id": f"intensity-{index}"})
+        assert result.status_code == 200
+        system = model.inputs[-1][0].content
+        assert settings["custom_style"] in system
+        assert ("[EMOTIONAL EXPRESSION]" in system) == (level != "follow_persona")
+        if level != "follow_persona":
+            assert "浓度不建立恋人身份、不代表亲密同意" in system
+        versions.add(romantic_persona(RomanceSettings.model_validate(settings)).version)
+    assert len(versions) == 4
+    settings["emotional_intensity"] = "intense"
+    assert client.put("/api/settings", json={"settings": settings}).status_code == 200
+    restarted = client_for(tmp_path, model)
+    actual = restarted.get("/api/bootstrap").json()["settings"]
+    assert actual["emotional_intensity"] == "intense"
+    assert actual["custom_style"] == settings["custom_style"]
+    assert len(restarted.app.state.host.memory.list_turns(LOCAL_USER)) == 8
+    invalid = restarted.put(
+        "/api/settings", json={"settings": {**actual, "emotional_intensity": "unbounded"}}
+    )
+    assert invalid.status_code == 422
+    assert restarted.get("/api/bootstrap").json()["settings"]["emotional_intensity"] == "intense"
+
+
+@pytest.mark.parametrize("natural_chat", [True, False])
+def test_legacy_settings_follow_persona_without_an_extra_emotional_directive(
+    natural_chat: bool,
+) -> None:
+    settings = RomanceSettings.model_validate({"natural_chat": natural_chat})
+    assert settings.emotional_intensity == "follow_persona"
+    assert "[EMOTIONAL EXPRESSION]" not in romantic_rules(settings)

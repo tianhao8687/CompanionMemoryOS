@@ -305,6 +305,8 @@ class ResponsePlanRequest(StrictModel):
     goal: ResponseGoal
     recall_request: RecallRequest | None = None
     user_asked_memory_question: bool = False
+    # A present task may need known details without being a recall question.
+    current_task_uses_context: bool = False
     current_turn_requires_full_attention: bool = False
     current_topic_keys: list[str] = Field(default_factory=list, max_length=64)
     user_reopened_topic: bool = False

@@ -14,7 +14,11 @@ from companion_memoryos.schemas import (
 )
 from companion_memoryos.tokens import TokenCounter
 
-BACKGROUND_MODES = {MemoryReferenceMode.SILENT_INFLUENCE, MemoryReferenceMode.SOFT_REFERENCE}
+BACKGROUND_MODES = {
+    MemoryReferenceMode.SOURCE_CONTEXT,
+    MemoryReferenceMode.SILENT_INFLUENCE,
+    MemoryReferenceMode.SOFT_REFERENCE,
+}
 
 
 def prune_background_evidence(
@@ -101,15 +105,23 @@ def prune_background_evidence(
 
 
 def trim_oldest_exchange(
-    recent: list[ConversationTurnRecord], protected_ids: set[str]
+    recent: list[ConversationTurnRecord],
+    protected_ids: set[str],
+    *,
+    preserve_latest: bool = True,
 ) -> list[str]:
-    """Remove an older exchange together, keeping the newest exchange and explicit replies."""
+    """Remove a whole exchange; explicit quoted sources are always protected.
+
+    Prefer preserving the latest exchange. The final fallback may evict it when
+    it cannot fit alongside the current message even without optional evidence.
+    Storage and source-addressed recall are unaffected by this request-only trim.
+    """
     groups: list[list[ConversationTurnRecord]] = []
     for turn in recent:
         if not groups or turn.role is ConversationRole.USER:
             groups.append([])
         groups[-1].append(turn)
-    for group in groups[:-1]:
+    for group in groups[:-1] if preserve_latest else groups:
         removed = {turn.id for turn in group}
         if removed.isdisjoint(protected_ids):
             recent[:] = [turn for turn in recent if turn.id not in removed]

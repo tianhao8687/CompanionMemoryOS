@@ -64,6 +64,63 @@ void main() {
     });
   }
   testWidgets(
+    'Emotional intensity saves independently of character and reopens on a narrow phone',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repo = LocalVoiceRepository();
+      await repo.saveSettings({
+        ...(await repo.bootstrap()).settings,
+        'style': 'custom',
+        'custom_style': '安静，有自己的主意。',
+        'natural_chat': false,
+        'font_size': 'extra_large',
+      });
+      final controller = CompanionController(repository: repo);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(XinYuApp(controller: controller));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('open-settings')));
+      await tester.pumpAndSettle();
+      final scroll = find
+          .descendant(
+            of: find.byKey(const Key('settings-scroll')),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      final intensity = find.byKey(const Key('emotional-intensity'));
+      await tester.scrollUntilVisible(intensity, 220, scrollable: scroll);
+      await tester.tap(
+        find.descendant(of: intensity, matching: find.byType(TextField)),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('浓烈').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('保存设置'));
+      await tester.pumpAndSettle();
+      expect(controller.settings['emotional_intensity'], 'intense');
+      expect(controller.settings['custom_style'], '安静，有自己的主意。');
+      expect(controller.settings['natural_chat'], isFalse);
+      await tester.tap(find.byKey(const Key('open-settings')));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(intensity, 220, scrollable: scroll);
+      expect(find.text('浓烈'), findsWidgets);
+      await tester.tap(
+        find.descendant(of: intensity, matching: find.byType(TextField)),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('含蓄').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('关闭设置'));
+      await tester.pumpAndSettle();
+      expect(controller.settings['emotional_intensity'], 'intense');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets(
     'Voice drafts hide outside custom mode and remain available when returning',
     (tester) async {
       final controller = CompanionController();

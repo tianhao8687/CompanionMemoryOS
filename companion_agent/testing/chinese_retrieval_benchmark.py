@@ -59,7 +59,11 @@ def reference_ids(value: Any) -> list[str]:
 
 
 def prepare_samples(
-    memories: list[dict[str, Any]], questions: list[dict[str, Any]], *, split: str
+    memories: list[dict[str, Any]],
+    questions: list[dict[str, Any]],
+    *,
+    split: str,
+    exclude_ids: set[str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     people = {item["profile"]["Protagonist"]: item for item in memories}
     if len(people) != len(memories):
@@ -90,6 +94,9 @@ def prepare_samples(
                 for group, rows in sections[section].items():
                     for index, row in enumerate(rows):
                         identifier = f"{name}:{section}:{group}:{index}"
+                        if exclude_ids and identifier in exclude_ids:
+                            excluded.append({"id": identifier, "reason": "previously_evaluated"})
+                            continue
                         gold = reference_ids(row.get("Reference Memory"))
                         if not gold or not set(gold).issubset(docs):
                             excluded.append({"id": identifier, "reason": "unresolvable_reference"})
@@ -141,6 +148,7 @@ def main() -> int:
     parser.add_argument("--source-dir", type=Path, required=True)
     parser.add_argument("--split", choices=("development", "holdout"), default="holdout")
     parser.add_argument("--label", required=True)
+    parser.add_argument("--exclude-protocol", type=Path)
     parser.add_argument(
         "--modes", nargs="+", choices=("fts", "hash", "bge"), default=["fts", "hash", "bge"]
     )
@@ -156,7 +164,24 @@ def main() -> int:
         if hashlib.sha256(raw).hexdigest() != expected:
             parser.error(f"{filename} differs from the pinned upstream source")
         data[filename] = json.loads(raw)
-    samples, audits = prepare_samples(data["perltmem.json"], data["perltqa.json"], split=args.split)
+    excluded_ids: set[str] = set()
+    excluded_protocol_hash = None
+    if args.exclude_protocol:
+        previous = args.exclude_protocol.read_bytes()
+        previous_plan = json.loads(previous)
+        if previous_plan.get("protocol") != "perltqa-zh-source-document-v1":
+            parser.error("exclusion requires a PerLTQA selection protocol")
+        if previous_plan.get("source_hashes") != SOURCE_HASHES:
+            parser.error("exclusion protocol must use the same pinned source")
+        for selection in previous_plan["selection"]:
+            ids = selection["selected_ids"]
+            if not isinstance(ids, list) or not all(isinstance(item, str) for item in ids):
+                parser.error("invalid exclusion IDs")
+            excluded_ids.update(ids)
+        excluded_protocol_hash = hashlib.sha256(previous).hexdigest()
+    samples, audits = prepare_samples(
+        data["perltmem.json"], data["perltqa.json"], split=args.split, exclude_ids=excluded_ids
+    )
     texts = sum(len(sample["conversation"]["session_1"]) + len(sample["qa"]) for sample in samples)
     if texts > 10000:
         parser.error("local embedding text budget exceeded")
@@ -176,6 +201,8 @@ def main() -> int:
         "source_hashes": SOURCE_HASHES,
         "code_sha256": fingerprint.hexdigest(),
         "selection": audits,
+        "excluded_protocol_sha256": excluded_protocol_hash,
+        "excluded_question_ids": sorted(excluded_ids),
         "seed": SEED,
         "config": load_config().model_dump(mode="json"),
         "timeout_seconds": args.timeout,
