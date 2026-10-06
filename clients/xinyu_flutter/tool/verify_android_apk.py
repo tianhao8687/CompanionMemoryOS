@@ -1,9 +1,10 @@
-"""Check Python's Java bridge and SQLite FTS5 in the final release APK."""
+"""Check Python's Java bridge, drawing runtime and SQLite FTS5 in the release APK."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import struct
 from pathlib import Path
@@ -94,6 +95,7 @@ def bridge_methods(data: bytes) -> set[str] | None:
 
 def inspect_apk(apk: Path) -> dict[str, object]:
     found: set[str] | None = None
+    python_files: set[str] = set()
     with ZipFile(apk) as archive:
         for name in archive.namelist():
             if name.endswith(".dex"):
@@ -102,6 +104,17 @@ def inspect_apk(apk: Path) -> dict[str, object]:
                     break
         sqlite = archive.read("lib/arm64-v8a/libsqlite3_python.so")
         sqlite_fts5 = b"ENABLE_FTS5\0" in sqlite and b"fts5\0" in sqlite
+        for name in archive.namelist():
+            if name.startswith("assets/chaquopy/") and name.endswith(".imy"):
+                with ZipFile(io.BytesIO(archive.read(name))) as python_archive:
+                    python_files.update(python_archive.namelist())
+    pillow_modules = all(
+        f"PIL/{module}.py" in python_files or f"PIL/{module}.pyc" in python_files
+        for module in ("Image", "ImageChops", "ImageDraw")
+    )
+    pillow_core = any(
+        name.startswith("PIL/_imaging.") and name.endswith(".so") for name in python_files
+    )
     with apk.open("rb") as source:
         digest = hashlib.file_digest(source, "sha256").hexdigest()
     missing = sorted(REQUIRED_METHODS - (found or set()))
@@ -112,7 +125,11 @@ def inspect_apk(apk: Path) -> dict[str, object]:
         "missing_methods": missing,
         "sqlite_fts5_present": sqlite_fts5,
         "sqlite_sha256": hashlib.sha256(sqlite).hexdigest(),
-        "status": "passed" if found is not None and not missing and sqlite_fts5 else "failed",
+        "pillow_drawing_modules": pillow_modules,
+        "pillow_native_core": pillow_core,
+        "status": "passed"
+        if found is not None and not missing and sqlite_fts5 and pillow_modules and pillow_core
+        else "failed",
         "android_runtime": "not_run",
     }
 

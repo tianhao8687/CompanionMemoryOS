@@ -33,6 +33,7 @@ CANDIDATES = {
     "pyyaml": "PyYAML>=6,<7",
     "mcp": "mcp>=1.30,<2",
     "tzdata": "tzdata>=2025.1",
+    "pillow": "pillow>=12.1,<13",
 }
 NETWORK_ERRORS = (
     "could not fetch url",

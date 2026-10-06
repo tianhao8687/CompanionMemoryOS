@@ -102,7 +102,7 @@ try {
         & (Join-Path $sdkTools.FullName 'apksigner.bat') verify --verbose $apk
         if ($LASTEXITCODE) { throw 'APK signature verification failed.' }
         & $python (Join-Path $PSScriptRoot 'verify_android_apk.py') --apk $apk --output (Join-Path $delivery 'android-bridge-check.json')
-        if ($LASTEXITCODE) { throw 'The release APK is missing its Python bridge or SQLite FTS5.' }
+        if ($LASTEXITCODE) { throw 'The release APK is missing its Python bridge, drawing runtime or SQLite FTS5.' }
         Copy-Item -LiteralPath $apk -Destination (Join-Path $delivery 'XinYu-Android-arm64.apk')
     }
     Get-ChildItem -LiteralPath $delivery -File | Get-FileHash -Algorithm SHA256

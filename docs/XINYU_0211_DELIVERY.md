@@ -30,4 +30,21 @@
   识别的系统分支后，本地 `mypy --platform linux` 和 `--platform win32` 均通过，Windows
   资源读取也正常。原失败运行 `37431005582` 保留，新的完整 CI 结果在完成后追加。
 
-平台安装与构建信息、提交编号、下载入口及成品哈希在产物生成后记录。
+## 源码合并与安装包构建
+
+[PR #2](https://github.com/tianhao8687/CompanionMemoryOS/pull/2) 已合入 `main`，合并提交为
+`e4923ba17f8b706f116da11ae679f1bf07b9a063`。合并前 [完整 CI](https://github.com/tianhao8687/CompanionMemoryOS/actions/runs/37431387244)
+通过，Linux 测试结果为 **1455 passed, 3 skipped**。
+
+首次 [手动构建](https://github.com/tianhao8687/CompanionMemoryOS/actions/runs/37432156530) 的
+Windows 作业已成功。安卓发布检查发现其固定依赖清单遗漏了小窝绘图使用的 Pillow，
+该批 Android 包不用于发布。修复增加原版 Pillow 12.3.0 的 Android ARM64 源码编译与
+包内模块检查，不使用桌面轮子或不符合项目最低版本的旧版二进制。
+
+Android 中 Pillow 仅用于 RGBA 几何绘制和像素读取，不承担图片文件解码、编码或字体绘制。
+该轮构建按 [Pillow 官方配置选项](https://github.com/python-pillow/Pillow/blob/12.3.0/docs/installation/building-from-source.rst)
+关闭不需要的外部编解码与字体库；图片导入验证和 Flutter 展示路径不变。46 项绘图回归
+通过。新 APK 检查还会拒绝缺少绘图模块或本机核心库的产物；以旧 0.2.10 包作负对照时，
+Java 桥和 FTS5 检查通过，新增的 Pillow 检查按预期失败。此负对照不改变旧版本的历史结论。
+
+Windows 构建产物保留；只重建 Android。下载入口、平台结果及成品哈希在产物生成后记录。

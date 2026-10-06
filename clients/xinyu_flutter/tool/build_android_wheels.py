@@ -1,4 +1,4 @@
-"""Build the three missing CPython 3.13 Android wheels on Linux/macOS.
+"""Build missing CPython 3.13 Android wheels on Linux/macOS.
 
 Use a separate build host with Python 3.12+, Java 21 and an Android SDK. Install
 cibuildwheel==4.2.1 into its build environment. This downloads official PyPI
@@ -26,7 +26,12 @@ from uuid import uuid4
 
 from probe_android_engine import inspect_native_wheels
 
-PACKAGES = {"pydantic-core": "2.46.5", "rpds-py": "2026.6.3", "tiktoken": "0.14.0"}
+PACKAGES = {
+    "pydantic-core": "2.46.5",
+    "rpds-py": "2026.6.3",
+    "tiktoken": "0.14.0",
+    "pillow": "12.3.0",
+}
 BUILDER_VERSION = "4.2.1"
 
 
@@ -105,7 +110,8 @@ def main() -> int:
         '[tool.cibuildwheel]\nbuild = "cp313-android_arm64_v8a"\n'
         '[tool.cibuildwheel.android]\narchs = ["arm64_v8a"]\n'
         '[tool.cibuildwheel.android.environment]\nANDROID_API_LEVEL = "24"\n'
-        'RUSTFLAGS = "-C link-arg=-Wl,-z,max-page-size=16384"\n',
+        'RUSTFLAGS = "-C link-arg=-Wl,-z,max-page-size=16384"\n'
+        'LDFLAGS = "-Wl,-z,max-page-size=16384"\n',
         encoding="utf-8",
     )
     wheelhouse = run / "wheels"
@@ -128,6 +134,15 @@ def main() -> int:
             ]
             print(f"Building {name}=={version}; log: {run / (name + '.log')}", flush=True)
             env = {key: value for key, value in os.environ.items() if not key.startswith("CIBW_")}
+            if name == "pillow":
+                # The app uses Pillow only for bounded RGBA geometry and pixel reads.
+                # Its PNG/JPEG import validation and display do not use Pillow codecs.
+                # Do not pick up host codecs or mislabel desktop binaries as Android.
+                env["CIBW_CONFIG_SETTINGS"] = (
+                    "jpeg=disable zlib=disable tiff=disable freetype=disable raqm=disable "
+                    "lcms=disable webp=disable jpeg2000=disable imagequant=disable "
+                    "xcb=disable avif=disable platform-guessing=disable"
+                )
             with (run / f"{name}.log").open("w", encoding="utf-8") as log:
                 subprocess.run(
                     command,
@@ -141,7 +156,7 @@ def main() -> int:
         if len(wheels) != len(PACKAGES) or any(
             "android_" not in wheel.name or "arm64_v8a" not in wheel.name for wheel in wheels
         ):
-            raise RuntimeError("Builder did not produce the three expected Android ARM64 wheels.")
+            raise RuntimeError("Builder did not produce the expected Android ARM64 wheels.")
         libraries = inspect_native_wheels(wheelhouse)
         report["libraries"] = libraries
         if len(libraries) < len(PACKAGES) or any(
