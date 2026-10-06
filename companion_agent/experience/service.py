@@ -513,7 +513,11 @@ class ExperienceService:
         from companion_memoryos.temporal import extract_temporal_hint
 
         modes = {
-            f"{d.evidence.kind.value}:{d.evidence.id}": d.mode
+            f"{d.evidence.kind.value}:{d.evidence.id}": (
+                MemoryReferenceMode.SILENT_INFLUENCE
+                if d.mode is MemoryReferenceMode.SOURCE_CONTEXT
+                else d.mode
+            )
             for d in (memory_use_plan or MemoryUsePlan()).decisions
         }
         query_topic, _ = topic_for(query)
@@ -533,6 +537,18 @@ class ExperienceService:
             relevant = sum(topic.casefold() in query.casefold() for topic in record.topic_keys)
             if query_topic and query_topic in record.topic_keys:
                 relevant += 2
+            # An admitted source can locate its experience without a topic phrase.
+            relevant += int(
+                any(
+                    modes.get(fact.evidence_ref.key)
+                    in {
+                        MemoryReferenceMode.SILENT_INFLUENCE,
+                        MemoryReferenceMode.SOFT_REFERENCE,
+                        MemoryReferenceMode.EXPLICIT_RECALL,
+                    }
+                    for fact in record.facts
+                )
+            )
             if not relevant:
                 continue
             try:

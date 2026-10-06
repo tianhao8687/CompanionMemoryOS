@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from companion_memoryos.schemas import (
@@ -25,7 +26,9 @@ if TYPE_CHECKING:
 def profile(
     self: CompanionMemoryService, user_id: str, scope: MemoryScope | None = None
 ) -> ProfileSnapshot:
-    active = self.store.list_memories(user_id, {MemoryStatus.ACTIVE}, scope=scope or MemoryScope())
+    active = self.store.list_memories(
+        user_id, {MemoryStatus.ACTIVE}, scope=scope or MemoryScope(), available_at=datetime.now(UTC)
+    )
     active = [memory for memory in active if memory.subject_actor_id in {None, user_id}]
     return ProfileSnapshot(
         user_id=user_id,

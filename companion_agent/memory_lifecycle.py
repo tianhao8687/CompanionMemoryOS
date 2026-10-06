@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+from companion_agent.task_intent import is_choice_request
 from companion_memoryos.discourse import NONASSERTIVE, direct_clauses, negated_predicate
 from companion_memoryos.schemas import (
     ConsentState,
@@ -41,6 +42,10 @@ GENERIC_TOPICS = {
 }
 DATE_TOPIC = re.compile(r"^[\d零一二三四五六七八九十年月日号周星期天上下午夜点时分半:：./-]+$")
 LOCATION_TOPIC = re.compile(r"(?:馆|厅|楼|站|室|中心|店|园|广场)$")
+TASK_REQUEST = r"(?:帮我|替我|给我|你(?:来|先|再|试着|试试)?)"
+TASK_ACTION = r"(?:写|算|翻译|解释|拟|起.{0,3}名|编|讲)"
+TASK_OBJECT = re.compile(rf"{TASK_REQUEST}\s*把")
+TASK_OUTPUT = re.compile(rf"{TASK_ACTION}(?:成|给|为|一下)")
 
 
 def topic_keys(keys: list[str]) -> list[str]:
@@ -93,17 +98,42 @@ def same_event_topics(keys: list[str], text: str) -> bool:
 
 
 def is_conversation_task(text: str) -> bool:
+    if is_choice_request(text):
+        return True
     return not has_dated_plan(text) and any(
         not NONASSERTIVE.search(clause)
         and bool(
             re.search(
-                r"(?:帮我|替我|给我|你(?:来|先|再|试着|试试)?)(?:.{0,8}?)(?:写|算|翻译|解释|拟|起.{0,3}名|编|讲)|你问我|"
+                rf"{TASK_REQUEST}(?:.{{0,8}}?){TASK_ACTION}|你问我|"
                 r"^(?:给|替)(?!自己)[^，。]{1,12}?(?:写|算|翻译|拟|解释)",
                 clause,
             )
         )
         for clause in direct_clauses(text)
     )
+
+
+def task_reference_query(text: str) -> str | None:
+    """Keep a literal preposed task object separate from its output instructions."""
+    clauses = direct_clauses(text)
+    if len(clauses) != 1 or NONASSERTIVE.search(clauses[0]):
+        return None
+    clause = clauses[0]
+    heads = list(TASK_OBJECT.finditer(clause))
+    if len(heads) != 1 or negated_predicate(clause, heads[0].start()):
+        return None
+    # Result/recipient complements disambiguate verbs from words such as 预算.
+    actions = list(TASK_OUTPUT.finditer(clause, heads[0].end()))
+    if len(actions) != 1:
+        return None
+    action = actions[0]
+    reference = clause[heads[0].end() : action.start()].strip()
+    if len(reference) < 2 or "[引用]" in reference:
+        return None
+    # A past/nominalized verb may belong to the object, not the requested action.
+    if re.match(r"[过了的错]", clause[action.end() :]):
+        return None
+    return reference
 
 
 def reconcile_preference_correction(
@@ -183,6 +213,12 @@ def reconcile_preference_correction(
 
 
 def is_planning_overview(text: str) -> bool:
+    from companion_memoryos.discourse import conversation_recap_clauses, shared_plan_recall_clauses
+
+    if shared_plan_recall_clauses(text):
+        return True
+    if conversation_recap_clauses(text) and re.search(r"安排|周末|行程|日程|什么时候|哪天", text):
+        return True
     return any(
         not NONASSERTIVE.search(clause)
         and re.search(r"安排|行程|日程|规划|说好|顺顺|排一排", clause)
@@ -198,7 +234,11 @@ def has_dated_plan(text: str) -> bool:
         and re.search(
             r"周[一二三四五六日天末]|明天|后天|下周|下个月|\d+月|[一二三四五六七八九十]+月", clause
         )
-        and re.search(r"约|见|去|参加|课|改到|改为|取消|电影|书店|聚餐|出发", clause)
+        and re.search(
+            r"约|见|去|到|参加|课|改到|改为|取消|电影|书店|聚餐|出发|带|做|"
+            r"[零一二三四五六七八九十\d]+(?:点|[:：]\d{2})",
+            clause,
+        )
         for clause in direct_clauses(text)
     )
 

@@ -43,7 +43,10 @@ class CharacterMemoryStore:
         # content hash of an unchanged v0.1/v0.2 persona file.
         if not source["identity_styles"]:
             source.pop("identity_styles")
-        source["relationship_styles"]["close"] = source["relationship_styles"].pop("established")
+        if persona.kind == "preset":
+            source["relationship_styles"]["close"] = source["relationship_styles"].pop(
+                "established"
+            )
         canonical = json.dumps(source, sort_keys=True, ensure_ascii=False)
         digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
         seeds = json.dumps([item.model_dump(mode="json") for item in persona.character_memories])

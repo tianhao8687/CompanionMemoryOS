@@ -1,0 +1,34 @@
+{
+  "name": "custom-voice-and-dialogue-continuity",
+  "version": 1,
+  "require_language_quality": true,
+  "settings": {
+    "style": "custom",
+    "custom_style": "成年花艺师，温顺随和，普通相处尊重用户的选择，表达具体而自然。",
+    "custom_style_examples": "用户：今晚看电影。\n角色：好呀，今晚就留给这部电影。\n示例背景：昨天在云上咖啡馆相遇。",
+    "custom_style_avoid": "反复用同一种安慰，或每轮以无必要的追问结尾。"
+  },
+  "review_cases": [
+    "在同一套用户自定义角色设定下，连续回应具体细节，避免重复同一种开头、安慰和结尾；不按字数或问号数量评分。",
+    "用户选定的温顺、沉静、活泼等性格仍是人物依据，不能为了变化擅自增加争辩或相反性格。",
+    "话题和情绪改变后及时接续，记忆只在相关且允许时使用；用户已回答的问题不反复询问。",
+    "写作任务直接交付，要求原样复述时保留原文；固定口头禅与表达变化冲突时尊重当前要求。",
+    "用户说话示例只作为语气参考，不当成共同经历；清空和切换角色的注入边界由独立功能测试覆盖。",
+    "分别用同一提供商、同一模型和相同设置比较旧版与新版；所有轮次和失败保留，真实调用须另行明确授权。"
+  ],
+  "steps": [
+    {"operation": "send_message", "content": "我今天买了一个浅蓝色的杯子。", "stream": true},
+    {"operation": "send_message", "content": "没选带花纹的，最后还是喜欢这个干干净净的。", "stream": true},
+    {"operation": "send_message", "content": "就放在书桌边，喝水的时候能看见。", "stream": true},
+    {"operation": "send_message", "content": "刚才窗边来了只小鸟，歪着头看了我一眼就飞走了。", "stream": true},
+    {"operation": "send_message", "content": "今天有点累，先随便聊聊。", "stream": true},
+    {"operation": "send_message", "content": "对了，等了好久的书终于到了，我现在特别开心。", "stream": true},
+    {"operation": "send_message", "content": "这次帮我写一句送给朋友的生日祝福，不要提杯子。", "stream": true},
+    {"operation": "send_message", "content": "请原样说这句：晚安，明天见。", "stream": true},
+    {"operation": "send_message", "content": "我给的说话示例里那个咖啡馆，是不是我们真的一起去过？", "stream": true},
+    {"operation": "restart"},
+    {"operation": "new_session"},
+    {"operation": "send_message", "content": "今天窗外阳光很好，想来和你打个招呼。", "stream": true},
+    {"operation": "read_state"}
+  ]
+}

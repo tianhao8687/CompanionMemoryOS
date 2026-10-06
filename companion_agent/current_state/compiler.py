@@ -19,12 +19,20 @@ def compile_current_state(
     counter: TokenCounter,
     *,
     max_tokens: int = 450,
+    host_goal: ResponseGoal | None = None,
 ) -> CompiledCurrentState:
-    payload: dict[str, object] = {
-        "response_goal": goal.value,
-        "goal_authority": "suggestion",
-        "influence": [],
-    }
+    payload: dict[str, object] = {"influence": []}
+    # DIRECT_ANSWER is also the runtime fallback for an ordinary chat turn. A
+    # routing fallback is not evidence that the user asked for an answer or help.
+    # Keep it in diagnostics, but only show an actionable suggestion to the model.
+    if (
+        goal is not ResponseGoal.DIRECT_ANSWER
+        or host_goal is not None
+        or preparation.analysis.concrete_task
+        or preparation.analysis.explicit_goal is not None
+    ):
+        payload["response_goal"] = goal.value
+        payload["goal_authority"] = "suggestion"
     chosen = []
     omitted: dict[str, str] = {}
     entries: list[dict[str, object]] = []

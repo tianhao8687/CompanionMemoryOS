@@ -2,11 +2,86 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+double readingScale(Object? size) => switch (size) {
+  'large' => 1.12,
+  'extra_large' => 1.24,
+  _ => 1.0,
+};
+
 abstract final class XinYuColors {
-  static const ink = Color(0xff30463f);
-  static const muted = Color(0xff61736c);
-  static const accent = Color(0xff406d59);
+  static const ink = Color(0xff172132);
+  static const muted = Color(0xff647188);
+  static const accent = Color(0xff4a607d);
+  static const canvas = Color(0xfff7f6f4);
+  static const incoming = Color(0xcfffffff);
+  static const outgoing = Color(0xbfdce8f7);
+  static const sheet = Color(0xf5f5f6f7);
+  static const selection = Color(0x80dce7f6);
   static const peach = Color(0xffe8b99f);
+}
+
+abstract final class XinYuShapes {
+  static const panelRadius = 32.0;
+  static const cardRadius = 28.0;
+  static const fieldRadius = 24.0;
+  static const panelCorners = BorderRadius.all(Radius.circular(panelRadius));
+  static const cardCorners = BorderRadius.all(Radius.circular(cardRadius));
+  static const fieldCorners = BorderRadius.all(Radius.circular(fieldRadius));
+  static const pillCorners = BorderRadius.all(Radius.circular(999));
+  static const panel = RoundedRectangleBorder(borderRadius: panelCorners);
+  static const card = RoundedRectangleBorder(borderRadius: cardCorners);
+  static const field = RoundedRectangleBorder(borderRadius: fieldCorners);
+  static const pill = StadiumBorder();
+}
+
+/// Share rounded selection, hover and keyboard-focus surfaces in every menu.
+class RoundedChoiceField<T> extends StatelessWidget {
+  const RoundedChoiceField({
+    super.key,
+    required this.initialValue,
+    required this.choices,
+    required this.onChanged,
+    this.label,
+  });
+  final T initialValue;
+  final Map<T, String> choices;
+  final ValueChanged<T?>? onChanged;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) => DropdownMenuFormField<T>(
+    initialSelection: initialValue,
+    enabled: onChanged != null,
+    onSelected: onChanged,
+    selectOnly: true,
+    expandedInsets: EdgeInsets.zero,
+    menuHeight: 320,
+    maxLines: 2,
+    label: label == null ? null : Text(label!),
+    textStyle: Theme.of(context).textTheme.bodyMedium
+        ?.copyWith(fontSize: 13, color: XinYuColors.ink),
+    menuStyle: const MenuStyle(
+      shape: WidgetStatePropertyAll(XinYuShapes.card),
+      padding: WidgetStatePropertyAll(EdgeInsets.all(8)),
+    ),
+    dropdownMenuEntries: [
+      for (final entry in choices.entries)
+        DropdownMenuEntry<T>(
+          value: entry.key,
+          label: entry.value,
+          labelWidget: Text(entry.value),
+          style: ButtonStyle(
+            shape: const WidgetStatePropertyAll(XinYuShapes.pill),
+            padding: const WidgetStatePropertyAll(
+              EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+            backgroundColor: entry.key == initialValue
+                ? const WidgetStatePropertyAll(XinYuColors.selection)
+                : null,
+          ),
+        ),
+    ],
+  );
 }
 
 /// Only non-overlapping surfaces share the inherited BackdropKey. Sheets and
@@ -15,143 +90,177 @@ class GlassSurface extends StatelessWidget {
   const GlassSurface({
     super.key,
     required this.child,
-    this.radius = 26,
+    this.radius = XinYuShapes.panelRadius,
     this.padding = EdgeInsets.zero,
-    this.tint = const Color(0x40ffffff),
+    this.tint = const Color(0x28ffffff),
     this.blur = 24,
     this.grouped = true,
+    this.outlined = true,
+    this.elevated = true,
   });
   final Widget child;
   final double radius, blur;
   final EdgeInsetsGeometry padding;
   final Color tint;
   final bool grouped;
+  final bool outlined, elevated;
   @override
   Widget build(BuildContext context) {
     final surface = DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color.alphaBlend(const Color(0x20ffffff), tint),
-            tint,
-            Color.alphaBlend(const Color(0x10ffffff), tint),
-          ],
-        ),
-        border: Border.all(color: const Color(0xb3ffffff), width: 1),
+        gradient: tint == Colors.transparent
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color.alphaBlend(const Color(0x32ffffff), tint),
+                  tint,
+                  Color.alphaBlend(const Color(0x12e4ecf7), tint),
+                ],
+                stops: const [0, .48, 1],
+              ),
       ),
-      child: Padding(padding: padding, child: child),
+      child: CustomPaint(
+        foregroundPainter: outlined ? _GlassRimPainter(radius) : null,
+        child: Padding(padding: padding, child: child),
+      ),
     );
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: grouped
-          ? BackdropFilter.grouped(
-              filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-              child: surface,
-            )
-          : BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-              child: surface,
-            ),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        boxShadow: elevated
+            ? const [
+                BoxShadow(
+                  color: Color(0x08515e70),
+                  blurRadius: 24,
+                  offset: Offset(0, 8),
+                ),
+              ]
+            : null,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: blur == 0
+            ? surface
+            : grouped
+            ? BackdropFilter.grouped(
+                filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+                child: surface,
+              )
+            : BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+                child: surface,
+              ),
+      ),
     );
   }
+}
+
+/// One translucent rim keeps the edge visible without a raised double outline.
+class _GlassRimPainter extends CustomPainter {
+  const _GlassRimPainter(this.radius);
+  final double radius;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = (Offset.zero & size).deflate(.5);
+    final outline = RRect.fromRectAndRadius(rect, Radius.circular(radius));
+    canvas.drawRRect(
+      outline,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..shader = const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xe6ffffff), Color(0x60ffffff), Color(0xb3ffffff)],
+          stops: [0, .55, 1],
+        ).createShader(rect),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _GlassRimPainter oldDelegate) =>
+      radius != oldDelegate.radius;
 }
 
 class XinYuWallpaper extends StatelessWidget {
   const XinYuWallpaper({super.key});
   @override
-  Widget build(BuildContext context) => const RepaintBoundary(
-    child: SizedBox.expand(child: CustomPaint(painter: _WallpaperPainter())),
+  Widget build(BuildContext context) => RepaintBoundary(
+    child: SizedBox.expand(
+      child: CustomPaint(
+        painter: _WallpaperPainter(
+          compact: MediaQuery.sizeOf(context).width < 880,
+        ),
+      ),
+    ),
   );
 }
 
 class _WallpaperPainter extends CustomPainter {
-  const _WallpaperPainter();
+  const _WallpaperPainter({this.compact = false});
+  final bool compact;
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
     canvas.drawRect(
       rect,
       Paint()
-        ..shader = const LinearGradient(
+        ..shader = LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xfff3e8dd), Color(0xffefe4d9), Color(0xffcddde2)],
+          colors: compact
+              ? const [Color(0xfff8f7f5), Color(0xfff6f6f5), Color(0xffeaf0f7)]
+              : const [Color(0xffebf0f5), Color(0xfff3f4f1), Color(0xffe7eef6)],
         ).createShader(rect),
     );
-    canvas.save();
-    canvas.scale(size.width / 1400, size.height / 1000);
-    final waves = [
-      (
-        Path()
-          ..moveTo(-180, 760)
-          ..cubicTo(120, 240, 320, 880, 760, 390)
-          ..cubicTo(960, 170, 1260, 370, 1590, 120),
-        [
-          const Color(0xffcba49a),
-          const Color(0xffefc3a5),
-          const Color(0xfff8e6cb),
-        ],
-        180.0,
+    // Broad, quiet color fields reveal the frosted rims without competing
+    // with photos, personal wallpaper or the conversation.
+    for (final field in const [
+      RadialGradient(
+        center: Alignment(-.65, -.9),
+        radius: .55,
+        colors: [Color(0x809dacb4), Color(0x009dacb4)],
       ),
-      (
-        Path()
-          ..moveTo(-180, 1010)
-          ..cubicTo(120, 470, 340, 1070, 800, 600)
-          ..cubicTo(1060, 340, 1230, 680, 1580, 490),
-        [
-          const Color(0xffb6bcd2),
-          const Color(0xffddb5bd),
-          const Color(0xffedc7b9),
-        ],
-        230.0,
+      RadialGradient(
+        center: Alignment(.55, -1.05),
+        radius: .5,
+        colors: [Color(0x80d6d6ba), Color(0x00d6d6ba)],
       ),
-      (
-        Path()
-          ..moveTo(960, 1220)
-          ..cubicTo(1300, 1000, 1320, 840, 1170, 690)
-          ..cubicTo(910, 430, 1390, 280, 1600, 350),
-        [
-          const Color(0xffb4cadc),
-          const Color(0xffb8cad4),
-          const Color(0xffdce7e7),
-        ],
-        220.0,
+      RadialGradient(
+        center: Alignment(.55, .9),
+        radius: .7,
+        colors: [Color(0x80b9c7bd), Color(0x00b9c7bd)],
       ),
-    ];
-    for (final wave in waves) {
-      canvas.drawPath(
-        wave.$1,
+      RadialGradient(
+        center: Alignment(-.75, .8),
+        radius: .7,
+        colors: [Color(0x60b8cfe9), Color(0x00b8cfe9)],
+      ),
+    ]) {
+      canvas.drawRect(
+        rect,
         Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = wave.$3
-          ..shader = LinearGradient(colors: wave.$2)
-              .createShader(const Rect.fromLTWH(0, 0, 1400, 1000)),
-      );
-      canvas.drawPath(
-        wave.$1,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2
-          ..color = const Color(0x40fff8ef),
+          ..color = compact ? const Color(0x38ffffff) : Colors.white
+          ..shader = field.createShader(rect),
       );
     }
-    canvas.restore();
     canvas.drawRect(
       rect,
       Paint()
         ..shader = const RadialGradient(
-          center: Alignment(-.4, -.65),
-          radius: 1.05,
-          colors: [Color(0xbffff9ef), Color(0x00fff9ef)],
+          center: Alignment(.05, -.1),
+          radius: .85,
+          colors: [Color(0xe6fffdf9), Color(0x00fffdf9)],
         ).createShader(rect),
     );
   }
 
   @override
-  bool shouldRepaint(covariant _WallpaperPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _WallpaperPainter oldDelegate) =>
+      compact != oldDelegate.compact;
 }
 
 class CompanionAvatar extends StatelessWidget {
@@ -164,10 +273,10 @@ class CompanionAvatar extends StatelessWidget {
     height: size,
     alignment: Alignment.center,
     decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      border: Border.all(color: const Color(0xbfffffff)),
+      borderRadius: BorderRadius.circular(size * .27),
+      border: Border.all(color: const Color(0x80ffffff), width: .7),
       gradient: const LinearGradient(
-        colors: [Color(0xffffecd8), Color(0xffc1d3bc)],
+        colors: [Color(0xffebe9e4), Color(0xffe0e5ec)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),

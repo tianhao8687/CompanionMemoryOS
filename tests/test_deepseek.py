@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from companion_agent.context import ChatMessage
 from companion_agent.deepseek import DeepSeekConfig, DeepSeekLLM
 from companion_agent.llm import MainLLMError
+from companion_agent.nook_art import NookArtist
 
 
 @contextmanager
@@ -92,6 +93,19 @@ def test_deepseek_real_http_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     assert reply.text == "小雨，今天想从哪里说起？"
     assert "private reasoning" not in reply.model_dump_json()
     assert reply.usage and reply.usage.total_tokens == 30
+
+
+def test_nook_large_thinking_budget_reaches_provider() -> None:
+    with provider() as (url, requests):
+        config = DeepSeekConfig(
+            base_url=url, thinking="enabled", max_tokens=65536, timeout_seconds=600
+        )
+        artist = NookArtist(config, api_key="test-provider-key", use_environment=False)
+        artist.generate([ChatMessage(role="user", content="draw a keepsake")])
+    assert len(requests) == 1
+    assert requests[0]["body"]["max_tokens"] == 65536
+    assert requests[0]["body"]["thinking"] == {"type": "enabled"}
+    assert artist.config.timeout_seconds == 600
 
 
 @pytest.mark.parametrize(

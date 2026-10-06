@@ -1,13 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'models.dart';
 
 /// Existing loopback cookie handshake; no remote exposure or persisted secrets.
-class LocalRepository implements CompanionRepository {
-  LocalRepository(String endpoint) : base = validateEndpoint(endpoint);
+class LocalRepository extends CompanionRepository {
+  LocalRepository(String endpoint, {this.clientToken})
+    : base = validateEndpoint(endpoint);
   final Uri base;
+  final String? clientToken;
   final HttpClient _client = HttpClient()
     ..connectionTimeout = const Duration(seconds: 4);
   Cookie? _session;
@@ -21,9 +24,7 @@ class LocalRepository implements CompanionRepository {
         uri.hasQuery ||
         uri.hasFragment ||
         (uri.path.isNotEmpty && uri.path != '/')) {
-      throw const CompanionException(
-        '原型仅连接本机服务，例如 http://127.0.0.1:8766。手机联调请使用 USB 端口转发。',
-      );
+      throw const CompanionException('本地版仅接受当前设备的回环地址。');
     }
     return uri.replace(path: '/');
   }
@@ -40,10 +41,18 @@ class LocalRepository implements CompanionRepository {
       final request = await _client.openUrl(method, base.resolve(path));
       request.followRedirects = false;
       request.headers.set('X-Companion-Client', 'local-web');
+      if (clientToken != null) {
+        request.headers.set('X-Xinyu-Token', clientToken!);
+      }
       if (_session != null) request.cookies.add(_session!);
       if (body != null) {
-        request.headers.contentType = ContentType.json;
-        request.write(jsonEncode(body));
+        if (body is Uint8List) {
+          request.headers.contentType = ContentType.binary;
+          request.add(body);
+        } else {
+          request.headers.contentType = ContentType.json;
+          request.write(jsonEncode(body));
+        }
       }
       final response = await request.close().timeout(
         const Duration(seconds: 150),
@@ -65,7 +74,7 @@ class LocalRepository implements CompanionRepository {
       }
       return response;
     } on SocketException {
-      throw const CompanionException('无法连接本地服务。请启动原型后端；手机请先配置 USB 端口转发。');
+      throw const CompanionException('本机记忆引擎连接中断，请重新连接或重启应用。');
     } on TimeoutException {
       throw const CompanionException('服务响应超时。消息已保留，可稍后重试。');
     } on HttpException {
@@ -103,6 +112,9 @@ class LocalRepository implements CompanionRepository {
             (v) => Conversation.fromJson(Map<String, dynamic>.from(v as Map)),
           )
           .toList(),
+      capabilities: Map<String, dynamic>.from(result)
+        ..remove('settings')
+        ..remove('conversations'),
     );
   }
 
@@ -129,12 +141,16 @@ class LocalRepository implements CompanionRepository {
   Stream<Map<String, dynamic>> send(
     String conversation,
     String request,
-    String text,
-  ) async* {
+    String text, {
+    List<String> imageIds = const [],
+    String? quoteId,
+  }) async* {
     final response = await _request('POST', '/api/chat/stream', {
       'conversation_id': conversation,
       'request_id': request,
       'content': text,
+      'image_ids': imageIds,
+      'quote_id': quoteId,
     });
     var complete = false;
     await for (final line
@@ -157,12 +173,249 @@ class LocalRepository implements CompanionRepository {
   Future<Map<String, dynamic>> saveSettings(
     Map<String, dynamic> settings, {
     String? apiKey,
+    bool? rememberKey,
+    bool clearKey = false,
   }) async {
     final result = await _json('PUT', '/api/settings', {
       'settings': settings,
       if (apiKey != null && apiKey.trim().isNotEmpty) 'api_key': apiKey.trim(),
+      'remember_api_key': ?rememberKey,
+      'clear_api_key': clearKey,
     });
     return Map<String, dynamic>.from(result['settings'] as Map);
+  }
+
+  @override
+  Future<String> uploadImage(Uint8List bytes, String purpose) async =>
+      (await _json(
+            'POST',
+            '/api/images?purpose=${Uri.encodeQueryComponent(purpose)}',
+            bytes,
+          ))['id']
+          as String;
+  @override
+  Future<Uint8List> image(String id) async {
+    final response = await _request(
+      'GET',
+      '/api/images/${Uri.encodeComponent(id)}',
+    );
+    final bytes = BytesBuilder(copy: false);
+    await for (final chunk in response) {
+      bytes.add(chunk);
+      if (bytes.length > 8 * 1024 * 1024) {
+        throw const CompanionException('图片太大。');
+      }
+    }
+    return bytes.takeBytes();
+  }
+
+  @override
+  Future<void> discardImage(String id) async {
+    await _json('DELETE', '/api/images/${Uri.encodeComponent(id)}');
+  }
+
+  Future<Map<String, dynamic>> memories(String conversation) =>
+      _json('GET', '/api/memories/${Uri.encodeComponent(conversation)}');
+
+  @override
+  Future<Map<String, dynamic>> readChatState(String conversation) => _json(
+    'GET',
+    '/api/conversations/${Uri.encodeComponent(conversation)}/ui-state',
+  );
+  @override
+  Future<void> saveChatState(
+    String conversation,
+    Map<String, dynamic> state,
+  ) async {
+    await _json(
+      'PUT',
+      '/api/conversations/${Uri.encodeComponent(conversation)}/ui-state',
+      state,
+    );
+  }
+
+  @override
+  Future<void> bookmark(List<String> ids, bool saved) async {
+    await _json('PUT', '/api/bookmarks', {'ids': ids, 'saved': saved});
+  }
+
+  @override
+  Future<Map<String, dynamic>> bookmarks({int offset = 0}) =>
+      _json('GET', '/api/bookmarks?offset=$offset');
+
+  Future<Map<String, dynamic>> nook({String? at}) => _json(
+    'GET',
+    '/api/nook${at == null ? '' : '?at=${Uri.encodeComponent(at)}'}',
+  );
+  Future<Map<String, dynamic>> nookSettings(bool enabled, int limit) => _json(
+    'PUT',
+    '/api/nook/settings',
+    {'enabled': enabled, 'daily_limit': limit},
+  );
+  Future<Map<String, dynamic>> cherishNookObject(String id, bool pinned) =>
+      _json('PUT', '/api/nook/objects/${Uri.encodeComponent(id)}', {
+        'pinned': pinned,
+      });
+  Future<Map<String, dynamic>> createNookObject(String conversation) =>
+      _json('POST', '/api/nook/create', {'conversation_id': conversation});
+  Future<Map<String, dynamic>> displayNookObject(String id, bool displayed) =>
+      _json('PUT', '/api/nook/objects/${Uri.encodeComponent(id)}', {
+        'displayed': displayed,
+      });
+
+  Future<Map<String, dynamic>> journal({
+    bool moments = false,
+    String category = 'all',
+    int offset = 0,
+  }) => _json(
+    'GET',
+    Uri(
+      path: '/api/journal/entries',
+      queryParameters: {
+        'moments': '$moments',
+        'category': category,
+        'offset': '$offset',
+      },
+    ).toString(),
+  );
+  Future<Map<String, dynamic>> journalFlags(
+    String id,
+    String category,
+    bool important,
+  ) => _json('PUT', '/api/journal/entries/${Uri.encodeComponent(id)}/flags', {
+    'category': category,
+    'important': important,
+  });
+  Future<Map<String, dynamic>> saveMoment(Map<String, dynamic> value) =>
+      _json('POST', '/api/journal/moments', value);
+  Future<List<Map<String, dynamic>>> journalEvents() async =>
+      ((await _json('GET', '/api/journal/events'))['items'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+  Future<Map<String, dynamic>> saveJournalEvent(
+    Map<String, dynamic> value, {
+    String? id,
+  }) => _json(
+    id == null ? 'POST' : 'PUT',
+    id == null
+        ? '/api/journal/events'
+        : '/api/journal/events/${Uri.encodeComponent(id)}',
+    value,
+  );
+  Future<void> closeJournalEvent(String id, String status) async {
+    await _json('PUT', '/api/events/${Uri.encodeComponent(id)}', {
+      'status': status,
+    });
+  }
+
+  Future<Map<String, dynamic>> search(
+    String query, {
+    String? conversation,
+    int? before,
+  }) => _json(
+    'GET',
+    Uri(
+      path: '/api/search',
+      queryParameters: {
+        'query': query,
+        'conversation_id': ?conversation,
+        if (before != null) 'before': '$before',
+      },
+    ).toString(),
+  );
+  Future<List<ChatLine>> context(String conversation, String id) async {
+    final result = await _json(
+      'GET',
+      '/api/conversations/${Uri.encodeComponent(conversation)}/context/${Uri.encodeComponent(id)}',
+    );
+    return (result['messages'] as List)
+        .map((v) => ChatLine.fromJson(Map<String, dynamic>.from(v as Map)))
+        .toList();
+  }
+
+  Future<List<StickerItem>> stickers() async {
+    final result = await _json('GET', '/api/stickers');
+    return (result['stickers'] as List)
+        .map((v) => StickerItem.fromJson(Map<String, dynamic>.from(v as Map)))
+        .toList();
+  }
+
+  Future<StickerItem> uploadSticker(Uint8List bytes, String label) async =>
+      StickerItem.fromJson(
+        await _json(
+          'POST',
+          Uri(
+            path: '/api/stickers',
+            queryParameters: {'label': label},
+          ).toString(),
+          bytes,
+        ),
+      );
+  Future<void> deleteSticker(String id) async {
+    await _json('DELETE', '/api/stickers/${Uri.encodeComponent(id)}');
+  }
+
+  Future<Uint8List> stickerImage(String id) async {
+    final response = await _request(
+      'GET',
+      '/api/stickers/${Uri.encodeComponent(id)}/content',
+    );
+    final bytes = BytesBuilder(copy: false);
+    await for (final chunk in response) {
+      bytes.add(chunk);
+      if (bytes.length > 2 * 1024 * 1024) {
+        throw const CompanionException('表情包太大。');
+      }
+    }
+    return bytes.takeBytes();
+  }
+
+  Future<Map<String, dynamic>> updates() => _json('GET', '/api/updates');
+  Future<void> markRead(String conversation, int through) async {
+    await _json(
+      'POST',
+      '/api/conversations/${Uri.encodeComponent(conversation)}/read?through=$through',
+      {},
+    );
+  }
+
+  Future<void> forgetMemory(String id) async {
+    await _json('POST', '/api/memories/${Uri.encodeComponent(id)}/forget', {});
+  }
+
+  Future<void> editMemory(
+    String id,
+    String content,
+    String conversation,
+  ) async {
+    await _json('PUT', '/api/memories/${Uri.encodeComponent(id)}', {
+      'content': content,
+      'conversation_id': conversation,
+    });
+  }
+
+  Future<void> cancel(String request) async {
+    await _json(
+      'POST',
+      '/api/automation/cancel/${Uri.encodeComponent(request)}',
+      {},
+    );
+  }
+
+  Future<Uint8List> backup() async {
+    final response = await _request('GET', '/api/local/backup');
+    final bytes = BytesBuilder(copy: false);
+    await for (final chunk in response) {
+      bytes.add(chunk);
+      if (bytes.length > 64 * 1024 * 1024) {
+        throw const CompanionException('备份超过当前版本支持的 64 MB。');
+      }
+    }
+    return bytes.takeBytes();
+  }
+
+  Future<void> restore(Uint8List bytes) async {
+    await _json('POST', '/api/local/restore', bytes);
   }
 
   @override

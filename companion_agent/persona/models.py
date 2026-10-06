@@ -87,15 +87,18 @@ class CharacterMemorySeed(PersonaModel):
 
 
 class PersonaDefinition(PersonaModel):
+    kind: Literal["preset", "custom"] = Field(
+        default="preset", exclude_if=lambda value: value == "preset"
+    )
     persona_id: str = Field(pattern=r"^[a-zA-Z0-9_-]{1,128}$")
     version: str = Field(pattern=r"^\d+\.\d+\.\d+$")
     display_name: Text
     identity: PersonaIdentity
-    kernel: CharacterKernel
-    response_styles: dict[ResponseGoal, GoalPersonaStyle]
-    relationship_styles: RelationshipStyles
+    kernel: CharacterKernel | None = None
+    response_styles: dict[ResponseGoal, GoalPersonaStyle] = Field(default_factory=dict)
+    relationship_styles: RelationshipStyles = Field(default_factory=dict)
     identity_styles: dict[RelationshipIdentityType, RelationshipStyle] = Field(default_factory=dict)
-    invariants: list[BehaviorInvariant] = Field(min_length=1)
+    invariants: list[BehaviorInvariant] = Field(default_factory=list)
     examples: list[PersonaExample] = Field(default_factory=list, max_length=100)
     character_memories: list[CharacterMemorySeed] = Field(default_factory=list, max_length=1000)
 
@@ -114,6 +117,22 @@ class PersonaDefinition(PersonaModel):
 
     @model_validator(mode="after")
     def complete_definition(self) -> PersonaDefinition:
+        if self.kind == "custom":
+            if any(
+                (
+                    self.kernel,
+                    self.response_styles,
+                    self.relationship_styles,
+                    self.identity_styles,
+                    self.invariants,
+                    self.examples,
+                    self.character_memories,
+                )
+            ):
+                raise ValueError("custom characters must not contain preset personality fields")
+            return self
+        if self.kernel is None or not self.invariants:
+            raise ValueError("preset characters require a kernel and invariants")
         if set(self.response_styles) != set(ResponseGoal):
             raise ValueError("response_styles must cover all seven ResponseGoal values")
         if set(self.relationship_styles) != set(RelationshipStage):

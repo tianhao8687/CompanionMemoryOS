@@ -52,6 +52,24 @@ def smoke(instance: ManagedInstance, *, channel: str | None = None) -> dict[str,
         try:
             page.goto(client.url)
             expect(page.locator("#new-chat")).to_be_enabled()
+            page.locator("#open-settings").click()
+            page.locator("#emotional-intensity").select_option("intense")
+            with page.expect_response(
+                lambda r: r.url.endswith("/api/settings") and r.request.method == "PUT"
+            ) as saved_settings:
+                page.locator("#save-settings").click()
+            assert saved_settings.value.json()["settings"]["emotional_intensity"] == "intense"
+            expect(page.locator("#settings-dialog")).to_be_hidden()
+            page.locator("#open-settings").click()
+            expect(page.locator("#emotional-intensity")).to_have_value("intense")
+            page.screenshot(
+                path=str(instance.directory / "web-intensity.png"), animations="disabled"
+            )
+            page.locator("#emotional-intensity").select_option("reserved")
+            page.locator('[data-close="settings-dialog"]').click()
+            page.reload()
+            settings = client.request("GET", "/api/bootstrap")["settings"]
+            assert settings["emotional_intensity"] == "intense"
             with page.expect_response(
                 lambda r: r.url.endswith("/api/conversations") and r.request.method == "POST"
             ) as created:
@@ -108,7 +126,8 @@ def smoke(instance: ManagedInstance, *, channel: str | None = None) -> dict[str,
                 "request_id": trace["request_id"],
                 "trace": trace,
                 "events": events,
-                "screenshots": ["web-chat.png", "web-memory.png"],
+                "screenshots": ["web-chat.png", "web-memory.png", "web-intensity.png"],
+                "emotional_intensity_controls": "passed",
                 "browser_errors": errors,
                 "language_quality": "not_run",
                 "cancel_retry_web": "not_run",

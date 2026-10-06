@@ -27,7 +27,10 @@ void main() {
 
   test('Cookie handshake, request header and split UTF-8 stream match backend', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    final repository = LocalRepository('http://127.0.0.1:${server.port}');
+    final repository = LocalRepository(
+      'http://127.0.0.1:${server.port}',
+      clientToken: 'synthetic-launch-token',
+    );
     addTearDown(() async {
       repository.close();
       await server.close(force: true);
@@ -35,6 +38,7 @@ void main() {
     final requests = <String>[];
     server.listen((request) async {
       requests.add(request.uri.path);
+      expect(request.headers.value('x-xinyu-token'), 'synthetic-launch-token');
       if (request.uri.path == '/') {
         request.response.cookies.add(
           Cookie('companion_romance_session_${server.port}', 'test-session'),
@@ -54,6 +58,7 @@ void main() {
           final body =
               jsonDecode(await utf8.decoder.bind(request).join()) as Map;
           expect(body['request_id'], 'stable-id');
+          expect(body['image_ids'], ['synthetic-local-image']);
           final data = utf8.encode(
             '${jsonEncode({'type': 'delta', 'text': '你好'})}\n${jsonEncode({'type': 'result', 'result': {}})}\n',
           );
@@ -69,7 +74,9 @@ void main() {
     });
     final snapshot = await repository.bootstrap();
     expect(snapshot.settings['companion_name'], '小禾');
-    final events = await repository.send('chat', 'stable-id', '你好').toList();
+    final events = await repository
+        .send('chat', 'stable-id', '你好', imageIds: ['synthetic-local-image'])
+        .toList();
     expect(events.first['text'], '你好');
     expect(events.last['type'], 'result');
     expect(requests, ['/', '/api/bootstrap', '/api/chat/stream']);

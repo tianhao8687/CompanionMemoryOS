@@ -29,6 +29,7 @@ from companion_memoryos.schemas import (
     ProcessTurnRequest,
     RealityLayer,
     ReferenceFeedbackKind,
+    ResponseGoal,
     Sensitivity,
 )
 from companion_memoryos.service import CompanionMemoryService
@@ -74,6 +75,18 @@ def state_payload(model: CaptureModel) -> dict[str, object]:
 def make_agent(service: CompanionMemoryService) -> tuple[CompanionAgent, CaptureModel]:
     model = CaptureModel()
     return CompanionAgent(service, load_persona(), model, recent_turn_limit=1), model
+
+
+def test_caller_goal_is_not_mistaken_for_chat_routing_fallback(
+    service: CompanionMemoryService,
+) -> None:
+    agent, model = make_agent(service)
+    response = agent.chat(
+        request("这次按宿主指定的用途回复。", "host-task"),
+        response_goal=ResponseGoal.DIRECT_ANSWER,
+    )
+    assert response.turn.metadata["response_goal"] == "direct_answer"
+    assert state_payload(model)["response_goal"] == "direct_answer"
 
 
 @pytest.mark.parametrize(

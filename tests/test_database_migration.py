@@ -234,12 +234,15 @@ def test_v5_database_adds_companion_experience_storage(
             DROP TRIGGER turns_fts_insert;
             DROP TRIGGER turns_fts_update;
             DROP TRIGGER turns_fts_delete;
+            DROP TRIGGER invalidate_turn_passages;
+            DROP TRIGGER delete_turn_passages_with_embedding;
             DROP INDEX idx_turns_episode;
             DROP TABLE experience_evidence_uses;
             DROP TABLE response_beats;
             DROP TABLE response_plans;
             DROP TABLE memory_reference_feedback;
             DROP TABLE open_loops;
+            DROP TABLE turn_embedding_passages;
             DROP TABLE turn_embeddings;
             ALTER TABLE conversation_turns DROP COLUMN retrieval_keys_json;
             ALTER TABLE conversation_turns DROP COLUMN embedding_space;

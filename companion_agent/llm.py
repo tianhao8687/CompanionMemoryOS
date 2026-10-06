@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
@@ -15,20 +15,58 @@ from companion_agent.persona.models import PersonaModel
 from companion_memoryos.config import InterpreterConfig
 from companion_memoryos.diagnostics import model_call
 from companion_memoryos.schemas import InterpreterUsage
+from companion_memoryos.tokens import TokenCounter
 
 
 class ModelResponse(PersonaModel):
     text: str = Field(min_length=1, max_length=50_000)
     model: str = Field(min_length=1)
     usage: InterpreterUsage | None = None
+    sticker_id: str | None = None
 
 
 class MainLLM(Protocol):
     def generate(self, messages: list[ChatMessage]) -> ModelResponse: ...
 
 
+@runtime_checkable
+class InputBudgetModel(Protocol):
+    """Pure preview of text added by an adapter; must never generate or execute tools."""
+
+    def input_tokens(self, messages: list[ChatMessage], counter: TokenCounter) -> int: ...
+
+
+def wire_input_tokens(
+    messages: list[dict[str, Any]],
+    counter: TokenCounter,
+    tools: list[dict[str, Any]] | None = None,
+) -> int:
+    # This is the application's text budget. Image token accounting is provider
+    # specific: a base64 transport string is not a textual model input.
+    text_messages = []
+    for message in messages:
+        copy = dict(message)
+        if isinstance(copy.get("content"), list):
+            copy["content"] = [p for p in copy["content"] if p.get("type") == "text"]
+        text_messages.append(copy)
+    payload: dict[str, Any] = {"messages": text_messages}
+    if tools is not None:
+        payload["tools"] = tools
+    return counter.count(json.dumps(payload, ensure_ascii=False))
+
+
+def model_input_tokens(model: MainLLM, messages: list[ChatMessage], counter: TokenCounter) -> int:
+    if isinstance(model, InputBudgetModel):
+        return model.input_tokens(messages, counter)
+    return wire_input_tokens([message.wire() for message in messages], counter)
+
+
 class MainLLMError(RuntimeError):
     """Fixed error code without provider bodies or credentials."""
+
+
+class ContextBudgetError(ValueError):
+    """Required input cannot fit even after optional context has been removed."""
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -50,7 +88,7 @@ class OpenAICompatibleMainLLM:
     def payload(self, messages: list[ChatMessage]) -> dict[str, Any]:
         return {
             "model": self.config.model,
-            "messages": [message.model_dump() for message in messages],
+            "messages": [message.wire() for message in messages],
             self.config.output_token_parameter: self.config.max_output_tokens,
             "stream": False,
             "n": 1,

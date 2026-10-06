@@ -20,7 +20,7 @@ from companion_memoryos.interpretation_service import (
 from companion_memoryos.interpreter import TurnInterpreter, configured_interpreter
 from companion_memoryos.policy import decide_storage, retention_expiry
 from companion_memoryos.proactivity import decide_proactivity
-from companion_memoryos.process_service import process_turn
+from companion_memoryos.process_service import finish_turn, process_turn
 from companion_memoryos.schemas import (
     AnswerCardinality,
     ChannelWatermark,
@@ -80,6 +80,7 @@ from companion_memoryos.schemas import (
     ProcessTurnRequest,
     ProcessTurnResult,
     ProfileSnapshot,
+    RecallIntent,
     RecallItem,
     RecallRequest,
     RecallUseMode,
@@ -141,6 +142,13 @@ class CompanionMemoryService:
         )
 
     def remember(self, item: MemoryInput) -> StorageResult:
+        # Duplicate detection, source checks and revision publication must see
+        # one serializable state, including when called outside process_turn.
+        with self.store.database.atomic():
+            self.store.expire_due(datetime.now(UTC))
+            return self._remember(item)
+
+    def _remember(self, item: MemoryInput) -> StorageResult:
         directive_detected = has_explicit_memory_directive(item.content)
         directive_reasons: list[str] = []
         directly_attributed = self._is_direct_user_evidence(item)
@@ -299,6 +307,13 @@ class CompanionMemoryService:
         )
 
     def correct(self, memory_id: str, request: MemoryCorrectionRequest) -> MemoryCorrectionResult:
+        # A deletion or another correction may win the writer slot while this
+        # request waits. Read the target only after acquiring that slot.
+        with self.store.database.atomic():
+            self.store.expire_due(datetime.now(UTC))
+            return self._correct(memory_id, request)
+
+    def _correct(self, memory_id: str, request: MemoryCorrectionRequest) -> MemoryCorrectionResult:
         current = self.store.get(memory_id, request.user_id)
         if current.status is not MemoryStatus.ACTIVE:
             raise ValueError("only active memories can be corrected")
@@ -499,8 +514,46 @@ class CompanionMemoryService:
     ) -> TurnInterpretationRecord:
         return apply_interpretation(self, turn_id, request, prior_discourse=prior_discourse)
 
-    def process_turn(self, request: ProcessTurnRequest) -> ProcessTurnResult:
-        return process_turn(self, request)
+    def process_turn(
+        self, request: ProcessTurnRequest, *, defer_recall: bool = False
+    ) -> ProcessTurnResult:
+        return process_turn(self, request, defer_recall=defer_recall)
+
+    def recall_processed_turn(
+        self,
+        request: ProcessTurnRequest,
+        result: ProcessTurnResult,
+        *,
+        intent: RecallIntent | None = None,
+        candidate_budget: tuple[int, int] | None = None,
+    ) -> ProcessTurnResult:
+        """Complete deferred retrieval without replaying ingestion or interpretation."""
+        return finish_turn(self, request, result, intent=intent, candidate_budget=candidate_budget)
+
+    def _recall_for_processed_turn(
+        self,
+        request: ProcessTurnRequest,
+        result: ProcessTurnResult,
+        *,
+        intent: RecallIntent | None = None,
+        candidate_budget: tuple[int, int] | None = None,
+    ) -> CompanionContext:
+        from companion_memoryos.constants import RECALL_QUERY_MAX_CHARACTERS
+
+        turn = result.storage.turn
+        assert turn is not None
+        recall = request.recall_request or RecallRequest(
+            user_id=turn.user_id,
+            scope=turn.scope,
+            query=turn.content[:RECALL_QUERY_MAX_CHARACTERS],
+            calendar_timezone=request.calendar_timezone,
+            state_reality_layer=request.reality_layer,
+            exclude_turn_ids=[turn.id],
+            intent=intent or RecallIntent.GENERAL,
+            max_tokens=candidate_budget[0] if candidate_budget else None,
+            max_characters=candidate_budget[1] if candidate_budget else None,
+        )
+        return self.recall(recall)
 
     def get_turn_interpretation(
         self, turn_id: str, user_id: str
@@ -629,6 +682,17 @@ class CompanionMemoryService:
         prepared_context: CompanionContext | None = None,
     ) -> ResponsePlanRecord:
         return experience_service.plan_response(self, request, prepared_context=prepared_context)
+
+    def preview_response(
+        self,
+        request: ResponsePlanRequest,
+        *,
+        prepared_context: CompanionContext | None = None,
+    ) -> ResponsePlanRecord:
+        """Select evidence without persisting a plan before final context admission."""
+        return experience_service.plan_response(
+            self, request, prepared_context=prepared_context, persist=False
+        )
 
     def stage_response_plan(self, request: ResponsePlanRequest) -> ResponsePlanRecord:
         return experience_service.stage_response_plan(self, request)

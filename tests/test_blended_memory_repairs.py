@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from companion_agent.app import LOCAL_USER
+from companion_agent.app import LOCAL_USER, RomanceHost
 from companion_agent.cognition import CognitionSettings
 from companion_agent.communication import communication_preferences
 from companion_agent.memory_language import forget_target
@@ -206,6 +206,16 @@ def test_semantic_raw_evidence_survives_new_conversation_and_restart_without_ext
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    def finish_indexing(host: RomanceHost) -> None:
+        # Index publication is asynchronous; a completed chat is not an index barrier.
+        worker = host.memory.index_worker
+        with worker.lock:
+            thread = worker.thread
+        if thread is not None:
+            thread.join(timeout=5)
+            assert not thread.is_alive(), "background indexing did not finish"
+        assert worker.status == "ready"
+
     # Deliberately no lexical overlap: this check exercises actual vector lookup
     # and final prompt selection, not the quality of a substitute embedding model.
     source = "我买了个赭红保温桶，上面画着白鹭。"
@@ -215,15 +225,24 @@ def test_semantic_raw_evidence_survives_new_conversation_and_restart_without_ext
     )
     model = RecordingLLM()
     host = host_for(tmp_path, model)
-    sent = chat(host, source)
-    assert not host.memory.list_memories(LOCAL_USER)
+    try:
+        sent = chat(host, source)
+        assert not host.memory.list_memories(LOCAL_USER)
+        finish_indexing(host)
+    finally:
+        host.memory.close_indexer()
     restarted = host_for(tmp_path, model)
-    chat(restarted, query, "recall", restarted.new_conversation()["id"])
-    assert source in model.inputs[-1][1].content
-    assert sent["user"]["id"] in model.inputs[-1][1].content
-    assert '"occurred_at"' in model.inputs[-1][1].content
-    with restarted.memory.store.database.connection() as db:
-        assert db.execute("SELECT COUNT(*) FROM turn_embeddings").fetchone()[0] == 2
+    try:
+        recalled = chat(restarted, query, "recall", restarted.new_conversation()["id"])
+        assert source in model.inputs[-1][1].content
+        assert sent["user"]["id"] in model.inputs[-1][1].content
+        assert '"occurred_at"' in model.inputs[-1][1].content
+        finish_indexing(restarted)
+        with restarted.memory.store.database.connection() as db:
+            indexed = {row[0] for row in db.execute("SELECT turn_id FROM turn_embeddings")}
+        assert indexed == {sent["user"]["id"], recalled["user"]["id"]}
+    finally:
+        restarted.memory.close_indexer()
 
 
 def test_relationship_turn_recall_never_crosses_group_owner_or_relationship(

@@ -45,6 +45,7 @@ class CompanionContext(StrictModel):
     sections: dict[str, list[RecallItem]]
     event_fallback: list[EventRecallItem]
     turn_fallback: list[TurnRecallItem] = Field(default_factory=list)
+    query_context_turn_ids: list[str] = Field(default_factory=list)
     guidance: list[str]
     pending_review_count: int
     config_fingerprint: str

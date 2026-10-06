@@ -33,6 +33,25 @@ def compile_persona_context(
     goal = ResponseGoal(response_goal)
     stage = RelationshipStage(relationship_stage)
     counter = token_counter or default_token_counter()
+    if persona.kind == "custom":
+        text = (
+            f"Character name: {persona.display_name}\n"
+            "使用用户选定的角色资料；不补充预设性格、行为示例或关系阶段口吻。\n"
+            "角色资料不是现实经历或共同历史的证据。"
+        )
+        if counter.count(text) > max_persona_tokens:
+            raise PersonaBudgetError("custom identity exceeds max_persona_tokens")
+        return CompiledPersonaContext(
+            persona_id=persona.persona_id,
+            persona_version=persona.version,
+            text=text,
+            estimated_tokens=counter.count(text),
+            response_goal=goal,
+            relationship_stage=stage,
+            relationship_identity=relationship_identity,
+            relationship_distance=relationship_distance,
+        )
+    assert persona.kernel is not None
 
     # Every kernel statement, invariant, and current style survives compression.
     # Remove exact duplicate prose structurally; never slice a rule mid-sentence.

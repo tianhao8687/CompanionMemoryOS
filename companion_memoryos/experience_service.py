@@ -141,6 +141,7 @@ def plan_response(
     request: ResponsePlanRequest,
     *,
     prepared_context: CompanionContext | None = None,
+    persist: bool = True,
 ) -> ResponsePlanRecord:
     if not self.config.experience.enabled:
         raise ValueError("companion experience layer is disabled")
@@ -263,7 +264,7 @@ def plan_response(
         updated_at=request.as_of,
         resolved_at=request.as_of,
     )
-    return self.store.create_response_plan(plan)
+    return self.store.create_response_plan(plan) if persist else plan
 
 
 def stage_response_plan(

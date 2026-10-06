@@ -2,11 +2,13 @@ plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.chaquo.python")
 }
 
 android {
     namespace = "com.xinyu.xinyu_flutter"
     compileSdk = 36
+    ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -18,8 +20,19 @@ android {
         applicationId = "com.xinyu.xinyu_flutter"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 24
+        ndk {
+            // Flutter adds default ABIs before this block; Python 3.13 is 64-bit only.
+            abiFilters.clear()
+            abiFilters += listOf("arm64-v8a")
+        }
         targetSdk = 36
+        externalNativeBuild {
+            cmake {
+                arguments += "-DXINYU_SQLITE_SOURCE=" + (System.getenv("XINYU_SQLITE_SOURCE")
+                    ?: "${project.projectDir}/../../engine/sqlite/sqlite3.c").replace('\\', '/')
+            }
+        }
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
         // You can force using the value of versionCode by specifying the `-P force-version-code-ignoring-abi=true`
@@ -30,10 +43,61 @@ android {
 
     buildTypes {
         release {
+            proguardFiles("proguard-rules.pro")
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
         }
+    }
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+    packaging {
+        jniLibs {
+            keepDebugSymbols += "**/libsqlite3_python.so"
+        }
+    }
+}
+
+// Chaquopy 17 stages its minimal SQLite as generated JNI source. Remove only
+// that generated copy after its producer finishes, leaving the CMake FTS5 build
+// as the sole input. pickFirsts is order-dependent and selected the wrong copy.
+// Configure after Chaquopy has registered all of its own task actions.
+afterEvaluate {
+    val generatedRoot = layout.buildDirectory.dir("python/jniLibs")
+    tasks.matching {
+        it.name.startsWith("generate") && it.name.endsWith("PythonJniLibs")
+    }.configureEach {
+        doLast {
+            val minimalSqlite = outputs.files.asFileTree.matching {
+                include("**/libsqlite3_python.so")
+            }.files.single()
+            check(minimalSqlite.canonicalFile.toPath().startsWith(
+                generatedRoot.get().asFile.canonicalFile.toPath()
+            )) { "Refusing to alter SQLite outside this build's generated Python JNI files" }
+            check(minimalSqlite.delete()) { "Could not remove generated minimal SQLite" }
+            logger.lifecycle("Using the app's FTS5 SQLite instead of the generated minimal copy")
+        }
+    }
+}
+
+chaquopy {
+    defaultConfig {
+        version = "3.13"
+        System.getenv("XINYU_BUILD_PYTHON")?.let { buildPython(it) }
+        pip {
+            // Prepared wheels must be actual Android binaries, never desktop wheels.
+            options("--find-links", System.getenv("XINYU_ANDROID_WHEELS")
+                ?: "${project.projectDir}/../../engine/wheels")
+            install("-r", "${project.projectDir}/../../engine/requirements-android.txt")
+        }
+        extractPackages("companion_agent", "companion_memoryos")
+    }
+    sourceSets {
+        getByName("main") { srcDir(System.getenv("XINYU_ENGINE_SOURCES") ?: "../../engine/python") }
     }
 }
 

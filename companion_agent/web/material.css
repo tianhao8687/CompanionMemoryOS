@@ -23,7 +23,7 @@ body{background:#eaded6 url('/static/ambient.svg') center/cover fixed no-repeat}
 }
 .sidebar{border-radius:28px;padding:27px 17px 16px;background:linear-gradient(145deg,#ffffff6b,#ffffff1a 65%,#ffffff4d);box-shadow:var(--glass-shadow),0 20px 60px #80655313}
 .brand{font-weight:650;letter-spacing:1.5px}
-.brand-mark{border-radius:14px;background:linear-gradient(145deg,#ffffffb3,#ffffff12 52%,#e9ad955c);border:1px solid #fff9;box-shadow:inset 0 2px 3px #fff,0 4px 10px #aa7f681c;color:#a66c5d}
+.brand-mark{box-shadow:0 4px 10px #aa7f681c}
 .brand small{color:#766f6b}
 .sidebar-caption{color:#626c65;margin-top:20px}
 .new-chat{border-radius:16px;background:linear-gradient(150deg,#ffffff9c,#ffffff36);color:#384d44;font-size:13px;min-height:48px}

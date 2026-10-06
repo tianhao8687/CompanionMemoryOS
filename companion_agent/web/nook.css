@@ -1,0 +1,20 @@
+#nook-dialog{width:min(800px,calc(100vw - 24px));max-height:92dvh;background:#fcf7ed;color:#58483f;border:1px solid #e4d6bd;border-radius:24px;padding:0;overflow:auto}
+#nook-dialog .dialog-heading{padding:22px 24px 12px}#nook-dialog h2{margin:0;font-size:23px}
+.nook-body{padding:0 24px 24px}.nook-intro{color:#89765f;margin:0 0 16px;font-size:14px}
+.nook-scene{position:relative;max-width:560px;margin:0 auto;border-radius:20px;overflow:hidden;background:#f5eddc}
+#nook-room{display:block;width:100%;height:auto;aspect-ratio:1;image-rendering:pixelated;cursor:pointer}
+#nook-scene-message{position:absolute;inset:45% 14px auto;text-align:center;font-size:13px;color:#79604b}
+.nook-view-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;font-size:13px;color:#79604b;margin-top:8px}
+#nook-overview{border:0;background:transparent;color:#53685a;cursor:pointer;min-height:44px;font:inherit;text-decoration:underline;text-underline-offset:4px}
+.nook-zones{display:flex;flex-wrap:wrap;gap:8px}.nook-zones button{border:1px solid #e1d1b8;border-radius:20px;background:#fffbf3;color:#79604b;min-height:44px;padding:8px 16px;cursor:pointer;font:inherit;font-size:13px}
+.nook-zones button[aria-pressed=true]{background:#e5ebdc;border-color:#a4b49b;color:#53685a}.nook-hint{font-size:12px;line-height:1.7;color:#93806a;margin:10px 0 4px}
+#nook-dialog button:focus-visible{outline:2px solid #617d80;outline-offset:3px}
+#nook-empty{font-size:13px;color:#796b58;line-height:1.7;padding:12px 0;margin:0}
+.nook-time{margin:18px 0}.nook-time label{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#796b58}.nook-time input{width:100%;accent-color:#78907c;margin-top:8px}
+.nook-items{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.nook-items button{display:flex;align-items:center;gap:8px;max-width:100%;overflow-wrap:anywhere;min-height:44px;border:1px solid #e1d1b8;border-radius:12px;background:#fffaf0;color:#58483f;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+.nook-items button[aria-pressed=true]{background:#e5ebdc;border-color:#a4b49b}.nook-sprite{width:32px;height:32px;flex-shrink:0;image-rendering:pixelated}
+#nook-detail{margin-top:15px;padding:20px;background:#f1eadb;border:1px solid #e5d7c0;border-radius:18px;scroll-margin-block:16px}
+.nook-closeup{display:block;width:128px;height:128px;image-rendering:pixelated;background:#fcf7ed;border-radius:12px;margin:0 auto 18px}
+#nook-detail h3{font-size:18px;margin:0 0 8px}#nook-detail p{font-size:14px;line-height:1.8;margin:10px 0;overflow-wrap:anywhere}#nook-detail small{color:#796b58}#nook-detail summary{min-height:44px;padding:12px 0;cursor:pointer;font-size:13px}#nook-detail blockquote{margin:10px 0;padding-left:12px;border-left:2px solid #a4b49b;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
+.nook-drawer{margin-top:15px;font-size:13px;color:#796b58}.nook-drawer summary{cursor:pointer;min-height:44px;padding:12px 0}.nook-options{border-top:1px solid #e1d1b8;padding-top:14px;display:flex;gap:16px;align-items:start;flex-wrap:wrap}.nook-options .check-label{flex:1;min-width:200px}.nook-options small{display:block;color:#89765f;font-size:12px;line-height:1.6;margin-top:4px}.nook-options>label:last-child{font-size:12px;color:#796b58;display:flex;gap:8px;align-items:center}.nook-options select{width:68px;min-height:44px}.nook-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}#nook-status{min-height:22px;line-height:1.6}
+@media(max-width:480px){.nook-body{padding:0 14px 18px}#nook-dialog .dialog-heading{padding:18px 14px 12px}.nook-options{gap:8px}.nook-options>label:last-child{width:100%;justify-content:space-between}.nook-zones{gap:6px}.nook-zones button{padding:8px 12px}#nook-detail{padding:16px}}

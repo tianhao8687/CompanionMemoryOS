@@ -33,7 +33,7 @@ from companion_memoryos.schemas import (
     ProcessTurnRequest,
     ProcessTurnResult,
     RealityLayer,
-    RecallRequest,
+    RecallIntent,
     Sensitivity,
     SpeechSpan,
     TurnDeletionState,
@@ -71,6 +71,8 @@ def _single_flight(database: str, turn_id: str) -> Iterator[None]:
 def process_turn(
     service: CompanionMemoryService,
     request: ProcessTurnRequest,
+    *,
+    defer_recall: bool = False,
 ) -> ProcessTurnResult:
     storage = _persist(service, request)
     result = ProcessTurnResult(storage=storage, interpretation_status="not_stored")
@@ -87,7 +89,7 @@ def process_turn(
             "reasons": result.reasons,
         },
     )
-    return _finish(service, request, result)
+    return finish_turn(service, request, result, defer_recall=defer_recall)
 
 
 def _persist(
@@ -520,13 +522,28 @@ def _is_stale(service: CompanionMemoryService, turn: ConversationTurnRecord) -> 
         )
 
 
-def _finish(
+def finish_turn(
     service: CompanionMemoryService,
     request: ProcessTurnRequest,
     result: ProcessTurnResult,
+    *,
+    defer_recall: bool = False,
+    intent: RecallIntent | None = None,
+    candidate_budget: tuple[int, int] | None = None,
 ) -> ProcessTurnResult:
     turn = result.storage.turn
-    assert turn is not None
+    result.response_context = None
+    if turn is None:
+        return result
+    if (
+        turn.user_id != request.user_id
+        or turn.scope != request.scope
+        or turn.actor_id != request.actor_id
+        or turn.role != request.role
+        or turn.content != request.content
+        or turn.idempotency_key != request.idempotency_key
+    ):
+        raise ValueError("processed turn does not match the recall request")
     if not _source_active(service, turn):
         result.interpretation_status = "source_invalidated"
         result.interpretation = None
@@ -540,7 +557,8 @@ def _finish(
         result.reasons.append("newer_user_turn_requires_response_replanning")
         return result
     if (
-        request.enable_recall
+        not defer_recall
+        and request.enable_recall
         and turn.role is ConversationRole.USER
         and not (
             result.discourse is not None
@@ -550,20 +568,15 @@ def _finish(
     ):
         if len(turn.content) > RECALL_QUERY_MAX_CHARACTERS and request.recall_request is None:
             result.reasons.append("long_turn_recalled_with_bounded_query_prefix")
-        result.response_context = service.recall(
-            request.recall_request
-            or RecallRequest(
-                user_id=turn.user_id,
-                scope=turn.scope,
-                query=turn.content[:RECALL_QUERY_MAX_CHARACTERS],
-                calendar_timezone=request.calendar_timezone,
-                state_reality_layer=request.reality_layer,
-                exclude_turn_ids=[turn.id],
-            )
+        result.response_context = service._recall_for_processed_turn(
+            request, result, intent=intent, candidate_budget=candidate_budget
         )
         # Do not deliver an old context if a new turn arrived during retrieval.
         result.response_stale = _is_stale(service, turn)
-        if result.response_stale or not _source_active(service, turn):
+        source_active = _source_active(service, turn)
+        if result.response_stale or not source_active:
             result.response_context = None
             result.reasons.append("context_invalidated_before_return")
+            if not source_active:
+                result.storage.turn = None
     return result

@@ -1,0 +1,143 @@
+"""Launch the actual release APK twice on a fresh, CI-owned Android emulator.
+
+Never attaches to a user's phone or existing app data. The emulator must support
+ARM64 (including Google's documented ARM translation on x86_64 system images).
+No conversations, model calls, external channels, or user credentials are used.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import subprocess
+import time
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from uuid import uuid4
+
+PACKAGE = "com.xinyu.xinyu_flutter"
+
+
+def has_connected_ui(hierarchy: str) -> bool:
+    try:
+        root = ET.fromstring(hierarchy)
+    except ET.ParseError:
+        return False
+    return any(
+        node.get("resource-id") in {"xinyu-local-ready", f"{PACKAGE}:id/xinyu-local-ready"}
+        and node.get("package") == PACKAGE
+        and node.get("enabled") == "true"
+        for node in root.iter("node")
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--apk-root", type=Path, required=True)
+    args = parser.parse_args()
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        parser.error("This acceptance driver is restricted to a fresh GitHub Actions emulator")
+    root = Path(__file__).resolve().parents[3]
+    run_id = "android-startup-" + uuid4().hex
+    run = root / ".agent-tests" / run_id
+    run.mkdir(parents=True)
+    result: dict[str, object] = {
+        "run_id": run_id,
+        "test_driver_commit": os.environ.get("GITHUB_SHA"),
+        "apk_workflow_run": os.environ.get("XINYU_APK_RUN_ID", os.environ.get("GITHUB_RUN_ID")),
+        "status": "running",
+        "android_runtime": "not_run",
+        "physical_device": "not_run",
+        "model_calls": 0,
+    }
+    serial = ""
+    installed = False
+
+    def adb(*arguments: str, timeout: int = 35) -> str:
+        command = ["adb", *(["-s", serial] if serial else []), *arguments]
+        response = subprocess.run(command, capture_output=True, timeout=timeout, check=True)
+        return response.stdout.decode("utf-8", "replace").strip()
+
+    try:
+        candidates = list(args.apk_root.rglob("XinYu-Android-arm64.apk"))
+        if len(candidates) != 1:
+            raise RuntimeError("Expected exactly one release APK")
+        apk = candidates[0].resolve()
+        with apk.open("rb") as source:
+            result["apk_sha256"] = hashlib.file_digest(source, "sha256").hexdigest()
+        devices = [line.split() for line in adb("devices").splitlines()[1:] if line.strip()]
+        if len(devices) != 1 or devices[0][1:] != ["device"]:
+            raise RuntimeError("Expected one fresh emulator and no other attached devices")
+        serial = devices[0][0]
+        if not serial.startswith("emulator-") or adb("shell", "getprop", "ro.kernel.qemu") != "1":
+            raise RuntimeError("Refusing to operate on a physical or unknown device")
+        result["abis"] = adb("shell", "getprop", "ro.product.cpu.abilist")
+        result["android_version"] = adb("shell", "getprop", "ro.build.version.release")
+        if "arm64-v8a" not in str(result["abis"]).split(","):
+            raise RuntimeError("This emulator image does not support the actual ARM64 release APK")
+        if PACKAGE in adb("shell", "pm", "list", "packages", PACKAGE):
+            raise RuntimeError("Refusing to use an existing installation or its data")
+        if "Success" not in adb("install", str(apk), timeout=120):
+            raise RuntimeError("APK installation did not succeed")
+        installed = True
+        result["android_runtime"] = "started"
+        for attempt in (1, 2):
+            launch = adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/.MainActivity")
+            (run / f"launch-{attempt}.log").write_text(launch, encoding="utf-8")
+            # am start -W has its own short first-frame timeout. A cold ARM
+            # translation start can exceed it while the activity is still alive.
+            # Only the bounded UI connection check below can prove readiness.
+            if "Error:" in launch:
+                raise RuntimeError(f"Android did not start the activity on launch {attempt}")
+            deadline = time.monotonic() + 150
+            connected = False
+            while time.monotonic() < deadline:
+                try:
+                    adb("shell", "uiautomator", "dump", "/sdcard/xinyu-startup.xml", timeout=20)
+                    hierarchy = adb("shell", "cat", "/sdcard/xinyu-startup.xml")
+                except subprocess.TimeoutExpired:
+                    continue
+                (run / f"launch-{attempt}.xml").write_text(hierarchy, encoding="utf-8")
+                if has_connected_ui(hierarchy):
+                    connected = True
+                    break
+                # This nonvisual identifier appears only after the real repository
+                # handshake. Loading and demo UI cannot satisfy the check.
+                time.sleep(3)
+            screenshot = subprocess.run(
+                ["adb", "-s", serial, "exec-out", "screencap", "-p"],
+                capture_output=True,
+                check=True,
+                timeout=20,
+            ).stdout
+            (run / f"launch-{attempt}.png").write_bytes(screenshot)
+            result[f"launch_{attempt}_connected"] = connected
+            if not connected:
+                raise RuntimeError(f"Release APK did not connect to its engine on launch {attempt}")
+            adb("shell", "am", "force-stop", PACKAGE)
+        result["android_runtime"] = "startup_and_restart_passed"
+        result["status"] = "passed"
+        return 0
+    except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+        result["status"] = "failed"
+        result["error"] = str(error)
+        return 1
+    finally:
+        if installed:
+            try:
+                # This driver only uses a fresh CI emulator with synthetic empty
+                # app data. Include native/Flutter crashes, which are absent from
+                # the Java error tag. Never run this collection on a user's phone.
+                log = adb("logcat", "-d", "-v", "threadtime", "-b", "all")
+                (run / "startup.log").write_text(log, encoding="utf-8")
+                adb("shell", "am", "force-stop", PACKAGE)
+            except (OSError, subprocess.SubprocessError):
+                result["cleanup"] = "emulator runner must stop its owned process"
+        (run / "results.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+        print(f"Run ID: {run_id}; status: {result['status']}; report: {run / 'results.json'}")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

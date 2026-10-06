@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, StringConstraints, field_validator, model_validator
 
 from companion_memoryos.constants import UNIT_INTERVAL_MAX, UNIT_INTERVAL_MIN
 from companion_memoryos.schemas.core import (
@@ -145,7 +145,8 @@ class ConversationTurnStorageResult(StrictModel):
 
 class TurnRecallItem(StrictModel):
     turn: ConversationTurnRecord
-    evidence_text: str
+    evidence_text: Annotated[str, StringConstraints(strip_whitespace=False)]
+    evidence_span: tuple[int, int] | None = None
     lexical: float
     semantic: float = UNIT_INTERVAL_MIN
     temporal: float
@@ -154,6 +155,32 @@ class TurnRecallItem(StrictModel):
     recall_confidence: float
     use_mode: RecallUseMode
     reasons: list[str]
+
+    @model_validator(mode="after")
+    def valid_evidence_span(self) -> TurnRecallItem:
+        if self.evidence_span is not None:
+            start, end = self.evidence_span
+            if not 0 <= start < end <= len(self.turn.content):
+                raise ValueError("evidence span exceeds source")
+            if self.evidence_text != self.turn.content[start:end]:
+                raise ValueError("evidence span must quote the original source exactly")
+        return self
+
+    @property
+    def evidence_speech_spans(self) -> list[SpeechSpan]:
+        if self.evidence_span is None:
+            return self.turn.speech_spans
+        start, end = self.evidence_span
+        return [
+            span.model_copy(
+                update={
+                    "start_offset": max(span.start_offset, start) - start,
+                    "end_offset": min(span.end_offset, end) - start,
+                }
+            )
+            for span in self.turn.speech_spans
+            if span.start_offset < end and span.end_offset > start
+        ]
 
 
 class ChannelWatermark(StrictModel):

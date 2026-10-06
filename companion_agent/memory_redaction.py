@@ -154,7 +154,11 @@ def forget_location(memory: ApplicationMemory, request: ConversationTurnRecord, 
     # summaries or an old vector. Do not use exported transcripts as new evidence.
     with memory.store.database.atomic():
         for identifier, spans in selected.items():
-            memory.store.redact_turn(identifier, request.user_id, spans)
+            if (
+                memory.store.get_turn(identifier, request.user_id).deletion_state
+                is TurnDeletionState.ACTIVE
+            ):
+                memory.store.redact_turn(identifier, request.user_id, spans)
         # A card can predate source linking. Only location-bearing cards qualify;
         # mentioning the same object alone is not a deletion target.
         forgotten_cards = 0

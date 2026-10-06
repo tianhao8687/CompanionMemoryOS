@@ -15,6 +15,13 @@ dist/
 .companion-memoryos/
 .agent-data/
 .agent-tests/
+assets/nook/style-study/sample-prompts.txt
+clients/xinyu_flutter/engine/python/
+clients/xinyu_flutter/engine/wheels/
+clients/xinyu_flutter/engine/sqlite/
+clients/xinyu_flutter/android/key.properties
+*.jks
+*.keystore
 .env
 .env.*
 !.env.example

@@ -13,9 +13,16 @@ from pydantic import Field
 
 from companion_agent.automation.hub import ToolHub
 from companion_agent.context import ChatMessage
-from companion_agent.llm import MainLLM, MainLLMError, ModelResponse
+from companion_agent.llm import (
+    MainLLM,
+    MainLLMError,
+    ModelResponse,
+    model_input_tokens,
+    wire_input_tokens,
+)
 from companion_agent.persona.models import PersonaModel
 from companion_agent.streaming import cancelled, emit
+from companion_memoryos.tokens import TiktokenTokenCounter, TokenCounter
 
 LOOP_RULES = """你可以按当前用户明确要求使用工具。仅使用列出的工具，不能假装已执行。
 用户明确要求核算金额、预算或数值比较时，先用 calculate 核对需要引用的运算。
@@ -73,9 +80,18 @@ class RunContext:
 
 
 class AgentLoop:
-    def __init__(self, model: MainLLM, hub: ToolHub) -> None:
+    def __init__(
+        self,
+        model: MainLLM,
+        hub: ToolHub,
+        *,
+        max_context_tokens: int = 16000,
+        token_counter: TokenCounter | None = None,
+    ) -> None:
         self.model = model
         self.hub = hub
+        self.max_context_tokens = max_context_tokens
+        self.token_counter = token_counter or TiktokenTokenCounter("cl100k_base")
         self._context: ContextVar[RunContext | None] = ContextVar("agent_run", default=None)
         self._lock = Lock()
         self._runs: dict[str, RunContext] = {}
@@ -113,20 +129,14 @@ class AgentLoop:
                 context.cancelled.set()
             return context is not None
 
-    def generate(self, messages: list[ChatMessage]) -> ModelResponse:
-        run = self._context.get()
-        config = self.hub.config.loop.model_copy()
-        if run is None:
-            return self.model.generate(messages)
-        if not config.enabled or not isinstance(self.model, ToolModel):
-            response = self.model.generate(messages)
-            if run.cancelled.is_set():
-                raise MainLLMError("main_llm_cancelled")
-            run.steps = 1
-            run.status = "completed"
-            return response
-        started = monotonic()
-        history = [message.model_dump() for message in messages]
+    def cancel_all(self) -> None:
+        """Stop only this engine's work when its owning native app exits."""
+        with self._lock:
+            for context in self._runs.values():
+                context.cancelled.set()
+
+    def _history(self, messages: list[ChatMessage], run: RunContext) -> list[dict[str, Any]]:
+        history = [message.wire() for message in messages]
         history.insert(0, {"role": "system", "content": LOOP_RULES})
         actions = self.hub.store.actions(run.conversation)[:5]
         if actions:
@@ -148,6 +158,28 @@ class AgentLoop:
                     + json.dumps(actions, ensure_ascii=False)[:16000],
                 },
             )
+        return history
+
+    def input_tokens(self, messages: list[ChatMessage], counter: TokenCounter) -> int:
+        run = self._context.get()
+        if run is None or not self.hub.config.loop.enabled or not isinstance(self.model, ToolModel):
+            return model_input_tokens(self.model, messages, counter)
+        return wire_input_tokens(self._history(messages, run), counter, self.hub.definitions())
+
+    def generate(self, messages: list[ChatMessage]) -> ModelResponse:
+        run = self._context.get()
+        config = self.hub.config.loop.model_copy()
+        if run is None:
+            return self.model.generate(messages)
+        if not config.enabled or not isinstance(self.model, ToolModel):
+            response = self.model.generate(messages)
+            if run.cancelled.is_set():
+                raise MainLLMError("main_llm_cancelled")
+            run.steps = 1
+            run.status = "completed"
+            return response
+        started = monotonic()
+        history = self._history(messages, run)
         tools = self.hub.definitions()
         model_name = "agent-loop"
         ids: set[str] = set()
@@ -160,6 +192,13 @@ class AgentLoop:
                 )
             if remaining <= 0 or run.tokens >= config.max_total_tokens:
                 break
+            if wire_input_tokens(history, self.token_counter, tools) > self.max_context_tokens:
+                run.status = "limited"
+                return ModelResponse(
+                    text="本轮材料与工具结果已达到上下文上限，已停止继续调用。"
+                    "已完成的操作可在能力面板核对。",
+                    model=model_name,
+                )
             run.steps += 1
             step = self.model.generate_step(history, tools, remaining)
             run.tokens += step.total_tokens or max(1, len(json.dumps(history)) // 2)

@@ -6,6 +6,9 @@ param(
     [string]$BuildDirectory = (Join-Path $env:LOCALAPPDATA 'XinYuPrototype\build')
 )
 $ErrorActionPreference = 'Stop'
+if ($Target -in @('windows', 'android')) {
+    throw 'Standalone application builds now use tool/build_local.ps1, which includes the local engine. See README.md.'
+}
 $sourceDirectory = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $repositoryDirectory = [IO.Path]::GetFullPath((Join-Path $sourceDirectory '..\..'))
 if ($FlutterSdk) { $flutterCommand = Join-Path $FlutterSdk 'bin\flutter.bat' }

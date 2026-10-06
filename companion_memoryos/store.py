@@ -76,6 +76,7 @@ from companion_memoryos.semantic_index import (
     TABLES as SEMANTIC_TABLES,
 )
 from companion_memoryos.semantic_index import (
+    CandidateScoringIndex,
     SemanticDocument,
     SemanticIndex,
     SemanticKind,
@@ -106,6 +107,7 @@ class TurnSearchCandidate:
     lexical_hit: bool = False
     recent_hit: bool = False
     semantic_similarity: float = 0.0
+    lexical_relevance: float = 0.0
 
 
 def utc_now() -> datetime:
@@ -155,7 +157,9 @@ def scope_from_row(row: sqlite3.Row) -> MemoryScope:
 class MemoryStore:
     def __init__(self, database: Database, *, semantic_index: SemanticIndex | None = None) -> None:
         self.database = database
-        self.semantic_index = semantic_index or SQLiteSemanticIndex(database)
+        self.semantic_index = (
+            semantic_index if semantic_index is not None else SQLiteSemanticIndex(database)
+        )
 
     def find_duplicate(
         self,
@@ -165,9 +169,10 @@ class MemoryStore:
         allow_candidate_evidence_upgrade: bool,
     ) -> MemoryRecord | None:
         digest = content_digest(item.kind.value, item.title, item.content)
+        sources, source_parameters = self._memory_source_filter()
         with self.database.connection() as connection:
             row = connection.execute(
-                """
+                f"""
                 SELECT * FROM memories
                 WHERE user_id = ?
                   AND companion_id IS ? AND relationship_id IS ?
@@ -198,6 +203,8 @@ class MemoryStore:
                           )
                       )
                   )
+                  AND (expires_at IS NULL OR expires_at > ?)
+                  AND {sources}
                 ORDER BY CASE WHEN status = ? THEN 0 ELSE 1 END,
                          created_at DESC
                 LIMIT 1
@@ -222,6 +229,8 @@ class MemoryStore:
                     item.source_actor.value,
                     item.quote_depth,
                     item.elicitation_kind.value,
+                    datetime_to_text(utc_now()),
+                    *source_parameters,
                     MemoryStatus.ACTIVE.value,
                 ),
             ).fetchone()
@@ -238,7 +247,6 @@ class MemoryStore:
     ) -> MemoryRecord:
         if decision.action is StorageAction.DISCARD:
             raise ValueError("discard decisions cannot be persisted")
-        now = utc_now()
         memory_id = str(uuid4())
         status = (
             MemoryStatus.ACTIVE
@@ -247,7 +255,8 @@ class MemoryStore:
         )
         digest = content_digest(item.kind.value, item.title, item.content)
         evidence_hash = content_digest(item.source_ref, item.source_excerpt or "", item.content)
-        with self.database.connection() as connection:
+        with self.database.atomic() as connection:
+            now = utc_now()
             replacement: sqlite3.Row | None = None
             if replace_candidate_id is not None:
                 # Keep the lower-trust candidate until the replacement and
@@ -278,7 +287,8 @@ class MemoryStore:
                 placeholders = ", ".join("?" for _ in item.evidence_turn_ids)
                 rows = connection.execute(
                     f"SELECT id, companion_id, relationship_id, conversation_id, group_id, "
-                    f"actor_id, role, speech_spans_json, deletion_state FROM conversation_turns "
+                    f"actor_id, role, speech_spans_json, deletion_state, consent "
+                    f"FROM conversation_turns "
                     f"WHERE user_id = ? AND id IN ({placeholders})",
                     (item.user_id, *item.evidence_turn_ids),
                 ).fetchall()
@@ -287,6 +297,8 @@ class MemoryStore:
                 for row in rows:
                     if row["deletion_state"] != TurnDeletionState.ACTIVE.value:
                         raise ValueError("forgotten turns cannot support a new memory")
+                    if row["consent"] != ConsentState.GRANTED.value:
+                        raise ValueError("evidence turns must retain granted consent")
                     if not self._evidence_scope_is_compatible(item.scope, row):
                         raise ValueError(
                             "evidence-derived memories cannot widen their consent scope"
@@ -449,8 +461,8 @@ class MemoryStore:
         confirm: bool,
         confirmed_expires_at: datetime | None = None,
     ) -> MemoryRecord:
-        now = utc_now()
-        with self.database.connection() as connection:
+        with self.database.atomic() as connection:
+            now = utc_now()
             current = self._select_one(connection, memory_id, user_id)
             if current is None:
                 raise KeyError(memory_id)
@@ -566,6 +578,8 @@ class MemoryStore:
         statuses: set[MemoryStatus] | None = None,
         limit: int | None = None,
         scope: MemoryScope | None = None,
+        *,
+        available_at: datetime | None = None,
     ) -> list[MemoryRecord]:
         clauses = ["user_id = ?"]
         parameters: list[Any] = [user_id]
@@ -577,6 +591,12 @@ class MemoryStore:
             scope_clauses, scope_parameters = self._hierarchical_scope_filter("memories", scope)
             clauses.extend(scope_clauses)
             parameters.extend(scope_parameters)
+        if available_at is not None:
+            eligible, eligible_parameters = self._memory_validity_filter(
+                user_id, scope or MemoryScope(), available_at, None, None
+            )
+            clauses.append(eligible)
+            parameters.extend(eligible_parameters)
         query = f"SELECT * FROM memories WHERE {' AND '.join(clauses)} ORDER BY updated_at DESC"
         if limit is not None:
             query += " LIMIT ?"
@@ -1464,7 +1484,8 @@ class MemoryStore:
                 if key in {"context_turn_ids", "process_reality_layer", "persona_id", "model"}
             }
             metadata["content_redacted_at"] = datetime_to_text(now)
-            if not content.strip():
+            empty = not content.strip()
+            if empty:
                 content, spans = "[已遗忘指定位置]", []
                 metadata["content_redacted_empty"] = True
             self._invalidate_turn_descendants(
@@ -1497,19 +1518,46 @@ class MemoryStore:
             )
             connection.execute(
                 "UPDATE conversation_turns SET content=?, content_hash=?, speech_spans_json=?, "
-                "retrieval_keys_json='[]', embedding_space=NULL, metadata_json=? "
+                "retrieval_keys_json='[]', embedding_space=NULL, metadata_json=?, deletion_state=? "
                 "WHERE id=? AND user_id=?",
                 (
                     content,
                     digest,
                     span_json,
                     metadata_json,
+                    TurnDeletionState.FORGOTTEN.value if empty else source.deletion_state.value,
                     turn_id,
                     user_id,
                 ),
             )
             self._audit(connection, turn_id, user_id, "conversation_turn.redacted", {}, now)
+            if empty and source.role is ConversationRole.USER:
+                # A reply to a wholly removed utterance cannot remain a second route
+                # to its contents. Later, independent requests are not deletion targets.
+                replies = connection.execute(
+                    "SELECT id, content FROM conversation_turns WHERE user_id=? "
+                    "AND reply_to_turn_id=? AND role='assistant' AND deletion_state='active' "
+                    "AND companion_id IS ? AND relationship_id IS ? "
+                    "AND conversation_id IS ? AND group_id IS ?",
+                    (user_id, turn_id, *scope_values(source.scope)),
+                ).fetchall()
+                for reply in replies:
+                    self.redact_turn(str(reply["id"]), user_id, [(0, len(reply["content"]))])
             return self.get_turn(turn_id, user_id)
+
+    def repair_empty_redactions(self, user_id: str) -> None:
+        """Finish previously applied full redactions without reinterpreting old text."""
+        with self.database.atomic() as connection:
+            rows = connection.execute(
+                "SELECT id FROM conversation_turns WHERE user_id=? AND deletion_state='active' "
+                "AND json_extract(metadata_json, '$.content_redacted_empty')=1",
+                (user_id,),
+            ).fetchall()
+            for row in rows:
+                turn = self.get_turn(str(row["id"]), user_id)
+                # A preceding user record may already have cleared this direct reply.
+                if turn.deletion_state is TurnDeletionState.ACTIVE:
+                    self.redact_turn(turn.id, user_id, [(0, len(turn.content))])
 
     def forget_turn(
         self,
@@ -1634,16 +1682,21 @@ class MemoryStore:
             if fts_query:
                 rows = connection.execute(
                     f"""
-                    SELECT conversation_turns.* FROM conversation_turns
+                    SELECT conversation_turns.*, -turn_fts.rank AS lexical_relevance
+                    FROM conversation_turns
                     JOIN turn_fts ON turn_fts.turn_id = conversation_turns.id
                     WHERE {where} AND turn_fts MATCH ?
-                    ORDER BY bm25(turn_fts) LIMIT ?
+                    ORDER BY turn_fts.rank LIMIT ?
                     """,
                     (*parameters, fts_query, pool_size),
                 ).fetchall()
                 for row in rows:
                     turn = self._row_to_turn(row)
-                    candidates[turn.id] = TurnSearchCandidate(turn=turn, lexical_hit=True)
+                    candidates[turn.id] = TurnSearchCandidate(
+                        turn=turn,
+                        lexical_hit=True,
+                        lexical_relevance=float(row["lexical_relevance"]),
+                    )
             recent_rows = connection.execute(
                 f"""
                 SELECT conversation_turns.* FROM conversation_turns
@@ -1678,6 +1731,21 @@ class MemoryStore:
                     turn = self._row_to_turn(row)
                     candidate = candidates.setdefault(turn.id, TurnSearchCandidate(turn=turn))
                     candidate.semantic_similarity = similarity
+                if isinstance(self.semantic_index, CandidateScoringIndex):
+                    missing_scores = [
+                        candidate.turn.id
+                        for candidate in candidates.values()
+                        if candidate.lexical_hit and candidate.semantic_similarity == 0.0
+                    ]
+                    if missing_scores:
+                        for similarity, row in self._semantic_candidates(
+                            connection,
+                            semantic_query,
+                            where,
+                            parameters,
+                            candidate_ids=missing_scores,
+                        ):
+                            candidates[row["id"]].semantic_similarity = similarity
         return list(candidates.values())
 
     def query_state(self, query: StateQuery) -> StateQueryResult:
@@ -1697,6 +1765,9 @@ class MemoryStore:
             MemoryStatus.ACTIVE.value,
             MemoryStatus.SUPERSEDED.value,
         ]
+        access_clause, access_parameters = self._memory_access_filter(query.known_at)
+        clauses.append(access_clause)
+        parameters.extend(access_parameters)
         if query.semantics is AnswerSemantics.CHANGE_TRAJECTORY:
             clauses.append("memories.valid_from <= ?")
             parameters.append(datetime_to_text(query.known_at))
@@ -2323,17 +2394,23 @@ class MemoryStore:
         scope_clauses, scope_parameters = self._hierarchical_scope_filter(
             "memory_reference_feedback", scope
         )
-        targets = " OR ".join("(evidence_kind = ? AND evidence_id = ?)" for _ in evidence_refs)
-        target_parameters = [value for ref in evidence_refs for value in (ref.kind.value, ref.id)]
+        # A long conversation's provenance closure can contain thousands of IDs.
+        # A growing OR tree hits SQLite's expression-depth limit near 1,000 terms.
+        # A bound JSON relation keeps query depth/parameter count constant without
+        # dropping targets or relaxing the source, scope or time predicates.
+        targets = json.dumps([(ref.kind.value, ref.id) for ref in evidence_refs])
         with self.database.connection() as connection:
             rows = connection.execute(
                 f"""
                 SELECT * FROM memory_reference_feedback
                 WHERE user_id = ? AND {" AND ".join(scope_clauses)}
-                  AND recorded_at <= ? AND ({targets})
+                  AND recorded_at <= ? AND (evidence_kind, evidence_id) IN (
+                    SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]')
+                    FROM json_each(?)
+                  )
                 ORDER BY recorded_at DESC, created_at DESC, id DESC
                 """,
-                (user_id, *scope_parameters, datetime_to_text(as_of), *target_parameters),
+                (user_id, *scope_parameters, datetime_to_text(as_of), targets),
             ).fetchall()
         latest: dict[tuple[ExperienceEvidenceKind, str], MemoryReferenceFeedbackRecord] = {}
         for row in rows:
@@ -2352,8 +2429,7 @@ class MemoryStore:
         if not evidence_refs:
             return set()
         scope_clauses = [f"response_plans.{column} IS ?" for column in SCOPE_COLUMNS]
-        targets = " OR ".join("(evidence_kind = ? AND evidence_id = ?)" for _ in evidence_refs)
-        target_parameters = [value for ref in evidence_refs for value in (ref.kind.value, ref.id)]
+        targets = json.dumps([(ref.kind.value, ref.id) for ref in evidence_refs])
         time_clause = " AND used_at >= ?" if since is not None else ""
         time_parameters = [datetime_to_text(since)] if since is not None else []
         with self.database.connection() as connection:
@@ -2362,14 +2438,17 @@ class MemoryStore:
                 SELECT DISTINCT evidence_kind, evidence_id FROM experience_evidence_uses
                 JOIN response_plans ON response_plans.id = experience_evidence_uses.plan_id
                 WHERE response_plans.user_id = ? AND {" AND ".join(scope_clauses)}
-                  AND used_at <= ? {time_clause} AND ({targets})
+                  AND used_at <= ? {time_clause} AND (evidence_kind, evidence_id) IN (
+                    SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]')
+                    FROM json_each(?)
+                  )
                 """,
                 (
                     user_id,
                     *scope_values(scope),
                     datetime_to_text(as_of),
                     *time_parameters,
-                    *target_parameters,
+                    targets,
                 ),
             ).fetchall()
         return {
@@ -3755,11 +3834,7 @@ class MemoryStore:
         if table == "memories":
             return " AND memories.reality_layer = ?", [layer.value]
         if table == "conversation_turns":
-            return (
-                " AND companion_turn_reality(conversation_turns.content, "
-                "conversation_turns.metadata_json, conversation_turns.speech_spans_json) = ?",
-                [layer.value],
-            )
+            return " AND conversation_turns.reality_layer = ?", [layer.value]
         if table == "conversation_events":
             return (
                 " AND COALESCE(json_extract(conversation_events.metadata_json, "
@@ -3785,6 +3860,28 @@ class MemoryStore:
         return clauses, parameters
 
     @staticmethod
+    def _memory_access_filter(as_of: datetime) -> tuple[str, list[Any]]:
+        # Retention and source consent are read-time eligibility, not a promise
+        # that a cleanup job has already changed each derived record's status.
+        sources, source_parameters = MemoryStore._memory_source_filter()
+        return (
+            "memories.consent = ? "
+            f"AND (memories.expires_at IS NULL OR memories.expires_at > ?) AND {sources}",
+            [ConsentState.GRANTED.value, datetime_to_text(as_of), *source_parameters],
+        )
+
+    @staticmethod
+    def _memory_source_filter() -> tuple[str, list[Any]]:
+        return (
+            "NOT EXISTS ("
+            "SELECT 1 FROM json_each(memories.evidence_turn_ids_json) AS evidence "
+            "LEFT JOIN conversation_turns AS source "
+            "ON source.id = evidence.value AND source.user_id = memories.user_id "
+            "WHERE source.id IS NULL OR source.deletion_state != ? OR source.consent != ?)",
+            [TurnDeletionState.ACTIVE.value, ConsentState.GRANTED.value],
+        )
+
+    @staticmethod
     def _memory_validity_filter(
         user_id: str,
         scope: MemoryScope,
@@ -3797,7 +3894,6 @@ class MemoryStore:
             "memories.status IN (?, ?)",
             "memories.valid_from <= ?",
             "(memories.valid_to IS NULL OR memories.valid_to > ?)",
-            "(memories.expires_at IS NULL OR memories.expires_at > ?)",
         ]
         as_of_text = datetime_to_text(as_of)
         parameters: list[Any] = [
@@ -3806,8 +3902,10 @@ class MemoryStore:
             MemoryStatus.SUPERSEDED.value,
             as_of_text,
             as_of_text,
-            as_of_text,
         ]
+        access_clause, access_parameters = MemoryStore._memory_access_filter(as_of)
+        clauses.append(access_clause)
+        parameters.extend(access_parameters)
         scope_clauses, scope_parameters = MemoryStore._hierarchical_scope_filter("memories", scope)
         clauses.extend(scope_clauses)
         parameters.extend(scope_parameters)
@@ -3858,10 +3956,17 @@ class MemoryStore:
         query: SemanticQuery,
         where: str,
         parameters: list[Any],
+        *,
+        candidate_ids: list[str] | None = None,
     ) -> list[tuple[float, sqlite3.Row]]:
         parent = SEMANTIC_TABLES[query.kind][2]
         result: list[tuple[float, sqlite3.Row]] = []
-        for hit in self.semantic_index.search(query)[: query.limit]:
+        if candidate_ids is not None and isinstance(self.semantic_index, CandidateScoringIndex):
+            hits = self.semantic_index.score_candidates(query, candidate_ids)
+            hits = [hit for hit in hits if hit.id in candidate_ids][: len(candidate_ids)]
+        else:
+            hits = self.semantic_index.search(query)[: query.limit]
+        for hit in hits:
             if not math.isfinite(hit.similarity) or hit.similarity < query.minimum_similarity:
                 continue
             row = connection.execute(

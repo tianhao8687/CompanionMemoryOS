@@ -10,10 +10,6 @@ from datetime import timedelta
 from typing import Any
 
 import httpx
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.sse import sse_client
-from mcp.client.stdio import stdio_client
-from mcp.client.streamable_http import streamable_http_client
 
 from companion_agent.automation.models import MCPServerConfig
 
@@ -62,6 +58,13 @@ class MCPClient:
         expected: dict[str, Any] | None,
         timeout: float | None,
     ) -> Any:
+        # Desktop integrations are optional in an embedded mobile runtime.
+        # Import their transport only when a user-authorized connection is used.
+        from mcp import ClientSession, StdioServerParameters
+        from mcp.client.sse import sse_client
+        from mcp.client.stdio import stdio_client
+        from mcp.client.streamable_http import streamable_http_client
+
         limit = min(server.timeout_seconds, timeout or server.timeout_seconds)
         async with asyncio.timeout(limit), AsyncExitStack() as stack:
             if server.transport == "stdio":

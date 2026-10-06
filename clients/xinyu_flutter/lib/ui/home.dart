@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../state/companion_controller.dart';
 import '../state/frame_probe.dart';
 import 'chat.dart';
 import 'glass.dart';
+import 'local_image.dart';
 import 'navigation.dart';
 import 'settings_sheet.dart';
+import 'memory_sheet.dart';
+import 'nook_sheet.dart';
+import 'chat_search.dart';
+import 'character_home.dart';
+import 'companion_remark.dart';
+import 'problem_dialog.dart';
 
 class XinYuHome extends StatefulWidget {
   const XinYuHome({super.key, required this.controller, required this.probe});
@@ -15,196 +23,292 @@ class XinYuHome extends StatefulWidget {
   State<XinYuHome> createState() => _XinYuHomeState();
 }
 
-class _XinYuHomeState extends State<XinYuHome> {
+class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
   final scaffold = GlobalKey<ScaffoldState>();
+  bool _problemVisible = false;
+  bool _problemScheduled = false;
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.problem.addListener(_problemChanged);
+    _problemChanged();
+  }
+
+  void _problemChanged() {
+    if (!mounted ||
+        _problemVisible ||
+        _problemScheduled ||
+        widget.controller.problem.value == null) {
+      return;
+    }
+    _problemScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _problemScheduled = false;
+      if (!mounted || widget.controller.problem.value == null) return;
+      _problemVisible = true;
+      final openSettings = await showProblemDialog(
+        context,
+        widget.controller.problem,
+      );
+      if (!mounted) return;
+      widget.controller.problem.value = null;
+      _problemVisible = false;
+      if (openSettings == true) {
+        await showCompanionSettings(context, widget.controller, initialTab: 1);
+      }
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  @override
+  void didUpdateWidget(covariant XinYuHome oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.problem.removeListener(_problemChanged);
+      widget.controller.problem.addListener(_problemChanged);
+      _problemChanged();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.problem.removeListener(_problemChanged);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) =>
+      widget.controller.setForeground(state == AppLifecycleState.resumed);
+
   void _settings() => showCompanionSettings(context, widget.controller);
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.controller,
     builder: (context, _) {
-      final controller = widget.controller;
+      final c = widget.controller;
       final compact = MediaQuery.sizeOf(context).width < 880;
-      return Stack(
-        children: [
-          const Positioned.fill(child: XinYuWallpaper()),
-          Scaffold(
-            key: scaffold,
-            backgroundColor: Colors.transparent,
-            resizeToAvoidBottomInset: true,
-            drawerScrimColor: const Color(0x303e4842),
-            drawer: compact
-                ? Drawer(
-                    backgroundColor: Colors.transparent,
-                    elevation: 0,
-                    width: 310,
-                    child: SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: BackdropGroup(
-                          child: CompanionNavigation(
-                            controller: controller,
-                            close: () => Navigator.pop(context),
-                            openSettings: () {
-                              Navigator.pop(context);
-                              _settings();
-                            },
+      return AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.dark.copyWith(
+          statusBarColor: Colors.transparent,
+          systemNavigationBarColor: XinYuColors.canvas,
+          systemNavigationBarIconBrightness: Brightness.dark,
+        ),
+        child: Stack(
+          children: [
+            const Positioned.fill(child: XinYuWallpaper()),
+            if (c.settings['background_image'] case final String id) ...[
+              Positioned.fill(
+                child: LocalImage(
+                  controller: c,
+                  id: id,
+                  fallback: const XinYuWallpaper(),
+                ),
+              ),
+              const Positioned.fill(
+                child: ColoredBox(color: Color(0x70f5f4f1)),
+              ),
+            ],
+            Scaffold(
+              key: scaffold,
+              backgroundColor: Colors.transparent,
+              resizeToAvoidBottomInset: true,
+              drawerScrimColor: const Color(0x30333c48),
+              drawer: compact
+                  ? Drawer(
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      width: 310,
+                      child: SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: BackdropGroup(
+                            child: CompanionNavigation(
+                              controller: c,
+                              close: () => Navigator.pop(context),
+                              openSettings: () {
+                                Navigator.pop(context);
+                                _settings();
+                              },
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  )
-                : null,
-            body: SafeArea(
-              child: Padding(
-                padding: EdgeInsets.all(compact ? 12 : 22),
-                child: BackdropGroup(
-                  child: Row(
-                    children: [
-                      if (!compact) ...[
-                        SizedBox(
-                          width: 246,
-                          child: CompanionNavigation(
-                            controller: controller,
-                            openSettings: _settings,
+                    )
+                  : null,
+              body: SafeArea(
+                child: Padding(
+                  padding: compact
+                      ? const EdgeInsets.all(8)
+                      : const EdgeInsets.fromLTRB(24, 20, 24, 20),
+                  child: BackdropGroup(
+                    child: Row(
+                      children: [
+                        if (!compact) ...[
+                          SizedBox(
+                            width: (MediaQuery.sizeOf(context).width * .225)
+                                .clamp(252, 356),
+                            child: CompanionNavigation(
+                              controller: c,
+                              openSettings: _settings,
+                            ),
                           ),
+                          const SizedBox(width: 14),
+                        ],
+                        Expanded(
+                          child: compact
+                              ? _chatPane(true)
+                              : GlassSurface(
+                                  // The container does not sample another blur over its
+                                  // non-overlapping header, messages and composer.
+                                  blur: 0,
+                                  radius: 24,
+                                  tint: const Color(0x70ffffff),
+                                  child: _chatPane(false),
+                                ),
                         ),
-                        const SizedBox(width: 22),
                       ],
-                      Expanded(
-                        child: Column(
-                          children: [
-                            _header(compact),
-                            const SizedBox(height: 10),
-                            if (controller.error != null) _error(controller),
-                            Expanded(
-                              child: Center(
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 1040,
-                                  ),
-                                  child: ConversationView(
-                                    controller: controller,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Center(
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 1040,
-                                ),
-                                child: Composer(
-                                  controller: controller,
-                                  openSettings: _settings,
-                                ),
-                              ),
-                            ),
-                            if (MediaQuery.viewInsetsOf(context).bottom == 0)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 9),
-                                child: Text(
-                                  controller.isDemo
-                                      ? '界面原型 · 示例对话不会写入记忆'
-                                      : '${controller.companionName}是 AI 伙伴 · 重要的事，也和身边的人聊聊',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: XinYuColors.muted,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          Positioned(
-            right: 24,
-            top: MediaQuery.paddingOf(context).top + 98,
-            child: _FramePanel(probe: widget.probe, controller: controller),
-          ),
-        ],
+            Positioned(
+              right: 24,
+              top: MediaQuery.paddingOf(context).top + 98,
+              child: _FramePanel(probe: widget.probe, controller: c),
+            ),
+          ],
+        ),
       );
     },
   );
 
+  Widget _chatPane(bool compact) => Column(
+    children: [
+      _header(compact),
+      if (widget.controller.error != null) _error(widget.controller),
+      Expanded(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1040),
+            child: ConversationView(controller: widget.controller),
+          ),
+        ),
+      ),
+      Padding(
+        padding: EdgeInsets.fromLTRB(
+          compact ? 0 : 14,
+          0,
+          compact ? 0 : 14,
+          compact ? 0 : 14,
+        ),
+        child: Center(child: Composer(controller: widget.controller)),
+      ),
+    ],
+  );
+
   Widget _header(bool compact) => GlassSurface(
-    radius: 25,
-    padding: EdgeInsets.symmetric(horizontal: compact ? 9 : 20, vertical: 10),
+    radius: compact ? 0 : 24,
+    outlined: !compact,
+    elevated: false,
+    tint: compact ? Colors.transparent : const Color(0x38ffffff),
+    padding: EdgeInsets.fromLTRB(
+      compact ? 0 : 28,
+      compact ? 8 : 12,
+      compact ? 0 : 20,
+      compact ? 8 : 12,
+    ),
     child: Row(
       children: [
         if (compact)
           IconButton(
+            key: const Key('open-conversations'),
             tooltip: '打开对话列表',
             onPressed: () => scaffold.currentState!.openDrawer(),
-            icon: const Icon(Icons.menu_rounded, size: 22),
+            icon: const Icon(Icons.menu_rounded),
           ),
-        if (!compact) ...[
-          CompanionAvatar(
-            size: 43,
-            label: widget.controller.companionName.characters.last,
+        InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => showCharacterHome(context, widget.controller),
+          child: ProfileAvatar(
+            controller: widget.controller,
+            size: compact ? 36 : 56,
           ),
-          const SizedBox(width: 13),
-        ],
+        ),
+        SizedBox(width: compact ? 8 : 18),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Text(
-                widget.controller.companionName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Row(
-                children: [
-                  Container(
-                    width: 5,
-                    height: 5,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Color(0xff689277),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(
+              Flexible(
+                child: InkWell(
+                  key: const Key('open-character-home'),
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => showCharacterHome(context, widget.controller),
+                  onLongPress: widget.controller.busy
+                      ? null
+                      : () => showCompanionRemark(context, widget.controller),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Text(
-                      widget.controller.isDemo
-                          ? '演示空间'
-                          : widget.controller.loading
-                          ? '正在连接'
-                          : '本地服务已连接',
+                      widget.controller.companionDisplayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: XinYuColors.muted,
+                      style: TextStyle(
+                        fontSize: compact ? 18 : 24,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
+              if (!compact)
+                TextButton.icon(
+                  key: const Key('edit-companion-remark'),
+                  onPressed: widget.controller.busy
+                      ? null
+                      : () => showCompanionRemark(context, widget.controller),
+                  icon: const Icon(Icons.edit_outlined, size: 17),
+                  label: const Text('备注', style: TextStyle(fontSize: 13)),
+                ),
             ],
           ),
         ),
+        if (widget.controller.hasChatFeatures || !compact)
+          IconButton(
+            key: const Key('open-search'),
+            tooltip: '搜索聊天',
+            onPressed: widget.controller.hasChatFeatures
+                ? () => showChatSearch(context, widget.controller)
+                : null,
+            icon: const Icon(Icons.search_rounded),
+          ),
+        if (widget.controller.capabilities['nook_features'] == true)
+          IconButton(
+            key: const Key('open-nook'),
+            tooltip: '回忆小窝',
+            onPressed: () => showMemoryNook(context, widget.controller),
+            icon: const Icon(Icons.cottage_outlined),
+          ),
         IconButton(
-          tooltip: '显示性能面板',
-          onPressed: widget.probe.toggle,
-          icon: const Icon(Icons.speed_rounded, size: 21),
+          key: const Key('open-memories'),
+          tooltip: '记忆手账',
+          onPressed: widget.controller.busy || !widget.controller.connected
+              ? null
+              : () => showMemories(context, widget.controller),
+          icon: const Icon(Icons.assignment_outlined),
         ),
+        if (const bool.fromEnvironment('XINYU_DEVELOPMENT'))
+          IconButton(
+            tooltip: '显示性能面板',
+            onPressed: widget.probe.toggle,
+            icon: const Icon(Icons.speed_rounded),
+          ),
         IconButton(
           key: const Key('open-settings'),
           tooltip: '陪伴设置',
           onPressed: _settings,
-          icon: const Icon(Icons.tune_rounded, size: 21),
+          icon: const Icon(Icons.more_vert_rounded),
         ),
       ],
     ),
@@ -218,7 +322,7 @@ class _XinYuHomeState extends State<XinYuHome> {
         padding: const EdgeInsets.fromLTRB(14, 9, 8, 9),
         decoration: BoxDecoration(
           color: const Color(0xd0fff5e8),
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: XinYuShapes.fieldCorners,
         ),
         child: Row(
           children: [
@@ -240,6 +344,17 @@ class _XinYuHomeState extends State<XinYuHome> {
             ),
             if (controller.canRetry)
               TextButton(onPressed: controller.retry, child: const Text('重试')),
+            if (!controller.connected && !controller.busy)
+              TextButton(
+                onPressed: () async {
+                  try {
+                    await controller.useLocal();
+                  } catch (_) {
+                    /* Error is shown above. */
+                  }
+                },
+                child: const Text('重新连接'),
+              ),
           ],
         ),
       ),
@@ -262,7 +377,7 @@ class _FramePanel extends StatelessWidget {
       return Material(
         color: const Color(0xf5f7f7f0),
         elevation: 3,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: XinYuShapes.fieldCorners,
         child: SizedBox(
           width: 266,
           child: Padding(
@@ -275,7 +390,7 @@ class _FramePanel extends StatelessWidget {
                     const Expanded(
                       child: Text(
                         '渲染记录',
-                        style: TextStyle(fontWeight: FontWeight.w600),
+                        style: TextStyle(fontWeight: FontWeight.w500),
                       ),
                     ),
                     IconButton(
