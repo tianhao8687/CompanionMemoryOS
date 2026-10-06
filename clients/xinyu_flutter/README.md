@@ -4,8 +4,9 @@ Flutter 玻璃界面 + 原有 Python 记忆引擎。电脑和手机各自保存�
 不互通，不依赖电脑给手机提供服务，也不需要租服务器。当前源码和实际产物状态见
 [本地版交付记录](../../docs/LOCAL_APP_DELIVERY.md)；源码接入不等于安装包已经验收。
 
-已发布测试版：[心隅 0.2.9 Windows / Android](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.9)。
-Windows 安装、覆盖更新、数据保留与桌面检查见 [交付记录](../../docs/WINDOWS_029_DELIVERY.md)。
+已发布测试版：[心隅 0.2.11 Windows / Android](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.11)。
+Windows 随包引擎检查通过，Android 运行验收未通过；本轮未验证真机覆盖升级和原生图形窗口。
+历史 0.2.9 的安装、覆盖更新与桌面结果见 [原交付记录](../../docs/WINDOWS_029_DELIVERY.md)，不能套用到当前版本。
 
 当前源码版本为 `0.2.11+14`，包含回忆小窝、应用图标、统一字体、情感浓度和记忆修复。
 本次安装包构建与发布状态见 [0.2.11 交付记录](../../docs/XINYU_0211_DELIVERY.md)。
@@ -18,12 +19,12 @@ Windows 安装、覆盖更新、数据保留与桌面检查见 [交付记录](..
 [0.2.10 交付记录](../../docs/XINYU_0210_DELIVERY.md)。Actions 产物保留 7 天；本地成品已保存。
 
 2026-09-30 的字体调整已接入源码：Windows / Android 内置同一份 Noto Sans SC，
-正文常规字重、标题中等字重，输入和消息采用相同字号规则。此改动尚未生成新安装包；
+正文常规字重、标题中等字重，输入和消息采用相同字号规则。此改动已包含在 0.2.11 安装包中；
 字体来源、授权及实际字体下的布局复核见 [字体统一记录](../../docs/FONT_UNIFICATION_20260930.md)。
 
 2026-10-02 接入用户确认的心隅 Logo，统一 Windows 应用 / 安装程序图标、Android 启动器图标、
 Flutter 会话侧栏与网页品牌标识。原图、尺寸和重新生成方式见 [品牌资源](../../assets/branding/README.md)。
-此改动尚未生成新安装包，已下载或已安装的旧版本仍使用原图标。
+此改动已包含在 0.2.11 安装包中，已安装的旧版本需更新后才会显示新图标。
 
 旧 Android `0.2.0+2` APK 已确认存在启动缺陷，请使用
 [启动修复记录](../../docs/ANDROID_STARTUP_REPAIR.md)列出的修正版本。
@@ -82,7 +83,7 @@ Flutter 会话侧栏与网页品牌标识。原图、尺寸和重新生成方式
 使用 Flutter 3.47.5 / Dart 3.13.4，Python 3.12+ 的项目虚拟环境。
 Windows 需要 Visual Studio C++ 桌面工作负载、CMake 和 Windows SDK，
 Inno Setup 6，以及项目环境中的 `pyinstaller==6.22.3`。Android 需要 JDK 21、Android SDK 36、
-Python 3.13 构建解释器和三个 Android ARM64 原生 wheel。
+Python 3.13 构建解释器和四个 Android ARM64 原生 wheel（pydantic-core、rpds-py、tiktoken、Pillow）。
 
 在仓库根目录运行：
 

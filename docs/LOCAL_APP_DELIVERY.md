@@ -1,5 +1,12 @@
 # Windows / Android 本地版交付记录
 
+2026-10-06 已发布 **0.2.11（客户端 0.2.11+14）测试版**：源码合入 main，更新 Windows
+安装版、免安装版及 Android APK，包含回忆小窝、新 Logo、字体、情感浓度和记忆修复。
+[下载入口](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.11)；构建来源、
+哈希及本轮检查见 [0.2.11 交付记录](XINYU_0211_DELIVERY.md)。Windows 随包引擎检查通过，
+Android 模拟器运行验收未通过，真机升级和本轮 Windows 原生图形界面未测；真实聊天口吻问题仍在。
+下列记录为各旧版本当时的状态，不能作为 0.2.11 验收结论。
+
 2026-09-30 字体与项目介绍更新：Windows / Android 源码统一使用内置 **Noto Sans SC**，
 消息与输入框共用字号规则，界面标题统一为中等字重；README 和客户端说明同步当前功能。
 该字体改动随本轮源码上传，尚未生成新安装包；已有 0.2.10 成品不包含该改动。

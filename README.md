@@ -9,7 +9,7 @@
 聊天、角色设置和记忆保存在当前设备的 SQLite 数据库中，Windows 与手机各自使用、各自保存。
 连接在线模型时，对话请求会发送到用户配置的服务商；默认离线模式用于功能演示，不包含本地大语言模型。
 
-[客户端使用与构建](clients/xinyu_flutter/README.md) · [公开测试版](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.9) · [交付状态](docs/LOCAL_APP_DELIVERY.md) · [网页使用说明](docs/ROMANCE_AGENT.md) · [记忆引擎接入](docs/INTEGRATION_0.7.5.md)
+[客户端使用与构建](clients/xinyu_flutter/README.md) · [公开测试版](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.11) · [交付状态](docs/LOCAL_APP_DELIVERY.md) · [网页使用说明](docs/ROMANCE_AGENT.md) · [记忆引擎接入](docs/INTEGRATION_0.7.5.md)
 
 ## 心隅能做什么
 
@@ -30,9 +30,9 @@ Windows 随包附带引擎进程，Android 使用嵌入式运行时，无需手�
 
 | 内容 | 状态与入口 |
 | --- | --- |
-| 0.2.11 源码与发布准备 | 包含回忆小窝、像素物件、新 Logo、统一字体、情感浓度设置及记忆检索修复；当前发布与测试状态见 [0.2.11 交付记录](docs/XINYU_0211_DELIVERY.md) |
+| 公开测试版 0.2.11 | [下载 Windows 安装版 / 免安装版和 Android APK](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.11)。包含回忆小窝、新 Logo、统一字体、情感浓度及记忆修复；Windows 引擎检查通过，Android 运行验收未通过，见 [0.2.11 交付记录](docs/XINYU_0211_DELIVERY.md) |
 | 0.2.10 安装包 | Windows 安装版 / 免安装版和 Android APK 已手动构建并保存本地；尚未发布新 Release，且不包含 9 月 30 日的字体调整及 10 月 2 日的新 Logo；见 [成品与验收记录](docs/XINYU_0210_DELIVERY.md) |
-| 公开测试版 0.2.9 | 可从 [GitHub Releases](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.9) 下载 Windows / Android 安装文件；界面与字体早于最新源码 |
+| 历史测试版 0.2.9 | [历史安装文件](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.9) 保留；界面与字体早于最新源码 |
 
 安装包仅手动构建，推送代码只运行常规源码 CI。聊天口吻的最新修改仍未通过真实语言验收，
 已撤回先前对部分情侣对话样本的接受结论；具体限制见 [口吻修复记录](docs/CHAT_VOICE_REPAIR_20261006.md)。
