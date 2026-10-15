@@ -55,3 +55,7 @@ APK 签名、16 KB 对齐、原生桥接及七个关键 Python 源文件与仓�
 
 交付目录：`dist/music-player-20261015-v6/`。Windows 版本 0.2.17+20；
 Android 版本 0.2.17-preview、versionCode 20，包名和签名沿用「心隅·测试」。
+
+发布前补齐 Windows 媒体读取器的 Linux 类型检查边界，两平台检查与 65 项相关回归通过。
+最终 GitHub 安装包重新构建于 `dist/music-player-20261015-release/`；
+最终校验值、冻结引擎运行 ID 及发布前修复见 [0.2.17 交付记录](XINYU_0217_DELIVERY.md)。

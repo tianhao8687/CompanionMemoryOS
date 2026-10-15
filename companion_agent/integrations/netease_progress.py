@@ -88,11 +88,19 @@ class _ModuleInfo(ctypes.Structure):
 
 
 class _WindowsReader:
+    kernel: ctypes.CDLL
+    user: ctypes.CDLL
+    psapi: ctypes.CDLL
+    callback_type: Any
+
     def __init__(self) -> None:
-        self.kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-        self.user = ctypes.WinDLL("user32", use_last_error=True)
-        self.psapi = ctypes.WinDLL("psapi", use_last_error=True)
-        self.callback_type = ctypes.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
+        if sys.platform == "win32":
+            self.kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            self.user = ctypes.WinDLL("user32", use_last_error=True)
+            self.psapi = ctypes.WinDLL("psapi", use_last_error=True)
+            self.callback_type = ctypes.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
+        else:
+            raise OSError("The native playback clock requires Windows.")
         signatures: tuple[tuple[Any, list[Any], Any], ...] = (
             (self.user.EnumWindows, [self.callback_type, w.LPARAM], w.BOOL),
             (self.user.GetWindowTextW, [w.HWND, w.LPWSTR, ctypes.c_int], ctypes.c_int),
