@@ -66,3 +66,7 @@ Linux 不会加载 Windows DLL；Windows 功能保持原样。两平台类型检
 Android 重构建时另核对包名、标签与版本；最终明确使用 `xinyuPreview=true` 构建，
 确保发布的 APK 为「心隅·测试」。此前默认包名的中间产物未发布。
 GitHub 源码 CI 状态可从 [main 工作流记录](https://github.com/tianhao8687/CompanionMemoryOS/actions/workflows/ci.yml?query=branch%3Amain) 查看。
+
+第二次 Linux 全量检查为 1,625 通过、3 跳过、1 失败：能力测试修改了进程级 `sys.platform`，
+使凭据模块误以为正在 Windows 运行。测试已改为仅替换被测模块的系统对象，避免影响其他模块。
+这项修正仅影响测试隔离，不改变应用与安装包。

@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import Any
 
 import pytest
@@ -237,10 +237,10 @@ def test_local_runtime_enables_only_supported_interactive_tools(
         def close(self) -> None:
             pass
 
-    # Only emulate the capability platform; OS-specific file locking has its own
-    # real-runtime acceptance tests and cannot be changed by sys.platform.
+    # Keep the simulated platform local to this module. Mutating the shared sys
+    # module would also make the credential store load Windows DLLs on Linux.
     monkeypatch.setattr(local_runtime, "InstanceLease", Lease)
-    monkeypatch.setattr(local_runtime.sys, "platform", platform)
+    monkeypatch.setattr(local_runtime, "sys", SimpleNamespace(platform=platform))
     runtime = local_runtime.LocalRuntime(tmp_path)
     try:
         assert runtime.app.state.host.tools.external_available() is expected
