@@ -5,6 +5,9 @@ plugins {
     id("com.chaquo.python")
 }
 
+// Local test APKs can coexist with the published app, whose signing key may differ.
+val previewBuild = providers.gradleProperty("xinyuPreview").orNull == "true"
+
 android {
     namespace = "com.xinyu.xinyu_flutter"
     compileSdk = 36
@@ -17,7 +20,8 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.xinyu.xinyu_flutter"
+        applicationId = "com.xinyu.xinyu_flutter" + if (previewBuild) ".preview" else ""
+        manifestPlaceholders["appLabel"] = if (previewBuild) "心隅·测试" else "心隅"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 24

@@ -247,6 +247,13 @@ def compose_context(
         if kind is ExperienceEvidenceKind.MEMORY and record.metadata.get("event_time_precision"):
             extra["event_time_precision"] = record.metadata["event_time_precision"]
             extra["source_occurred_at"] = record.metadata.get("source_occurred_at")
+        if kind is ExperienceEvidenceKind.MEMORY and record.metadata.get("shared_listening"):
+            extra["shared_listening"] = record.metadata["shared_listening"]
+            extra["evidence_purpose"] = "user_share_during_app_listening"
+            extra["attribution"] = (
+                "歌曲信息来自当时的播放器观察，正文是用户原话。"
+                "歌词引用不等于用户经历；应用陪听不证明收到音频，也不证明现实中见面。"
+            )
         evidence.append(
             {
                 "kind": kind.value,

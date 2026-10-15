@@ -44,6 +44,8 @@ class MCPClient:
         expected: dict[str, Any] | None = None,
         timeout: float | None = None,
     ) -> Any:
+        if server.transport == "native":
+            raise MCPFailure("此引擎未连接安卓音乐服务。")
         try:
             return asyncio.run(self._session(server, name, arguments, expected, timeout))
         except Exception:

@@ -1,3 +1,6 @@
+import 'music_screen.dart';
+import 'music_song_cards.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -6,6 +9,9 @@ import 'package:flutter/services.dart';
 import '../data/models.dart';
 import '../state/companion_controller.dart';
 import 'glass.dart';
+import 'connected_apps.dart';
+import 'focus_setup.dart';
+import 'focus_screen.dart';
 import 'message_surface.dart';
 import 'local_image.dart';
 import 'stickers.dart';
@@ -267,6 +273,31 @@ class MessageBubble extends StatelessWidget {
                           ),
                         ),
                       ),
+                  if (line.musicCards.isNotEmpty)
+                    MusicSongCards(
+                      cards: line.musicCards,
+                      controller: controller,
+                      interactive:
+                          interactive && !controller.selecting && !draft,
+                      onTogether: () => showMusicScreen(context, controller),
+                    ),
+                  if (line.focusProposal != null &&
+                      controller.capabilities['focus_features'] == true)
+                    Container(
+                      width: 340,
+                      margin: const EdgeInsets.only(top: 10),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: XinYuColors.sheet,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: FocusSetup(
+                        key: ValueKey('focus-proposal-${line.id}'),
+                        controller: controller,
+                        proposal: line.focusProposal,
+                        onStarted: () => showFocusScreen(context, controller),
+                      ),
+                    ),
                   for (final id in line.imageIds)
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
@@ -573,6 +604,7 @@ class _ComposerState extends State<Composer> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            PendingAppActions(controller: c),
             if (c.collecting)
               Row(
                 children: [
@@ -661,12 +693,34 @@ class _ComposerState extends State<Composer> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                _toolButton(
-                  key: const Key('attach-image'),
-                  label: '添加图片',
-                  onPressed: c.busy ? null : c.attachImage,
-                  icon: compact ? Icons.add_rounded : Icons.image_outlined,
-                ),
+                if (compact)
+                  PopupMenuButton<String>(
+                    key: const Key('compose-more'),
+                    tooltip: '更多',
+                    enabled: !c.busy,
+                    icon: const Icon(Icons.add_rounded),
+                    onSelected: (value) {
+                      if (value == 'image') c.attachImage();
+                      if (value == 'music') showMusicScreen(context, c);
+                      if (value == 'focus') showFocusScreen(context, c);
+                    },
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(value: 'image', child: Text('添加图片')),
+                      const PopupMenuItem(value: 'music', child: Text('一起听')),
+                      if (c.capabilities['focus_features'] == true)
+                        const PopupMenuItem(
+                          value: 'focus',
+                          child: Text('陪我专注'),
+                        ),
+                    ],
+                  )
+                else
+                  _toolButton(
+                    key: const Key('attach-image'),
+                    label: '添加图片',
+                    onPressed: c.busy ? null : c.attachImage,
+                    icon: Icons.image_outlined,
+                  ),
                 const SizedBox(width: 4),
                 if (compact) Expanded(child: _field(true)),
                 _toolButton(
@@ -675,6 +729,20 @@ class _ComposerState extends State<Composer> {
                   onPressed: c.loading ? null : _emoji,
                   icon: Icons.sentiment_satisfied_alt_rounded,
                 ),
+                if (!compact && c.capabilities['focus_features'] == true)
+                  _toolButton(
+                    key: const Key('open-focus'),
+                    label: '陪我专注',
+                    onPressed: () => showFocusScreen(context, c),
+                    icon: Icons.timelapse_rounded,
+                  ),
+                if (!compact)
+                  _toolButton(
+                    key: const Key('open-music'),
+                    label: '一起听',
+                    onPressed: () => showMusicScreen(context, c),
+                    icon: Icons.headphones_rounded,
+                  ),
                 if (!compact) const Spacer(),
                 const SizedBox(width: 4),
                 _sendButton(),

@@ -1,3 +1,5 @@
+import 'settings_navigation.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ui' as ui;
@@ -209,7 +211,8 @@ void main() {
       expect(find.byType(StickerView), findsOneWidget);
       await tester.tap(find.byKey(const Key('open-settings')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('消息'));
+      await settingsSection(tester, '陪伴');
+      await settingsGroup(tester, '表情包');
       await tester.pumpAndSettle();
       await Scrollable.ensureVisible(
         tester.element(find.text('内置表情与我的表情包')),
@@ -228,6 +231,7 @@ void main() {
             matching: find.byType(Scrollable),
           )
           .first;
+      await settingsGroup(tester, '主动找我聊天');
       await tester.scrollUntilVisible(
         find.text('允许主动联系'),
         150,

@@ -10,6 +10,9 @@ import 'navigation.dart';
 import 'settings_sheet.dart';
 import 'memory_sheet.dart';
 import 'nook_sheet.dart';
+import 'focus_panel.dart';
+import 'focus_screen.dart';
+import 'music_screen.dart';
 import 'chat_search.dart';
 import 'character_home.dart';
 import 'companion_remark.dart';
@@ -30,8 +33,23 @@ class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    widget.controller.focus.announcement.addListener(_focusNotice);
     widget.controller.problem.addListener(_problemChanged);
     _problemChanged();
+  }
+
+  void _focusNotice() {
+    final message = widget.controller.focus.announcement.value;
+    if (!mounted || message == null) return;
+    widget.controller.focus.announcement.value = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 4)),
+      );
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   void _problemChanged() {
@@ -54,7 +72,14 @@ class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
       widget.controller.problem.value = null;
       _problemVisible = false;
       if (openSettings == true) {
-        await showCompanionSettings(context, widget.controller, initialTab: 1);
+        await showCompanionSettings(
+          context,
+          widget.controller,
+          initialTab:
+              widget.controller.chatSetupIssue() == ChatSetupIssue.consent
+              ? 4
+              : 1,
+        );
       }
     });
     WidgetsBinding.instance.ensureVisualUpdate();
@@ -64,6 +89,8 @@ class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
   void didUpdateWidget(covariant XinYuHome oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.focus.announcement.removeListener(_focusNotice);
+      widget.controller.focus.announcement.addListener(_focusNotice);
       oldWidget.controller.problem.removeListener(_problemChanged);
       widget.controller.problem.addListener(_problemChanged);
       _problemChanged();
@@ -72,6 +99,8 @@ class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    widget.controller.focus.announcement.removeListener(_focusNotice);
     widget.controller.problem.removeListener(_problemChanged);
     super.dispose();
   }
@@ -187,6 +216,11 @@ class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
   Widget _chatPane(bool compact) => Column(
     children: [
       _header(compact),
+      FocusStatus(
+        controller: widget.controller,
+        openFocus: () => showFocusScreen(context, widget.controller),
+      ),
+      MusicMiniPlayer(controller: widget.controller),
       if (widget.controller.error != null) _error(widget.controller),
       Expanded(
         child: Center(

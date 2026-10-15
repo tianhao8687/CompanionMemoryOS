@@ -1,8 +1,16 @@
 # Windows / Android 本地版交付记录
 
+2026-10-15 当前主版本为 **0.2.17（客户端 0.2.17+20）**，包含网易云 MCP、一起听与歌词点歌、
+陪听共同经历记忆、陪伴专注和统一设置界面。提供 Windows 免安装 ZIP 与 Android Preview APK。
+[当前下载](https://github.com/tianhao8687/CompanionMemoryOS/releases/latest) · [本版交付与验收](XINYU_0217_DELIVERY.md)。
+Windows 随包引擎及 Android 包结构检查通过；Android 真机运行和真实模型表达仍待验收。
+旧 Release 和安装附件由本版替代。以下保留旧版当时的记录，不作为当前版本验收结论。
+
+## 历史交付记录
+
 2026-10-06 已发布 **0.2.11（客户端 0.2.11+14）测试版**：源码合入 main，更新 Windows
 安装版、免安装版及 Android APK，包含回忆小窝、新 Logo、字体、情感浓度和记忆修复。
-[下载入口](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.11)；构建来源、
+旧发布已由 0.2.17 替代；当时的构建来源、
 哈希及本轮检查见 [0.2.11 交付记录](XINYU_0211_DELIVERY.md)。Windows 随包引擎检查通过，
 Android 模拟器运行验收未通过，真机升级和本轮 Windows 原生图形界面未测；真实聊天口吻问题仍在。
 下列记录为各旧版本当时的状态，不能作为 0.2.11 验收结论。
@@ -21,8 +29,7 @@ Android APK 已保存本地。Android 另提供与已发布 0.2.9 签名相同�
 2026-09-27 已发布 **Windows / Android 0.2.9（客户端 0.2.9+12）本地测试版**，
 增加自定义说话示例、不喜欢的表达和多轮接话提示；Windows 同步此前手机端的聊天与记忆界面功能。
 用户查看检查结果后明确要求更新 Windows 安装包并上传 GitHub，本次仅手动构建 Windows，
-Android 沿用已测本地 APK，没有再次构建。发布入口：
-[心隅 0.2.9](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.9)。
+Android 沿用已测本地 APK，没有再次构建。0.2.9 的旧发布现已由当前版本替代。
 
 Windows 实际全新安装和 **0.2.0 → 0.2.9 覆盖更新通过**，聊天、记忆及角色设置保留；
 随包引擎、图形窗口、字号控件保存与真正重启检查通过。Python 951 项、Flutter 50 项及源码 CI 通过。
@@ -43,7 +50,7 @@ Windows 实际全新安装和 **0.2.0 → 0.2.9 覆盖更新通过**，聊天、
 引用、角色图片、自动滚动、完整遗忘、搜索、表情包与主动通知；
 [0.2.4 r2 自行测试记录](ANDROID_024_SELFTEST.md)及更早版本保留。
 2026-09-26 用户已明确同意上传源码和这个已测试的 APK，
-发布入口为 [心隅 0.2.8 Android 测试版](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.8)。
+当时发布为心隅 0.2.8 Android 测试版，旧发布现已由当前版本替代。
 本次不重新运行 GitHub Actions 打包。尚未完成 Android 真机验收。
 Windows 本轮未重新打包；下列旧安装包不含这些功能。
 

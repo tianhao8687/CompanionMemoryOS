@@ -1,3 +1,5 @@
+import 'settings_navigation.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -91,8 +93,11 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('open-settings')));
       await tester.pumpAndSettle();
+      await settingsSection(tester, '陪伴');
+      await settingsGroup(tester, '相处风格');
       expect(find.text('自然坦诚'), findsOneWidget);
-      await tester.tap(find.text('连接与数据'));
+      await settingsSection(tester, '连接');
+      await settingsGroup(tester, controller.isDemo ? '当前：界面演示' : '回复方式');
       await tester.pumpAndSettle();
       final scrollable = find
           .descendant(
@@ -106,6 +111,8 @@ void main() {
         scrollable: scrollable,
       );
       expect(find.text('在这台设备安全保存 Key'), findsOneWidget);
+      await settingsSection(tester, '隐私与数据');
+      await settingsGroup(tester, '备份与恢复');
       await tester.scrollUntilVisible(
         find.text('导出备份'),
         220,
@@ -140,8 +147,9 @@ void main() {
       await tester.tap(find.byKey(const Key('open-settings')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('settings-glass')), findsOneWidget);
-      await tester.tap(find.text('连接与数据'));
+      await settingsSection(tester, '连接');
       await tester.pumpAndSettle();
+      await settingsGroup(tester, '当前：界面演示');
       expect(find.text('打开本机数据'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
@@ -171,8 +179,11 @@ void main() {
     expect(controller.messages.where((m) => m.text == '测试流式回复'), hasLength(1));
     await tester.tap(find.byKey(const Key('open-settings')));
     await tester.pumpAndSettle();
+    await settingsSection(tester, '陪伴');
+    await settingsGroup(tester, '彼此的称呼');
     await tester.enterText(find.widgetWithText(TextFormField, '怎么称呼 TA'), '小夏');
-    await tester.tap(find.text('外观'));
+    await settingsSection(tester, '外观');
+    await settingsGroup(tester, '字号');
     await tester.pumpAndSettle();
     await tester.tap(find.text('大号'));
     await tester.pumpAndSettle();
@@ -188,11 +199,12 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('open-settings')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('外观'));
+    await settingsSection(tester, '外观');
+    await settingsGroup(tester, '字号');
     await tester.pumpAndSettle();
     final preview = tester.widget<Text>(find.text('今天，也想听你慢慢说。'));
     expect(preview.textScaler!.scale(16), closeTo(17.92, .01));
-    await tester.tap(find.byTooltip('关闭设置'));
+    await closeSettings(tester);
     await tester.pumpAndSettle();
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     addTearDown(tester.view.resetViewInsets);

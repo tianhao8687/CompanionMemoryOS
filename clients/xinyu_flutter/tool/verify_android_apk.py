@@ -19,7 +19,7 @@ REQUIRED_METHODS = {
 }
 
 
-def bridge_methods(data: bytes) -> set[str] | None:
+def bridge_methods(data: bytes, descriptor: str = BRIDGE) -> set[str] | None:
     if not data.startswith(b"dex\n"):
         raise ValueError("Unsupported DEX file")
 
@@ -66,7 +66,7 @@ def bridge_methods(data: bytes) -> set[str] | None:
     count, offset = table(96)
     for index in range(count):
         owner = struct.unpack_from("<I", data, offset + index * 32)[0]
-        if types[owner] != BRIDGE:
+        if types[owner] != descriptor:
             continue
         position = struct.unpack_from("<I", data, offset + index * 32 + 24)[0]
         if not position:
@@ -87,7 +87,7 @@ def bridge_methods(data: bytes) -> set[str] | None:
                 code, position = uleb(position)
                 method_index += difference
                 method_owner, signature = methods[method_index]
-                if method_owner == BRIDGE and access & 1 and code:
+                if method_owner == descriptor and access & 1 and code:
                     found.add(signature)
         return found
     return None
@@ -95,13 +95,14 @@ def bridge_methods(data: bytes) -> set[str] | None:
 
 def inspect_apk(apk: Path) -> dict[str, object]:
     found: set[str] | None = None
+    music: set[str] | None = None
     python_files: set[str] = set()
     with ZipFile(apk) as archive:
         for name in archive.namelist():
             if name.endswith(".dex"):
-                found = bridge_methods(archive.read(name))
-                if found is not None:
-                    break
+                data = archive.read(name)
+                found = found or bridge_methods(data)
+                music = music or bridge_methods(data, "Lcom/xinyu/xinyu_flutter/MusicBridge;")
         sqlite = archive.read("lib/arm64-v8a/libsqlite3_python.so")
         sqlite_fts5 = b"ENABLE_FTS5\0" in sqlite and b"fts5\0" in sqlite
         for name in archive.namelist():
@@ -118,6 +119,18 @@ def inspect_apk(apk: Path) -> dict[str, object]:
     with apk.open("rb") as source:
         digest = hashlib.file_digest(source, "sha256").hexdigest()
     missing = sorted(REQUIRED_METHODS - (found or set()))
+    music_ready = (
+        "call(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"
+        in (music or set())
+    )
+    music_python = all(
+        any(f"companion_agent/{module}.{suffix}" in python_files for suffix in ("py", "pyc"))
+        for module in ("music", "integrations/netease_android")
+    )
+    lyric_python = all(
+        any(f"companion_agent/{module}.{suffix}" in python_files for suffix in ("py", "pyc"))
+        for module in ("music_lyrics", "integrations/netease_lyrics")
+    )
     return {
         "apk_sha256": digest,
         "bridge_present": found is not None,
@@ -127,8 +140,18 @@ def inspect_apk(apk: Path) -> dict[str, object]:
         "sqlite_sha256": hashlib.sha256(sqlite).hexdigest(),
         "pillow_drawing_modules": pillow_modules,
         "pillow_native_core": pillow_core,
+        "music_bridge_present": music_ready,
+        "music_python_present": music_python,
+        "lyric_python_present": lyric_python,
         "status": "passed"
-        if found is not None and not missing and sqlite_fts5 and pillow_modules and pillow_core
+        if found is not None
+        and not missing
+        and sqlite_fts5
+        and pillow_modules
+        and pillow_core
+        and music_ready
+        and music_python
+        and lyric_python
         else "failed",
         "android_runtime": "not_run",
     }

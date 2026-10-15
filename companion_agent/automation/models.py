@@ -30,7 +30,7 @@ class MCPServerConfig(PersonaModel):
     id: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,31}$")
     label: str = Field(min_length=1, max_length=80)
     enabled: bool = False
-    transport: Literal["stdio", "streamable_http", "sse"] = "stdio"
+    transport: Literal["stdio", "streamable_http", "sse", "native"] = "stdio"
     command: str = Field(default="", max_length=1000)
     args: list[str] = Field(default_factory=list, max_length=40)
     url: str = Field(default="", max_length=2000)
@@ -47,7 +47,12 @@ class MCPServerConfig(PersonaModel):
         for name in [*self.env, *self.env.values(), self.bearer_env]:
             if name and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
                 raise ValueError("use environment variable names for credentials")
-        if self.transport == "stdio":
+        if self.transport == "native":
+            if self.id != "netease" or any(
+                [self.command, self.args, self.url, self.env, self.bearer_env]
+            ):
+                raise ValueError("native transport only accepts the bundled music provider")
+        elif self.transport == "stdio":
             if not self.command.strip() or self.url or self.bearer_env:
                 raise ValueError("stdio requires a command, not a URL")
             if any("\x00" in part for part in [self.command, *self.args]):

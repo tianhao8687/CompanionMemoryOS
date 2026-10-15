@@ -21,9 +21,9 @@ abstract final class XinYuColors {
 }
 
 abstract final class XinYuShapes {
-  static const panelRadius = 32.0;
-  static const cardRadius = 28.0;
-  static const fieldRadius = 24.0;
+  static const panelRadius = 20.0;
+  static const cardRadius = 16.0;
+  static const fieldRadius = 12.0;
   static const panelCorners = BorderRadius.all(Radius.circular(panelRadius));
   static const cardCorners = BorderRadius.all(Radius.circular(cardRadius));
   static const fieldCorners = BorderRadius.all(Radius.circular(fieldRadius));
@@ -59,7 +59,7 @@ class RoundedChoiceField<T> extends StatelessWidget {
     maxLines: 2,
     label: label == null ? null : Text(label!),
     textStyle: Theme.of(context).textTheme.bodyMedium
-        ?.copyWith(fontSize: 13, color: XinYuColors.ink),
+        ?.copyWith(color: XinYuColors.ink),
     menuStyle: const MenuStyle(
       shape: WidgetStatePropertyAll(XinYuShapes.card),
       padding: WidgetStatePropertyAll(EdgeInsets.all(8)),
@@ -264,29 +264,51 @@ class _WallpaperPainter extends CustomPainter {
 }
 
 class CompanionAvatar extends StatelessWidget {
-  const CompanionAvatar({super.key, this.size = 44, this.label = '禾'});
+  const CompanionAvatar({
+    super.key,
+    this.size = 44,
+    this.label = '禾',
+    this.backgroundColor,
+    this.foregroundColor,
+    this.shape = BoxShape.rectangle,
+  });
   final double size;
   final String label;
+  final Color? backgroundColor, foregroundColor;
+  final BoxShape shape;
   @override
   Widget build(BuildContext context) => Container(
     width: size,
     height: size,
     alignment: Alignment.center,
     decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(size * .27),
+      shape: shape,
+      borderRadius: shape == BoxShape.rectangle
+          ? BorderRadius.circular(size * .27)
+          : null,
       border: Border.all(color: const Color(0x80ffffff), width: .7),
-      gradient: const LinearGradient(
-        colors: [Color(0xffebe9e4), Color(0xffe0e5ec)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
+      color: backgroundColor,
+      gradient: backgroundColor == null
+          ? const LinearGradient(
+              colors: [Color(0xffebe9e4), Color(0xffe0e5ec)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            )
+          : null,
     ),
-    child: Text(
-      label,
-      style: TextStyle(
-        color: XinYuColors.ink,
-        fontSize: size * .38,
-        fontWeight: FontWeight.w500,
+    child: Padding(
+      padding: EdgeInsets.all(size * .16),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          label,
+          style: TextStyle(
+            color: foregroundColor ?? XinYuColors.ink,
+            fontSize: size * .38,
+            fontWeight: FontWeight.w500,
+            height: 1,
+          ),
+        ),
       ),
     ),
   );

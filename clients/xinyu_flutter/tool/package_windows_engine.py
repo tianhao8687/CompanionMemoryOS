@@ -41,6 +41,10 @@ def main() -> None:
         "companion_memoryos",
         "--collect-submodules",
         "tiktoken_ext",
+        # Media-session APIs are loaded lazily by the optional music MCP server.
+        # Include projection modules, their .pyd files and the WinRT runtime DLLs.
+        "--collect-all",
+        "winrt",
         "--hidden-import",
         "uvicorn.logging",
         "--hidden-import",

@@ -83,7 +83,12 @@ class Outreach:
 
     def enabled(self) -> bool:
         s = self.host.settings
-        return s.proactive_enabled and s.storage_consent and s.model_consent
+        return (
+            s.proactive_enabled
+            and s.storage_consent
+            and s.model_consent
+            and not self.host.music.present()
+        )
 
     def background_enabled(self) -> bool:
         return self.enabled() or (

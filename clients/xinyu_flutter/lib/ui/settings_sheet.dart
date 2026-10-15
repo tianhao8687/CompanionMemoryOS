@@ -1,25 +1,28 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../state/companion_controller.dart';
 import 'glass.dart';
+import 'connected_apps.dart';
 import 'local_image.dart';
 import 'stickers.dart';
+import 'ui_standard.dart';
 
 Future<void> showCompanionSettings(
   BuildContext context,
   CompanionController controller, {
-  int initialTab = 0,
-}) => showDialog<void>(
-  context: context,
-  barrierColor: const Color(0x2433403c),
-  builder: (_) => SettingsSheet(controller: controller, initialTab: initialTab),
+  int initialTab = -1,
+}) => showXinYuPage<void>(
+  context,
+  (_) => SettingsSheet(controller: controller, initialTab: initialTab),
 );
 
 class SettingsSheet extends StatefulWidget {
   const SettingsSheet({
     super.key,
     required this.controller,
-    this.initialTab = 0,
+    this.initialTab = -1,
   });
   final CompanionController controller;
   final int initialTab;
@@ -51,6 +54,9 @@ class _SettingsSheetState extends State<SettingsSheet> {
   void initState() {
     super.initState();
     tab = widget.initialTab;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(widget.controller.automation.refresh());
+    });
     values = widget.controller.settingsCopy();
     companion = TextEditingController(text: widget.controller.companionName);
     user = TextEditingController(text: widget.controller.userName);
@@ -195,164 +201,109 @@ class _SettingsSheetState extends State<SettingsSheet> {
     );
   }
 
+  static const _sections = [
+    (0, '陪伴', '称呼、相处方式与消息', Icons.favorite_border_rounded),
+    (2, '外观', '字号、背景与头像', Icons.text_fields_rounded),
+    (1, '连接', '回复模型与连接的应用', Icons.link_rounded),
+    (4, '隐私与数据', '授权、备份与恢复', Icons.shield_outlined),
+  ];
+
+  Widget _navigation({required bool sidebar}) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (final item in _sections) ...[
+        SettingsRow(
+          key: ValueKey('settings-section-${item.$1}'),
+          title: item.$2,
+          subtitle: sidebar ? null : item.$3,
+          icon: item.$4,
+          selected: sidebar && (tab < 0 ? 0 : tab) == item.$1,
+          onTap: working ? null : () => _selectTab(item.$1),
+        ),
+        const Divider(height: 1, indent: 54, color: XinYuLayout.line),
+      ],
+    ],
+  );
+
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final compact = size.width < 600;
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      insetPadding: EdgeInsets.symmetric(
-        horizontal: compact ? 12 : 36,
-        vertical: 20,
-      ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 620,
-          maxHeight: size.height * .88,
+    final mobile = XinYuLayout.mobile(context);
+    final sidebar = !mobile && MediaQuery.sizeOf(context).width >= 960;
+    final selected = sidebar && tab < 0 ? 0 : tab;
+    final overview = selected < 0;
+    final section = _sections.where((item) => item.$1 == selected).firstOrNull;
+    final page = SingleChildScrollView(
+      key: const Key('settings-scroll'),
+      controller: _scroll,
+      padding: EdgeInsets.all(XinYuLayout.inset(context)),
+      child: AbsorbPointer(
+        absorbing: working,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (overview) _navigation(sidebar: false),
+            if (selected == 0) ...[
+              ..._persona(),
+              const SizedBox(height: 14),
+              ..._messages(),
+            ],
+            if (selected == 1) ..._connection(),
+            if (selected == 2) ..._appearance(),
+            if (selected == 3) ..._messages(),
+            if (selected == 4) ..._privacy(),
+            if (notice != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(notice!, style: XinYuLayout.note),
+                ),
+              ),
+          ],
         ),
-        child: BackdropGroup(
-          child: GlassSurface(
-            key: const Key('settings-glass'),
-            blur: 30,
-            tint: XinYuColors.sheet,
-            radius: XinYuShapes.panelRadius,
-            padding: EdgeInsets.all(compact ? 16 : 26),
-            child: Form(
-              key: _form,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+      ),
+    );
+    return Form(
+      key: _form,
+      child: XinYuPage(
+        key: const Key('settings-glass'),
+        title: sidebar || overview ? '设置' : section?.$2 ?? '消息',
+        maxWidth: sidebar ? 960 : 680,
+        canClose: !working,
+        onBack: !sidebar && !overview ? () => _selectTab(-1) : null,
+        footer: overview
+            ? null
+            : Row(
                 children: [
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          '设置',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      IconButton.filledTonal(
-                        tooltip: '关闭设置',
-                        style: IconButton.styleFrom(
-                          backgroundColor: const Color(0x65ffffff),
-                        ),
-                        onPressed: working
-                            ? null
-                            : () => Navigator.pop(context),
-                        icon: const Icon(Icons.close_rounded, size: 20),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: const Color(0x185e789a),
-                      borderRadius: XinYuShapes.cardCorners,
-                      border: Border.all(color: const Color(0x90ffffff)),
-                    ),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final columns = constraints.maxWidth < 500 ? 2 : 4;
-                        return Wrap(
-                          spacing: 4,
-                          runSpacing: 4,
-                          children: [
-                            for (final item in [
-                              (0, '相处设定', Icons.favorite_border_rounded),
-                              (2, '外观', Icons.text_fields_rounded),
-                              (3, '消息', Icons.notifications_none_rounded),
-                              (1, '连接与数据', Icons.tune_rounded),
-                            ])
-                              SizedBox(
-                                width:
-                                    (constraints.maxWidth - 4 * (columns - 1)) /
-                                    columns,
-                                child: _SettingsTab(
-                                  label: item.$2,
-                                  icon: item.$3,
-                                  selected: tab == item.$1,
-                                  showIcon: !compact,
-                                  onTap: working
-                                      ? null
-                                      : () => _selectTab(item.$1),
-                                ),
-                              ),
-                          ],
-                        );
-                      },
+                  Expanded(
+                    child: Text(
+                      widget.controller.isDemo ? '演示设置仅在本次运行生效' : '修改后保存到这台设备',
+                      style: XinYuLayout.note,
                     ),
                   ),
-                  const SizedBox(height: 18),
-                  Flexible(
-                    child: ClipRRect(
-                      borderRadius: XinYuShapes.cardCorners,
-                      child: SingleChildScrollView(
-                        key: const Key('settings-scroll'),
-                        controller: _scroll,
-                        child: AbsorbPointer(
-                          absorbing: working,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (tab == 0) ..._persona(),
-                              if (tab == 1) ..._connection(),
-                              if (tab == 2) ..._appearance(),
-                              if (tab == 3) ..._messages(),
-                              if (notice != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 14),
-                                  child: Semantics(
-                                    liveRegion: true,
-                                    child: Text(
-                                      notice!,
-                                      style: const TextStyle(
-                                        color: Color(0xff865c43),
-                                        height: 1.6,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(height: 1, color: Color(0x90ffffff)),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          widget.controller.isDemo
-                              ? '演示设置仅在本次运行生效'
-                              : '只保存在这台设备',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: XinYuColors.muted,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton.icon(
-                        onPressed: working || widget.controller.busy
-                            ? null
-                            : _save,
-                        icon: const Icon(Icons.check_rounded, size: 18),
-                        label: Text(working ? '处理中…' : '保存设置'),
-                      ),
-                    ],
+                  const SizedBox(width: 12),
+                  FilledButton(
+                    onPressed: working || widget.controller.busy ? null : _save,
+                    child: Text(working ? '处理中…' : '保存设置'),
                   ),
                 ],
               ),
-            ),
-          ),
-        ),
+        child: sidebar
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    width: 208,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: _navigation(sidebar: true),
+                    ),
+                  ),
+                  const VerticalDivider(width: 1, color: XinYuLayout.line),
+                  Expanded(child: page),
+                ],
+              )
+            : page,
       ),
     );
   }
@@ -451,7 +402,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
         ),
         const Text(
           '发送文字后留一点时间继续说，也可以点“现在回应”。关闭后立即发送并整段显示。',
-          style: TextStyle(fontSize: 12, height: 1.6, color: XinYuColors.muted),
+          style: TextStyle(fontSize: 14, height: 1.6, color: XinYuColors.muted),
         ),
       ],
     ),
@@ -528,7 +479,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
           const SizedBox(height: 8),
           Text(
             '时区：${values['calendar_timezone'] ?? 'Asia/Shanghai'}；开始与结束相同表示全天可联系。',
-            style: const TextStyle(fontSize: 11, color: XinYuColors.muted),
+            style: const TextStyle(fontSize: 14, color: XinYuColors.muted),
           ),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
@@ -587,7 +538,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
           const Text(
             '需开启在线模型、允许保存与模型调用，并将 Key 安全保存在设备上，才能在后台生成消息。每次主动联系会使用模型额度。\n安卓会按电量与网络情况安排检查，不保证准点；强行停止应用后需重新打开。红米手机请在系统中允许自启动、后台运行和悬浮通知。',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 14,
               height: 1.7,
               color: XinYuColors.muted,
             ),
@@ -631,7 +582,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
             children: [
               const Text(
                 '阅读预览',
-                style: TextStyle(fontSize: 11, color: XinYuColors.muted),
+                style: TextStyle(fontSize: 14, color: XinYuColors.muted),
               ),
               const SizedBox(height: 10),
               Text(
@@ -708,7 +659,11 @@ class _SettingsSheetState extends State<SettingsSheet> {
                 ('custom', '自定义', '由你写下相处的模样', Icons.edit_note_rounded),
               ])
                 SizedBox(
-                  width: (constraints.maxWidth - 10) / 2,
+                  width:
+                      constraints.maxWidth < 440 ||
+                          MediaQuery.textScalerOf(context).scale(16) > 20
+                      ? constraints.maxWidth
+                      : (constraints.maxWidth - 12) / 2,
                   child: _ChoiceCard(
                     title: style.$2,
                     description: style.$3,
@@ -771,7 +726,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
               '当前是演示回复，使用固定规则；连接 API 模型后才能体验自定义角色的说话方式。',
               key: Key('custom-style-demo-notice'),
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 14,
                 height: 1.6,
                 color: XinYuColors.muted,
               ),
@@ -807,7 +762,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
             _ => '按你写的人物设定相处，不额外调整浓度。',
           },
           style: const TextStyle(
-            fontSize: 12,
+            fontSize: 14,
             height: 1.6,
             color: XinYuColors.muted,
           ),
@@ -815,7 +770,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
         const SizedBox(height: 6),
         const Text(
           '随时可以改；你当下想要的距离始终优先。',
-          style: TextStyle(fontSize: 12, height: 1.6, color: XinYuColors.muted),
+          style: TextStyle(fontSize: 14, height: 1.6, color: XinYuColors.muted),
         ),
       ],
     ),
@@ -902,6 +857,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
   }
 
   List<Widget> _connection() => [
+    ConnectedAppsPanel(controller: widget.controller),
+    const SizedBox(height: 24),
     _SettingsGroup(
       title: widget.controller.isDemo ? '当前：界面演示' : '当前：本机数据',
       icon: Icons.devices_rounded,
@@ -973,7 +930,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
             const SizedBox(height: 8),
             const Text(
               '发送的聊天图片及必要的近期图片会交给所选模型。离线模式不支持识图。',
-              style: TextStyle(fontSize: 12, color: XinYuColors.muted),
+              style: TextStyle(fontSize: 14, color: XinYuColors.muted),
             ),
             const SizedBox(height: 20),
             TextFormField(
@@ -1034,6 +991,13 @@ class _SettingsSheetState extends State<SettingsSheet> {
         ],
       ),
       const SizedBox(height: 14),
+    ],
+  ];
+
+  List<Widget> _privacy() => [
+    if (widget.controller.isDemo)
+      const Text('演示空间的内容仅保留在本次运行。', style: XinYuLayout.note),
+    if (!widget.controller.isDemo) ...[
       _SettingsGroup(
         title: '消息与记忆',
         icon: Icons.shield_outlined,
@@ -1085,80 +1049,6 @@ class _SettingsSheetState extends State<SettingsSheet> {
   ];
 }
 
-class _SettingsTab extends StatelessWidget {
-  const _SettingsTab({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-    this.showIcon = true,
-  });
-  final String label;
-  final IconData icon;
-  final bool selected, showIcon;
-  final VoidCallback? onTap;
-  @override
-  Widget build(BuildContext context) => Semantics(
-    selected: selected,
-    button: true,
-    child: Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: XinYuShapes.pillCorners,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
-          decoration: BoxDecoration(
-            borderRadius: XinYuShapes.pillCorners,
-            gradient: selected
-                ? const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xedffffff), Color(0x95e7eef8)],
-                  )
-                : null,
-            border: Border.all(
-              color: selected ? const Color(0xe0ffffff) : Colors.transparent,
-            ),
-            boxShadow: selected
-                ? const [
-                    BoxShadow(
-                      color: Color(0x14515e70),
-                      blurRadius: 10,
-                      offset: Offset(0, 3),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (showIcon) ...[
-                Icon(
-                  icon,
-                  size: 17,
-                  color: selected ? XinYuColors.accent : XinYuColors.muted,
-                ),
-                const SizedBox(width: 7),
-              ],
-              Flexible(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
 class _SettingsGroup extends StatelessWidget {
   const _SettingsGroup({
     required this.title,
@@ -1171,49 +1061,27 @@ class _SettingsGroup extends StatelessWidget {
   final IconData icon;
   final List<Widget> children;
   @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      borderRadius: XinYuShapes.cardCorners,
-      gradient: const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0x70ffffff), Color(0x24ffffff)],
-      ),
-      border: Border.all(color: const Color(0xafffffff)),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => Material(
+    color: Colors.white,
+    borderRadius: XinYuLayout.corners,
+    clipBehavior: Clip.antiAlias,
+    child: ExpansionTile(
+      key: ValueKey(title),
+      maintainState: true,
+      tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      shape: const Border(),
+      collapsedShape: const Border(),
+      leading: Icon(icon, size: 22, color: XinYuColors.accent),
+      title: Text(title, style: XinYuLayout.body(context)),
       children: [
-        Row(
-          children: [
-            Icon(icon, size: 18, color: XinYuColors.accent),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ],
-        ),
-        if (subtitle != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              subtitle!,
-              style: const TextStyle(
-                color: XinYuColors.muted,
-                fontSize: 12,
-                height: 1.6,
-              ),
-            ),
+        if (subtitle != null) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(subtitle!, style: XinYuLayout.note),
           ),
-        const SizedBox(height: 16),
+          const SizedBox(height: 16),
+        ],
         ...children,
       ],
     ),
@@ -1245,13 +1113,13 @@ class _ChoiceCard extends StatelessWidget {
       children: [
         Text(
           title,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 5),
         Text(
           description,
           style: const TextStyle(
-            fontSize: 11,
+            fontSize: 14,
             height: 1.55,
             color: XinYuColors.muted,
           ),
@@ -1265,12 +1133,12 @@ class _ChoiceCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: XinYuShapes.cardCorners,
+          borderRadius: XinYuLayout.corners,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 160),
-            padding: const EdgeInsets.all(13),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              borderRadius: XinYuShapes.cardCorners,
+              borderRadius: XinYuLayout.corners,
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -1338,13 +1206,13 @@ class _SettingsToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SwitchListTile.adaptive(
     contentPadding: EdgeInsets.zero,
-    title: Text(title, style: const TextStyle(fontSize: 13, height: 1.5)),
+    title: Text(title, style: const TextStyle(fontSize: 16, height: 1.5)),
     subtitle: Padding(
       padding: const EdgeInsets.only(top: 5),
       child: Text(
         subtitle,
         style: const TextStyle(
-          fontSize: 11,
+          fontSize: 14,
           height: 1.6,
           color: XinYuColors.muted,
         ),

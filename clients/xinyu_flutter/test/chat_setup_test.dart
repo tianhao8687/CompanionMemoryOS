@@ -1,3 +1,5 @@
+import 'settings_navigation.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -156,10 +158,11 @@ void main() {
       expect(find.byType(SettingsSheet), findsNothing);
       await tester.tap(find.byKey(const Key('problem-settings')));
       await tester.pumpAndSettle();
+      await settingsGroup(tester, '回复方式');
       expect(find.byType(SettingsSheet), findsOneWidget);
       expect(find.text('回复方式'), findsOneWidget);
       expect(find.widgetWithText(TextFormField, 'API Key'), findsOneWidget);
-      await tester.tap(find.byTooltip('关闭设置'));
+      await closeSettings(tester);
       await tester.pumpAndSettle();
       expect(input(tester), '这条话先保留');
       expect(c.pendingQuote!.id, quote);
@@ -210,6 +213,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('problem-settings')));
       await tester.pumpAndSettle();
+      await settingsGroup(tester, '回复方式');
       final keyField = find.widgetWithText(TextFormField, 'API Key');
       await tester.ensureVisible(keyField);
       await tester.enterText(keyField, 'synthetic-test-value-not-a-credential');
@@ -244,7 +248,7 @@ void main() {
       await tester.pumpWidget(XinYuApp(controller: c));
       await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('message-input')), '离线聊一聊');
-      await tester.tap(find.byKey(const Key('attach-image')));
+      await composeAction(tester, 'attach-image');
       await tester.pumpAndSettle();
       expect(find.text('当前回复方式不能识图'), findsOneWidget);
       expect(find.byType(SettingsSheet), findsNothing);
@@ -296,6 +300,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('open-settings')));
       await tester.pumpAndSettle();
+      await settingsSection(tester, '陪伴');
+      await settingsGroup(tester, '彼此的称呼');
       final name = find.widgetWithText(TextFormField, '怎么称呼 TA');
       await tester.enterText(name, '未保存的称呼');
       repo.failSave = true;

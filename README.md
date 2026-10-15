@@ -9,7 +9,7 @@
 聊天、角色设置和记忆保存在当前设备的 SQLite 数据库中，Windows 与手机各自使用、各自保存。
 连接在线模型时，对话请求会发送到用户配置的服务商；默认离线模式用于功能演示，不包含本地大语言模型。
 
-[客户端使用与构建](clients/xinyu_flutter/README.md) · [公开测试版](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.11) · [交付状态](docs/LOCAL_APP_DELIVERY.md) · [网页使用说明](docs/ROMANCE_AGENT.md) · [记忆引擎接入](docs/INTEGRATION_0.7.5.md)
+[下载当前版本 0.2.17](https://github.com/tianhao8687/CompanionMemoryOS/releases/latest) · [客户端使用与构建](clients/xinyu_flutter/README.md) · [本版交付与验证](docs/XINYU_0217_DELIVERY.md) · [网页使用说明](docs/ROMANCE_AGENT.md) · [记忆引擎接入](docs/INTEGRATION_0.7.5.md)
 
 ## 心隅能做什么
 
@@ -17,32 +17,44 @@
 - **自定义相处方式**：角色名字、头像、资料、性格和说话偏好；支持独立备注名与私人备注。
 - **延续记忆**：在授权范围内保存偏好、经历、关系和短期状态，支持查看来源、更正、遗忘和清理。
 - **记忆手账**：保存共同回忆、照片、纪念日与约定；Android 可按授权和免打扰设置主动通知。
-- **回忆小窝（最新源码）**：温馨斜俯视像素房间，支持区域放大和物品近看。AI 自主挑选回忆、绘制 32×32 原创像素物件并布置小屋；可查看来源、收纳和回看历史。创作需开启并使用在线模型，实际 AI 画作质量仍待验收；见 [实现与验证记录](docs/MEMORY_NOOK_V1.md)。
-- **简洁的玻璃界面**：暖白底色、双方消息颜色区分、统一工具按钮；桌面双栏、手机单列，聊天与设置使用同一套组件。
-- **可控的数据与阅读体验**：备份恢复、系统安全 Key 存储、应用字号和系统无障碍缩放；最新源码内置 Noto Sans SC，统一两端字体。
+- **一起听歌**：连接网易云音乐，显示唱片、歌曲与滚动歌词；播放时唱片旋转，暂停时停住。桌面侧边聊天、手机适配键盘，支持安静陪伴和有节制的主动发言。
+- **一句歌词点歌**：明确要求找歌或播放时，通过现有 MCP 工具搜索并核对歌词；多个版本显示歌曲卡片，由用户选择。播放交给本机网易云，继续遵守工具权限与客户端播放权限。
+- **让歌曲连接回忆**：陪听中明确分享的个人感受、往事与当时的歌曲关联，进入现有共同经历记忆；支持以后召回、更正、遗忘与来源限制。仅播放或引用歌词不会自动变成个人经历。
+- **陪我专注**：独立陪伴页、计时、休息与轻互动；用户主动写下的进展进入记忆，计时本身不推断任务完成。
+- **回忆小窝**：温馨斜俯视像素房间，支持区域放大和物品近看。AI 自主挑选回忆、绘制 32×32 原创像素物件并布置小屋；可查看来源、收纳和回看历史。创作需开启并使用在线模型，实际 AI 画作质量仍待验收；见 [实现与验证记录](docs/MEMORY_NOOK_V1.md)。
+- **统一的界面与数据管理**：整理设置和应用连接入口，统一 Noto Sans SC 字体、字号、字重与间距；支持系统无障碍缩放、备份恢复和系统安全 Key 存储。
 
 客户端复用同一套 Python 记忆逻辑，SQLite 记录及证据、版本链是事实来源。
 Windows 随包附带引擎进程，Android 使用嵌入式运行时，无需手机依赖电脑运行，也不要求自行租用服务器。
 
 ## 下载与当前进展
 
-截至 2026-10-06，源码、安装包和公开测试版的状态如下：
+当前主版本为 **0.2.17（build 20）**，发布于 2026-10-15。源码以 `main` 为准。
 
 | 内容 | 状态与入口 |
 | --- | --- |
-| 公开测试版 0.2.11 | [下载 Windows 安装版 / 免安装版和 Android APK](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.11)。包含回忆小窝、新 Logo、统一字体、情感浓度及记忆修复；Windows 引擎检查通过，Android 运行验收未通过，见 [0.2.11 交付记录](docs/XINYU_0211_DELIVERY.md) |
-| 0.2.10 安装包 | Windows 安装版 / 免安装版和 Android APK 已手动构建并保存本地；尚未发布新 Release，且不包含 9 月 30 日的字体调整及 10 月 2 日的新 Logo；见 [成品与验收记录](docs/XINYU_0210_DELIVERY.md) |
-| 历史测试版 0.2.9 | [历史安装文件](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.9) 保留；界面与字体早于最新源码 |
+| Windows 免安装包 | [下载 0.2.17 ZIP](https://github.com/tianhao8687/CompanionMemoryOS/releases/download/xinyu-v0.2.17/XinYu-Windows-0.2.17-Music.zip)，完整解压后运行 `XinYu/xinyu_flutter.exe`，无需自行安装 Python |
+| Android 测试 APK | [下载 0.2.17 Preview APK](https://github.com/tianhao8687/CompanionMemoryOS/releases/download/xinyu-v0.2.17/XinYu-Android-0.2.17-Preview.apk)，Android 7.0+ / ARM64；应用名「心隅·测试」，与旧公开版独立安装、独立保存数据 |
+| 发布说明与校验 | [当前 Release](https://github.com/tianhao8687/CompanionMemoryOS/releases/latest) 提供安装说明、SHA-256 和交付清单；功能范围与验收结果见 [0.2.17 记录](docs/XINYU_0217_DELIVERY.md) |
 
-安装包仅手动构建，推送代码只运行常规源码 CI。聊天口吻的最新修改仍未通过真实语言验收，
-已撤回先前对部分情侣对话样本的接受结论；具体限制见 [口吻修复记录](docs/CHAT_VOICE_REPAIR_20261006.md)。
+本版是公开测试版本。Python 全量 1,628 项通过、1 项跳过，最终文字边界专项 50 项通过；
+真实应用后端与 Windows 随包引擎检查通过。Android 包结构、签名和对齐通过，手机实测仍待进行；
+歌词点歌与记忆的真实模型表达尚未验收。AI 使用歌曲信息、歌词与用户分享，没有接收歌曲音频。
+
+旧 Release 和安装附件由本版替代，Git 提交历史及历史验证记录保留。安装包仅手动构建，
+推送代码只运行常规源码 CI。此前聊天口吻的验收限制见 [口吻修复记录](docs/CHAT_VOICE_REPAIR_20261006.md)。
 
 ## 开始使用
 
 **Windows / Android**：下载安装文件，打开应用后在“设置”中填写角色与相处方式。
-使用在线模型需在“连接与数据”配置 API 地址、模型名称和 Key，并确认聊天处理及保存选项。
+使用在线模型需在设置的连接选项中配置 API 地址、模型名称和 Key，并确认聊天处理及保存选项。
 Key 默认仅供本次运行使用，也可选择 Windows 凭据管理器或 Android Keystore 保存。
 安装、备份与开发构建步骤见 [客户端说明](clients/xinyu_flutter/README.md)。
+
+**网易云与一起听**：在「设置 → 连接」连接本机网易云。Windows 先开启网易云的 SMTC 系统媒体控制；
+Android 按引导授予通知使用权，再在网易云播放一首歌。进入「一起听」即可查看歌曲与歌词、边听边聊。
+Windows 自动同步兼容已验证的网易云 3.1.41 本地进度格式；其他版本及拖动进度能力以实际状态为准。
+详见 [网易云连接](docs/NETEASE_MUSIC_MCP.md)、[歌词点歌](docs/LYRIC_SONG_REQUESTS.md) 和 [陪听记忆](docs/LISTENING_MEMORY.md)。
 
 **本机网页界面**：使用 Python 3.12+ 在源码目录运行：
 
@@ -66,6 +78,10 @@ Key 不写入数据库或浏览器存储。默认仅在本次运行中使用；W
 这些外部能力不由本地客户端自动启动；真实账号、设备及模型需按各自授权和环境单独验证。
 用法见 [心隅使用说明](docs/ROMANCE_AGENT.md)、[功能说明](docs/FUNCTIONAL_COMPANION.md)
 及 [工具接入说明](docs/AGENT_TOOLS.md)。
+
+聊天里的「陪我专注」进入独立全屏陪伴页，复用当前头像；与聊天共用一段计时，支持暂停、休息、延长和结束。
+轻碰头像可得到回应，选一个小步骤后可主动告诉 TA「做好了」；「一起缓缓」和「我卡住了」会先暂停计时，再一起休息或与当前角色商量。[互动说明与验证](docs/FOCUS_INTERACTION.md)。
+仅用户主动写下的进展进入记忆手札；计时不推断任务完成。见 [陪伴专注接入](docs/FOCUS_CURRENT_UI.md)。
 
 ## 开发与验证入口
 

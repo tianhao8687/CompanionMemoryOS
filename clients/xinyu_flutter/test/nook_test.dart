@@ -190,7 +190,13 @@ void main() {
         await tester.ensureVisible(find.text('桌面'));
         await tester.tap(find.text('桌面'));
         await tester.pumpAndSettle();
-        expect(find.text('靠近看看 · 桌面'), findsOneWidget);
+        expect(
+          tester
+              .widget<Semantics>(find.byKey(const ValueKey('nook-zone-desk')))
+              .properties
+              .selected,
+          isTrue,
+        );
         await tester.ensureVisible(canvas);
         final bounds = tester.getRect(canvas);
         await tester.tapAt(
@@ -213,8 +219,16 @@ void main() {
         await tester.ensureVisible(find.text('回到小窝'));
         await tester.tap(find.text('回到小窝'));
         await tester.pumpAndSettle();
-        expect(find.text('整个小窝'), findsOneWidget);
         expect(find.text('看看创作来源'), findsNothing);
+        await tester.tap(find.byTooltip('小窝设置'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(SwitchListTile));
+        await tester.pumpAndSettle();
+        expect(repository.enabled, isFalse);
+        await tester.tap(find.byTooltip('回到小窝'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('回忆与收纳'));
+        await tester.pumpAndSettle();
         await tester.ensureVisible(find.text('咖啡小火箭'));
         await tester.tap(find.text('咖啡小火箭'));
         await tester.pumpAndSettle();

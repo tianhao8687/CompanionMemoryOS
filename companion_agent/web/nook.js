@@ -5,7 +5,7 @@
   const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   let room = null, selected = null, timer = null, generation = 0, at = null;
   let layout = null, background = null, scenePromise = null, view = "all";
-  let camera = [0, 0, 1000], frame = null;
+  let camera = [0, 0, 1000], frame = null, focusing = false;
   const spriteCache = new WeakMap();
 
   function sprite(target, art) {
@@ -47,6 +47,13 @@
     ctx.save(); ctx.scale(canvas.width / camera[2], canvas.height / camera[2]);
     ctx.translate(-camera[0], -camera[1]);
     ctx.drawImage(background, 0, 0, layout.side, layout.side);
+    if (focusing && !at) {
+      ctx.fillStyle = "#ffd26b28"; ctx.beginPath(); ctx.arc(290, 518, 58, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#79604b"; ctx.fillRect(285, 477, 6, 45); ctx.fillRect(274, 520, 29, 5);
+      ctx.fillStyle = "#e7b866"; ctx.fillRect(269, 474, 38, 14); ctx.fillRect(276, 468, 24, 6);
+      ctx.fillStyle = "#ffe9a9"; ctx.fillRect(213, 557, 26, 17);
+      ctx.fillStyle = "#a89366"; ctx.fillRect(217, 562, 17, 2);
+    }
     for (const item of displayedItems()) {
       const box = objectRect(item);
       if (item.zone !== "wall") {
@@ -64,6 +71,7 @@
   function focusZone(zone, animate = true) {
     if (!layout) return;
     view = zone; canvas.dataset.view = zone;
+    $("nook-desk-focus").hidden = zone !== "desk" || !!at;
     $("nook-view-label").textContent = zone === "all" ? "整个小窝" : `靠近看看 · ${layout.zones[zone].label}`;
     $("nook-overview").hidden = zone === "all";
     for (const button of $("nook-zones").children) button.setAttribute("aria-pressed", String(button.dataset.zone === zone));
@@ -176,7 +184,10 @@
     const current = ++generation;
     const value = await api("/api/nook" + (at ? "?at=" + encodeURIComponent(at) : ""));
     if (current !== generation || !dialog.open) return;
-    room = value; if (!room.items.some(o => o.id === selected)) selected = null;
+    room = value;
+    dialog.dataset.historical = String(!!at);
+    $("nook-desk-focus").hidden = view !== "desk" || !!at;
+    if (!room.items.some(o => o.id === selected)) selected = null;
     $("nook-enabled").checked = room.enabled; $("nook-limit").value = String(room.daily_limit);
     if (!$("nook-limit").value) { const option = element("option", "", String(room.daily_limit)); $("nook-limit").append(option); $("nook-limit").value = String(room.daily_limit); }
     $("nook-status").textContent = room.message; $("nook-create").disabled = room.busy || !room.enabled || !!at;
@@ -189,10 +200,11 @@
   }
   function showError(error) { $("nook-status").textContent = error.message; }
   function openRoom() {
-    dialog.showModal(); at = null; selected = null; view = "all"; camera = [0, 0, 1000];
+    if (!dialog.open) dialog.showModal(); at = null; selected = null; view = "all"; camera = [0, 0, 1000];
     focusZone("all", false); scene(); ensureScene().catch(showError); load().catch(showError);
   }
-  $("open-nook").addEventListener("click", openRoom);
+  $("open-nook").addEventListener("click", () => { openRoom(); window.focusController?.refresh(); });
+  window.nookController = {open: openRoom, setFocus(value) { if (focusing !== value) { focusing = value; scene(); } }};
   dialog.addEventListener("close", () => { clearTimeout(timer); cancelAnimationFrame(frame); generation++; });
   $("nook-refresh").addEventListener("click", () => { ensureScene().catch(showError); load().catch(showError); });
   $("nook-overview").addEventListener("click", () => focusZone("all"));

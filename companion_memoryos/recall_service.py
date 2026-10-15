@@ -117,7 +117,11 @@ def recall(self: CompanionMemoryService, request: RecallRequest) -> CompanionCon
         reality_layer=request.state_reality_layer,
     )
     has_cues = self._has_retrieval_cues(request, temporal_hint)
-    items = [self._recall_item(candidate, request, temporal_hint) for candidate in pool]
+    items = [
+        self._recall_item(candidate, request, temporal_hint)
+        for candidate in pool
+        if self._memory_sources_allowed(candidate.memory, request)
+    ]
     items = [
         item
         for item in items

@@ -22,6 +22,7 @@ from typing import Any, BinaryIO
 import uvicorn
 
 from companion_agent.app import create_app
+from companion_agent.automation.mcp_client import MCPClient
 from companion_agent.credentials import CredentialStore
 
 
@@ -53,7 +54,13 @@ class InstanceLease:
 
 
 class LocalRuntime:
-    def __init__(self, directory: Path, *, credentials: CredentialStore | None = None) -> None:
+    def __init__(
+        self,
+        directory: Path,
+        *,
+        credentials: CredentialStore | None = None,
+        native_music: MCPClient | None = None,
+    ) -> None:
         self.directory = directory.expanduser().resolve()
         self.lease = InstanceLease(self.directory)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -72,6 +79,8 @@ class LocalRuntime:
                 client_token=self.token,
                 credentials=credentials,
                 background_services=False,
+                interactive_tools=sys.platform == "win32" or native_music is not None,
+                native_music=native_music,
             )
             self.server = uvicorn.Server(
                 uvicorn.Config(
@@ -133,11 +142,14 @@ def start_embedded(directory: str, android_context: Any = None) -> str:
     with _embedded_lock:
         if _embedded is None:
             credentials = None
+            music = None
             if android_context is not None:
                 from companion_agent.android_credentials import AndroidCredentialStore
+                from companion_agent.integrations.netease_android import android_client
 
                 credentials = AndroidCredentialStore(Path(directory), android_context)
-            runtime = LocalRuntime(Path(directory), credentials=credentials)
+                music = android_client(android_context)
+            runtime = LocalRuntime(Path(directory), credentials=credentials, native_music=music)
             try:
                 result = runtime.start()
             except BaseException:
@@ -190,8 +202,20 @@ def embedded_notifications_delivered(identifiers_json: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="心隅本地应用引擎")
-    parser.add_argument("--data-dir", required=True, type=Path)
+    parser.add_argument("--data-dir", type=Path)
+    parser.add_argument("--mcp-server", choices=["netease"])
     args = parser.parse_args()
+    if args.mcp_server:
+        if sys.platform != "win32":
+            parser.error("当前平台尚不支持网易云音乐连接。")
+        if args.data_dir is not None:
+            parser.error("MCP 服务不使用应用数据目录。")
+        from companion_agent.integrations.netease import main as netease_main
+
+        netease_main([])
+        return
+    if args.data_dir is None:
+        parser.error("应用引擎需要 --data-dir。")
     runtime: LocalRuntime | None = None
     try:
         runtime = LocalRuntime(args.data_dir)

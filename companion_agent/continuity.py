@@ -175,6 +175,8 @@ class Continuity:
         ) or not host.lock.acquire(blocking=False):
             return
         try:
+            if host.focus.quiet():
+                return
             self._tick(now or datetime.now(UTC))
         finally:
             host.lock.release()

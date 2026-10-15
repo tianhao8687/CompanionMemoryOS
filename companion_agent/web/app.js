@@ -126,6 +126,7 @@ function renderMessages(scroll = true) {
     if (message.role === "user" && !replies.has(message.id) && message === state.messages.at(-1) && !state.busy) {
       body.append(element("div", "pending-note", "等待回复 · 可以重试这条消息"));
     }
+    if (message.focus_proposal && window.focusController) window.focusController.card(body, message);
     row.append(body);
     $("messages").append(row);
   }
@@ -207,6 +208,7 @@ async function sendMessage(retry = false) {
     state.messages = state.messages.filter((message) => message.request_id !== item.request_id && message.id !== result.assistant.id);
     state.messages.push(result.user, result.assistant);
     state.failed = null;
+    window.focusController?.refresh();
     renderMessages();
     await refreshConversations().catch(() => {});
   } catch (error) {

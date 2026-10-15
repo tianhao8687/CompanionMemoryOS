@@ -13,6 +13,17 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "xinyu/music")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "openPermissionSettings") {
+                    try {
+                        MusicBridge.openPermissionSettings(this)
+                        result.success(null)
+                    } catch (_: Exception) {
+                        result.error("music_permission", "无法打开系统通知使用权设置。", null)
+                    }
+                } else result.notImplemented()
+            }
         notifications = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "xinyu/notifications").also { channel ->
             channel.setMethodCallHandler { call, result ->
                 if (call.method == "openedConversation") {
@@ -76,8 +87,14 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onPause() {
+        MusicBridge.paused(this)
         ChatNotifications.visibleConversation = null
         super.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        MusicBridge.resumed(this)
     }
 
     override fun onNewIntent(intent: Intent) {

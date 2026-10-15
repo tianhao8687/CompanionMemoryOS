@@ -1,3 +1,5 @@
+import 'music_controller.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -5,6 +7,8 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'focus_controller.dart';
+import 'automation_controller.dart';
 import '../data/demo_repository.dart';
 import '../data/image_import.dart';
 import '../data/local_repository.dart';
@@ -12,11 +16,14 @@ import '../data/managed_repository.dart';
 import '../data/models.dart';
 import '../data/chat_notifications.dart';
 import '../data/user_problem.dart';
+import '../data/focus_interaction.dart';
+
+part 'focus_interactions.dart';
 
 enum ChatSetupIssue {
-  connection('本机引擎尚未连接', '请在连接与数据中重新连接，再发送消息。'),
+  connection('本机引擎尚未连接', '请在设置的“连接”中重新连接，再发送消息。'),
   apiKey('还没有配置 API Key', '当前使用联网模型，请填写 API Key 后再发送。也可以选择离线规则演示体验聊天流程。'),
-  consent('还需要确认聊天选项', '请在连接与数据中确认“允许保存对话与记忆”和“允许所选回复方式处理消息”。'),
+  consent('还需要确认聊天选项', '请在设置的“隐私与数据”中确认保存与消息处理选项。'),
   vision('当前回复方式不能识图', '请启用支持图片的联网模型，或移除图片后发送文字。');
 
   const ChatSetupIssue(this.title, this.message);
@@ -25,14 +32,29 @@ enum ChatSetupIssue {
 
 class CompanionController extends ChangeNotifier {
   CompanionController({CompanionRepository? repository})
-    : _repository = repository ?? DemoRepository();
+    : _repository = repository ?? DemoRepository() {
+    automation.addListener(_emit);
+    music.addListener(_emit);
+  }
   CompanionRepository _repository;
+  late final focus = FocusController(() => localConnection, () => active);
+  late final automation = AutomationController(
+    () => localConnection,
+    onActionComplete: _refreshAfterAppAction,
+  );
+  late final music = MusicController(
+    () => localConnection,
+    () => active,
+    composing: () => composerText.isNotEmpty || sending || collecting,
+    onMessage: _refreshAfterAppAction,
+  );
   List<Conversation> conversations = [];
   List<ChatLine> messages = [];
   Map<String, dynamic> settings = {};
   Map<String, dynamic> capabilities = {};
   bool connected = false;
   String? _activeRequest;
+  (String request, int ticket, String conversation)? _focusReply;
   String? active;
   bool loading = false, sending = false, hasMore = false;
   int? _before;
@@ -99,6 +121,7 @@ class CompanionController extends ChangeNotifier {
 
   void updateComposer(String value) {
     composerText = value;
+    music.updateComposing();
     if (collecting && _collected.length + value.length + 2 > 6000) {
       // Send the already accepted group; keep the new text intact as its own draft.
       unawaited(sendCollected());
@@ -380,6 +403,8 @@ class CompanionController extends ChangeNotifier {
   }
 
   void setForeground(bool value) {
+    focus.setForeground(value);
+    music.setForeground(value);
     _foreground = value;
     if (!value) unawaited(flushChatState());
     if (!hasChatFeatures) return;
@@ -438,6 +463,9 @@ class CompanionController extends ChangeNotifier {
   }
 
   Future<void> refreshUpdates() async {
+    if (!_disposed && _foreground && !busy) {
+      unawaited(automation.refresh(silent: true));
+    }
     if (!hasChatFeatures || _disposed || !_foreground || busy || _polling) {
       return;
     }
@@ -568,7 +596,7 @@ class CompanionController extends ChangeNotifier {
   Timer? _paintTimer;
   bool _disposed = false;
   bool get isDemo => _repository.isDemo;
-  bool get busy => loading || sending || collecting;
+  bool get busy => loading || sending || collecting || automation.busy;
   bool get canRetry => _failed != null && !busy;
   String get companionName => settings['companion_name'] as String? ?? '小禾';
   String get companionDisplayName {
@@ -652,8 +680,11 @@ class CompanionController extends ChangeNotifier {
       settings = snapshot.settings;
       capabilities = snapshot.capabilities;
       connected = true;
+      automation.reset();
+      music.reset();
       conversations = snapshot.conversations;
       active = selected?.id;
+      focus.connect(capabilities['focus_features'] == true);
       messages = page.messages;
       hasMore = page.hasMore;
       _before = page.before;
@@ -697,6 +728,29 @@ class CompanionController extends ChangeNotifier {
   Future<void> cancel() async {
     final request = _activeRequest;
     if (request != null) await localConnection?.cancel(request);
+  }
+
+  Future<void> _refreshAfterAppAction() async {
+    final id = active;
+    final repository = _repository;
+    if (_disposed || id == null || sending || loading) return;
+    final page = await repository.messages(id);
+    if (_disposed || active != id || _repository != repository || sending) {
+      return;
+    }
+    final first = page.messages.firstOrNull?.sequence ?? 0;
+    messages = [
+      ...messages.where(
+        (message) => message.sequence < first || message.sequence == 0,
+      ),
+      ...page.messages,
+    ];
+    if (_before == null) {
+      _before = page.before;
+      hasMore = page.hasMore;
+    }
+    await _markVisible();
+    _emit();
   }
 
   Future<bool> backup() async {
@@ -746,12 +800,15 @@ class CompanionController extends ChangeNotifier {
   Future<void> select(String id) async {
     if (busy || id == active) return;
     await flushChatState();
+    if (music.active) await music.act('end');
+    music.reset();
     loading = true;
     error = null;
     _emit();
     try {
       final page = await _repository.messages(id);
       active = id;
+      focus.presence.clearReply();
       messages = page.messages;
       hasMore = page.hasMore;
       _before = page.before;
@@ -770,6 +827,8 @@ class CompanionController extends ChangeNotifier {
   Future<void> newConversation({bool keepImages = false}) async {
     if (busy) return;
     await flushChatState();
+    if (music.active) await music.act('end');
+    music.reset();
     loading = true;
     error = null;
     _emit();
@@ -777,6 +836,7 @@ class CompanionController extends ChangeNotifier {
       final item = await _repository.createConversation();
       conversations = [item, ...conversations];
       active = item.id;
+      focus.presence.clearReply();
       messages = [];
       hasMore = false;
       _before = null;
@@ -856,10 +916,16 @@ class CompanionController extends ChangeNotifier {
     }
   }
 
-  Future<void> send(String text, {bool followLatest = true}) async {
+  Future<void> send(
+    String text, {
+    bool followLatest = true,
+    bool useComposerAttachments = true,
+    int? focusTicket,
+  }) async {
     final content = text.trim();
-    if (busy || (content.isEmpty && pendingImages.isEmpty)) return;
-    if (!checkChatSetup(withImages: pendingImages.isNotEmpty)) return;
+    final hasImages = useComposerAttachments && pendingImages.isNotEmpty;
+    if (busy || (content.isEmpty && !hasImages)) return;
+    if (!checkChatSetup(withImages: hasImages)) return;
     if (content.length > 6000) {
       error = '每条消息最多 6000 字。';
       _emit();
@@ -867,15 +933,20 @@ class CompanionController extends ChangeNotifier {
     }
     if (active == null) await newConversation(keepImages: true);
     if (active == null || _disposed) return;
-    final images = List<String>.of(pendingImages);
-    final quoted = pendingQuote;
-    pendingQuote = null;
-    pendingImages.clear();
-    _rememberComposer();
+    final images = useComposerAttachments
+        ? List<String>.of(pendingImages)
+        : <String>[];
+    final quoted = useComposerAttachments ? pendingQuote : null;
+    if (useComposerAttachments) {
+      pendingQuote = null;
+      pendingImages.clear();
+      _rememberComposer();
+    }
     if (followLatest) outgoingRevision++;
     final random = Random.secure();
     final request =
         '${DateTime.now().microsecondsSinceEpoch}-${List.generate(8, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0')).join()}';
+    if (focusTicket != null) _focusReply = (request, focusTicket, active!);
     messages = [
       ...messages,
       ChatLine(
@@ -910,6 +981,10 @@ class CompanionController extends ChangeNotifier {
     draft = '';
     status = '正在认真听';
     _failed = null;
+    final focusReply = _focusReply;
+    if (focusReply?.$1 == request && focusReply?.$3 == active) {
+      focus.presence.retryReply(focusReply!.$2);
+    }
     _emit();
     var completed = false;
     try {
@@ -943,6 +1018,7 @@ class CompanionController extends ChangeNotifier {
             final assistant = ChatLine.fromJson(
               Map<String, dynamic>.from(result['assistant'] as Map),
             );
+            _receiveFocusReply(request, text: assistant.text);
             messages = [
               ...messages.where(
                 (m) =>
@@ -968,15 +1044,21 @@ class CompanionController extends ChangeNotifier {
             draft = '';
         }
       }
+      if (!completed && !_disposed) {
+        throw const CompanionException('回复未完整返回，请重试。');
+      }
     } catch (e) {
       if (!completed) {
         error = _error(e);
         _failed = (text, request, images, quote);
+        _receiveFocusReply(request, failure: error);
       }
     } finally {
       _paintTimer?.cancel();
       _paintTimer = null;
       sending = false;
+      unawaited(focus.refresh());
+      unawaited(automation.refresh(silent: true));
       _activeRequest = null;
       draft = '';
       _emit();
@@ -999,6 +1081,11 @@ class CompanionController extends ChangeNotifier {
     _updateTimer?.cancel();
     _collectTimer?.cancel();
     _stateTimer?.cancel();
+    focus.dispose();
+    automation.removeListener(_emit);
+    automation.dispose();
+    music.removeListener(_emit);
+    music.dispose();
     notifications.dispose();
     problem.dispose();
     unawaited(flushChatState().whenComplete(_repository.close));

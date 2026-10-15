@@ -70,11 +70,20 @@ def smoke(instance: ManagedInstance, *, channel: str | None = None) -> dict[str,
             page.reload()
             settings = client.request("GET", "/api/bootstrap")["settings"]
             assert settings["emotional_intensity"] == "intense"
+            # Reload may finish before bootstrap/message loading; the real button
+            # intentionally ignores clicks while state.loading is true.
+            page.wait_for_function(
+                "() => Boolean(state.config && state.active && !state.loading && !state.busy)"
+            )
             with page.expect_response(
                 lambda r: r.url.endswith("/api/conversations") and r.request.method == "POST"
             ) as created:
                 page.locator("#new-chat").click()
             conversation = created.value.json()["id"]
+            page.wait_for_function(
+                "id => state.active === id && !state.loading && !state.busy",
+                arg=conversation,
+            )
             utterance = "以后不要分析我的情绪。"
             page.locator("#message-input").fill(utterance)
             with page.expect_response(lambda r: r.url.endswith("/api/chat/stream")) as completed:

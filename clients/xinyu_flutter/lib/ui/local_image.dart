@@ -53,10 +53,15 @@ class ProfileAvatar extends StatelessWidget {
     required this.controller,
     this.isUser = false,
     this.size = 32,
+    this.fallbackColor,
+    this.foregroundColor,
+    this.shape = BoxShape.rectangle,
   });
   final CompanionController controller;
   final bool isUser;
   final double size;
+  final Color? fallbackColor, foregroundColor;
+  final BoxShape shape;
   @override
   Widget build(BuildContext context) {
     final id =
@@ -66,25 +71,34 @@ class ProfileAvatar extends StatelessWidget {
     final fallback = CompanionAvatar(
       size: size,
       label: name.isEmpty ? '我' : name.characters.last,
+      backgroundColor: fallbackColor,
+      foregroundColor: foregroundColor,
+      shape: shape,
     );
     if (id == null) return fallback;
+    final image = LocalImage(
+      controller: controller,
+      id: id,
+      width: size,
+      height: size,
+      fallback: fallback,
+    );
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(size * .27),
+        shape: shape,
+        borderRadius: shape == BoxShape.rectangle
+            ? BorderRadius.circular(size * .27)
+            : null,
         border: Border.all(color: const Color(0x80ffffff), width: .7),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(size * .27),
-        child: LocalImage(
-          controller: controller,
-          id: id,
-          width: size,
-          height: size,
-          fallback: fallback,
-        ),
-      ),
+      child: shape == BoxShape.circle
+          ? ClipOval(child: image)
+          : ClipRRect(
+              borderRadius: BorderRadius.circular(size * .27),
+              child: image,
+            ),
     );
   }
 }

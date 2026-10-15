@@ -211,6 +211,7 @@ class Embeddings:
 class ApplicationMemory(CompanionMemoryService):
     on_user_turn: Callable[[ConversationTurnRecord], None] | None = None
     on_memory_changed: Callable[[], None] | None = None
+    listening_context: Callable[[ConversationTurnRecord], dict[str, str] | None] | None = None
 
     def configure(
         self,
@@ -280,6 +281,15 @@ class ApplicationMemory(CompanionMemoryService):
                     target = forget_target(direct)
                     if target is not None:
                         actions["forgotten"] = self._forget_from_chat(turn, target)
+                    listening_saved = False
+                    if target is None and self.learning.extract_memory and self.listening_context:
+                        from companion_agent.music_memory import remember_listening
+
+                        track = self.listening_context(turn)
+                        if track:
+                            listening_saved = remember_listening(self, turn, track)
+                            if listening_saved:
+                                actions["learned"] = actions.get("learned", 0) + 1
                     learned = (
                         literal_memories(direct)
                         if self.learning.extract_memory
@@ -287,6 +297,11 @@ class ApplicationMemory(CompanionMemoryService):
                         and target is None
                         else []
                     )
+                    from companion_agent.music_memory import MUSIC_REFERENCE
+
+                    # An unresolved "this song" must not become a durable profile,
+                    # including when its observation was stale or recording declined.
+                    learned = [fact for fact in learned if not MUSIC_REFERENCE.search(fact.content)]
                     note = memory_note(direct)
                     # A structured preference already retains the full assertion. Avoid
                     # a second free-text copy that could keep a superseded value alive.
@@ -294,6 +309,7 @@ class ApplicationMemory(CompanionMemoryService):
                     if (
                         target is None
                         and not preference_note
+                        and not listening_saved
                         and remember_directive(self, turn, request.calendar_timezone)
                     ):
                         actions["learned"] = actions.get("learned", 0) + 1
@@ -373,7 +389,11 @@ class ApplicationMemory(CompanionMemoryService):
                         adopted = self._adopt_model_candidates(turn, direct)
                         if adopted:
                             actions["learned"] = actions.get("learned", 0) + adopted
-                        if turn.sensitivity is Sensitivity.NORMAL and shared_material(turn.content):
+                        if (
+                            not listening_saved
+                            and turn.sensitivity is Sensitivity.NORMAL
+                            and shared_material(turn.content)
+                        ):
                             decision = self.remember(
                                 MemoryInput(
                                     user_id=turn.user_id,
@@ -438,6 +458,15 @@ class ApplicationMemory(CompanionMemoryService):
         from companion_agent.recall_focus import contextual_query
 
         query, anchors = contextual_query(self, request, result, recall)
+        if request.recall_request is None and self.listening_context:
+            from companion_agent.music_memory import MUSIC_REFERENCE
+            from companion_memoryos.discourse import direct_clauses
+
+            track = self.listening_context(turn)
+            if track and any(MUSIC_REFERENCE.search(c) for c in direct_clauses(request.content)):
+                # Resolve "this song" with the same captured player observation.
+                # Keep the utterance untouched and use ordinary scoped retrieval.
+                query = f"一起听《{track['title']}》 {track['artist']} {query}"[:4000]
         recall = recall.model_copy(update={"query": query})
         record_diagnostic(
             "retrieval_query",
@@ -481,6 +510,23 @@ class ApplicationMemory(CompanionMemoryService):
         worker = getattr(self, "index_worker", None)
         if worker is not None:
             worker.close()
+
+    def _memory_sources_allowed(self, record: MemoryRecord, request: RecallRequest) -> bool:
+        if not record.metadata.get("shared_listening"):
+            return super()._memory_sources_allowed(record, request)
+        if not request.scope.companion_id or not request.scope.relationship_id:
+            return False
+        try:
+            sources = [self.store.get_turn(i, request.user_id) for i in record.evidence_turn_ids]
+        except KeyError:
+            return False
+        key = RelationshipKey(
+            user_id=request.user_id,
+            companion_id=request.scope.companion_id,
+            relationship_id=request.scope.relationship_id,
+        )
+        allowed = filter_recent_turns(self, key, sources, MemoryUsePlan(), request.as_of)
+        return bool(sources) and len(allowed) == len(sources)
 
     def _schedule_index(self, user_id: str, scope: MemoryScope, as_of: datetime) -> None:
         from companion_agent.embedding_backfill import EmbeddingBackfill
@@ -709,6 +755,10 @@ class ApplicationMemory(CompanionMemoryService):
         for record in self.store.list_memories(
             turn.user_id, {MemoryStatus.CANDIDATE}, scope=turn.scope
         ):
+            from companion_agent.music_memory import MUSIC_REFERENCE
+
+            if record.kind is MemoryKind.PREFERENCE and MUSIC_REFERENCE.search(record.content):
+                continue
             # The local projection already owns temporary communication requests.
             # Another classification must not turn a pause into a lasting rule.
             if any(
@@ -792,7 +842,11 @@ class ApplicationMemory(CompanionMemoryService):
             targets = [r for r in records if previous and previous[0].id in r.evidence_turn_ids]
         else:
             targets = [
-                r for r in records if matches(r.content) or target == r.metadata.get("subject")
+                r
+                for r in records
+                if matches(r.content)
+                or target == r.metadata.get("subject")
+                or (r.metadata.get("shared_listening") and matches(r.title))
             ]
         for record in targets:
             self.forget(record.id, turn.user_id)

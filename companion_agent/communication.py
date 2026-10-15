@@ -114,6 +114,19 @@ def communication_preferences(text: str) -> list[CommunicationPreference]:
             else inherited_lifetime
         )
         body = PREFIX.sub("", clause)
+        focus_setting: tuple[str, str] | None = None
+        if re.fullmatch(r"专注(?:的?时候|时)?(?:别|不要|不)(?:放|播放)(?:音乐|声音|雨声)", body):
+            focus_setting = ("focus_sound", "silent")
+        elif re.fullmatch(r"专注(?:的?时候|时)?(?:放|播放)(?:一点)?雨声", body):
+            focus_setting = ("focus_sound", "rain")
+        elif re.fullmatch(r"(?:专注)?到(?:时间|时)(?:只)?提醒一次(?:就行|就好)?", body):
+            focus_setting = ("focus_notice", "once")
+        elif re.fullmatch(r"(?:专注)?到(?:时间|时)(?:别|不用|不要)提醒", body):
+            focus_setting = ("focus_notice", "off")
+        if focus_setting:
+            preferences.append(CommunicationPreference(clause, *focus_setting, lifetime))
+            previous = preferences[-1]
+            continue
         if re.search(r"以后|今后|从现在起", clause):
             lifetime = "durable"
             if re.fullmatch(r"听我(?:说|讲)(?:完)?", body):

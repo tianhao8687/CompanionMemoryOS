@@ -93,6 +93,8 @@ function renderAutomation() {
 }
 
 function renderServers() {
+  $("add-netease-template").disabled = !automationState.capabilities?.netease;
+  $("add-netease-template").title = automationState.capabilities?.netease ? "连接这台 Windows 电脑上的网易云音乐" : "需要支持此功能的 Windows 本机引擎";
   $("mcp-server-list").replaceChildren();
   if (!automationState.config.servers.length) $("mcp-server-list").append(element("p", "empty-state", "还没有连接工具。\n从下面添加一个你信任的服务。"));
   for (const server of automationState.config.servers) {
@@ -206,6 +208,10 @@ $("mcp-transport").addEventListener("change", updateTransport);
 $("add-phone-template").addEventListener("click", (event) => autoAction(event.currentTarget, async () => {
   fillServer(await api("/api/automation/phone-template"));
   autoMessage("请把启动参数中的设备序列号和联系人改成你的实际值，再启用并保存。adb 不在 PATH 时可增加 --adb 和绝对路径。");
+}));
+$("add-netease-template").addEventListener("click", (event) => autoAction(event.currentTarget, async () => {
+  fillServer(await api("/api/automation/netease-template"));
+  autoMessage("网易云模板已填入。勾选启用并保存，再连接并发现工具。播放控制需在网易云中开启系统媒体控制（SMTC）；新工具默认每次确认。");
 }));
 $("schedule-repeat").addEventListener("change", () => { $("schedule-interval-label").hidden = $("schedule-repeat").value !== "interval"; });
 $("schedule-form").addEventListener("submit", (event) => {

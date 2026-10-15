@@ -43,7 +43,7 @@ SHA-256：`0318e27c6a418a31d7e04751fe07b0bed937ec8d740f5a19c5d1aebf02cc350c`。
 未连接安卓真机，未验收红米 K50 安装、冷启动和系统键盘；预览为 Flutter 测试渲染。
 Windows 共用源码更新，但本机缺少 Visual Studio C++ 环境，本轮没有新 Windows 安装包。
 2026-09-26 用户明确同意上传源码与这个已测试的 APK。
-发布入口：[心隅 0.2.8 Android 测试版](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.8)。
+当时发布为心隅 0.2.8 Android 测试版；旧 Release 已由 [当前版本](https://github.com/tianhao8687/CompanionMemoryOS/releases/latest) 替代。
 本次复用上述安装包，不重新运行 GitHub Actions 打包；安装包流程改为仅手动运行。
 上传前补齐 6 个 Python 文件的格式检查，逐文件验证 Python AST 未变；
 Ruff 检查、272 个文件格式检查、116 个源码文件类型检查通过；

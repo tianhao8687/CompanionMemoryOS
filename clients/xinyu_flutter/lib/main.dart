@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -70,7 +71,7 @@ class _XinYuAppState extends State<XinYuApp> {
     theme: ThemeData(
       useMaterial3: true,
       fontFamily: XinYuTypography.family,
-      textTheme: XinYuTypography.textTheme,
+      textTheme: XinYuTypography.forPlatform(defaultTargetPlatform),
       colorScheme:
           ColorScheme.fromSeed(
             seedColor: XinYuColors.accent,
@@ -128,24 +129,33 @@ class _XinYuAppState extends State<XinYuApp> {
           borderRadius: XinYuShapes.fieldCorners,
           borderSide: const BorderSide(color: XinYuColors.accent, width: 1.4),
         ),
-        labelStyle: const TextStyle(color: XinYuColors.muted, fontSize: 13),
+        labelStyle: const TextStyle(color: XinYuColors.muted, fontSize: 14),
         hintStyle: const TextStyle(color: XinYuColors.muted),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(48, 40),
+          minimumSize: Size(
+            48,
+            defaultTargetPlatform == TargetPlatform.android ? 48 : 40,
+          ),
           shape: XinYuShapes.pill,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(48, 40),
+          minimumSize: Size(
+            48,
+            defaultTargetPlatform == TargetPlatform.android ? 48 : 40,
+          ),
           shape: XinYuShapes.pill,
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          minimumSize: const Size(48, 40),
+          minimumSize: Size(
+            48,
+            defaultTargetPlatform == TargetPlatform.android ? 48 : 40,
+          ),
           shape: XinYuShapes.pill,
         ),
       ),

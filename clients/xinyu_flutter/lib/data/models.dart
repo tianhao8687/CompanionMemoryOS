@@ -15,8 +15,12 @@ class ChatLine {
     this.quote,
     this.notice = false,
     this.bookmarked = false,
+    this.focusProposal,
+    this.musicCards = const [],
   });
   final String id;
+  final Map<String, dynamic>? focusProposal;
+  final List<Map<String, dynamic>> musicCards;
   final List<String> imageIds;
   final String text;
   final bool isUser;
@@ -37,6 +41,8 @@ class ChatLine {
     quote: quote,
     notice: notice,
     bookmarked: saved,
+    focusProposal: focusProposal,
+    musicCards: musicCards,
   );
   factory ChatLine.fromJson(Map<String, dynamic> value) => ChatLine(
     id: value['id'] as String,
@@ -57,6 +63,13 @@ class ChatLine {
         : null,
     notice: value['notice'] == true,
     bookmarked: value['bookmarked'] == true,
+    focusProposal: value['focus_proposal'] is Map
+        ? Map<String, dynamic>.from(value['focus_proposal'] as Map)
+        : null,
+    musicCards: (value['music_cards'] as List? ?? const [])
+        .whereType<Map>()
+        .map((card) => Map<String, dynamic>.from(card))
+        .toList(),
   );
 }
 

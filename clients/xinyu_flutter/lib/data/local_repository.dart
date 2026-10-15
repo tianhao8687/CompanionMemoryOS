@@ -32,6 +32,12 @@ class LocalRepository extends CompanionRepository {
   @override
   bool get isDemo => false;
 
+  Future<Map<String, dynamic>> music(Map<String, dynamic> request) =>
+      _json('POST', '/api/music', request);
+
+  Future<Map<String, dynamic>> musicLyrics(Map<String, dynamic> request) =>
+      _json('POST', '/api/music/lyrics', request);
+
   Future<HttpClientResponse> _request(
     String method,
     String path, [
@@ -371,6 +377,26 @@ class LocalRepository extends CompanionRepository {
   }
 
   Future<Map<String, dynamic>> updates() => _json('GET', '/api/updates');
+
+  Future<Map<String, dynamic>> automation() => _json('GET', '/api/automation');
+  Future<Map<String, dynamic>> pickMusic(Map<String, dynamic> request) =>
+      _json('POST', '/api/music/pick', request);
+  Future<Map<String, dynamic>> neteaseTemplate() =>
+      _json('GET', '/api/automation/netease-template');
+  Future<void> saveAutomation(Map<String, dynamic> config) async {
+    await _json('PUT', '/api/automation/config', config);
+  }
+
+  Future<void> connectNetease() async {
+    await _json('POST', '/api/automation/servers/netease/connect', {});
+  }
+
+  Future<Map<String, dynamic>> decideAutomation(String id, String decision) =>
+      _json(
+        'POST',
+        '/api/automation/actions/${Uri.encodeComponent(id)}/$decision',
+        {},
+      );
   Future<void> markRead(String conversation, int through) async {
     await _json(
       'POST',
@@ -417,6 +443,25 @@ class LocalRepository extends CompanionRepository {
   Future<void> restore(Uint8List bytes) async {
     await _json('POST', '/api/local/restore', bytes);
   }
+
+  Future<Map<String, dynamic>> focus(String conversation) => _json(
+    'GET',
+    '/api/focus?conversation_id=${Uri.encodeComponent(conversation)}',
+  );
+  Future<Map<String, dynamic>> startFocus(Map<String, dynamic> value) =>
+      _json('POST', '/api/focus', value);
+  Future<Map<String, dynamic>> focusAction(Map<String, dynamic> value) =>
+      _json('POST', '/api/focus/action', value);
+  Future<bool> claimFocusNotice(String session, int revision) async =>
+      (await _json('POST', '/api/focus/notice', {
+        'session_id': session,
+        'revision': revision,
+      }))['claimed'] ==
+      true;
+  Future<Map<String, dynamic>> focusPreference(Map<String, dynamic> value) =>
+      _json('PUT', '/api/focus/preferences', value);
+  Future<Map<String, dynamic>> focusProgress(Map<String, dynamic> value) =>
+      _json('POST', '/api/focus/progress', value);
 
   @override
   void close() => _client.close(force: true);

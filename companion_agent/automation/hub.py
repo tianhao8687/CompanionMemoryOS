@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
 from threading import RLock
@@ -10,6 +11,7 @@ from typing import Any
 from jsonschema import Draft202012Validator
 from referencing import Registry
 
+from companion_agent.automation.bundled_music import relocate_packaged_music
 from companion_agent.automation.calculator import NAME_PATTERN
 from companion_agent.automation.mcp_client import MCPClient
 from companion_agent.automation.models import (
@@ -128,14 +130,29 @@ class ToolHub:
         self.client = client or MCPClient()
         self.lock = RLock()
         self.available: Callable[[], bool] = lambda: True
+        self.external_available: Callable[[], bool] = lambda: True
+        self.server_available: Callable[[MCPServerConfig], bool] = lambda server: (
+            server.transport != "native"
+        )
+        self.scheduling_available: Callable[[], bool] = lambda: True
         with database.connection() as db:
             row = db.execute("SELECT data FROM agent_config WHERE id=1").fetchone()
         saved = json.loads(row["data"]) if row else {}
         self.config = AutomationConfig.model_validate(saved.get("config", {}))
         self.catalog: dict[str, list[dict[str, Any]]] = saved.get("catalog", {})
+        if (
+            sys.platform == "win32"
+            and getattr(sys, "frozen", False)
+            and relocate_packaged_music(self.config, sys.executable)
+        ):
+            # Only the known bundled template moves; rules/catalog remain intact.
+            # Pending approvals retain their old fingerprint and cannot carry over.
+            self.persist()
         self.scheduler = Scheduler(self.store)
         self.scheduler.dispatch = self.dispatch_job
-        self.scheduler.enabled = lambda: self.available() and self.config.loop.enabled
+        self.scheduler.enabled = lambda: (
+            self.available() and self.scheduling_available() and self.config.loop.enabled
+        )
 
     def persist(self) -> None:
         with self.store.database.connection() as db:
@@ -177,7 +194,11 @@ class ToolHub:
 
     def discover(self, server_id: str) -> list[dict[str, Any]]:
         with self.lock:
+            if not self.external_available():
+                raise ValueError("此运行环境未启用外部工具。")
             server = self.server(server_id)
+            if not self.server_available(server):
+                raise ValueError("当前设备不支持这项应用连接。")
             catalog = self.client.discover(server)
             for item in catalog:
                 Draft202012Validator.check_schema(item["inputSchema"])
@@ -188,9 +209,11 @@ class ToolHub:
             return catalog
 
     def bindings(self) -> dict[str, tuple[MCPServerConfig, dict[str, Any], ToolRule]]:
-        result = {}
+        result: dict[str, tuple[MCPServerConfig, dict[str, Any], ToolRule]] = {}
+        if not self.external_available():
+            return result
         for server in self.config.servers:
-            if server.enabled:
+            if server.enabled and self.server_available(server):
                 for tool in self.catalog.get(server.id, []):
                     rule = server.tools.get(tool["name"], ToolRule())
                     if rule.mode != "off":
@@ -200,7 +223,12 @@ class ToolHub:
 
     def definitions(self) -> list[dict[str, Any]]:
         with self.lock:
-            result = list(BUILTINS)
+            result = [
+                item
+                for item in BUILTINS
+                if self.scheduling_available()
+                or not item["function"]["name"].startswith("schedule_")
+            ]
             for name, (server, tool, rule) in self.bindings().items():
                 result.append(
                     {
@@ -221,6 +249,8 @@ class ToolHub:
             raise ValueError("工具参数过长。")
         builtin = next((d for d in BUILTINS if d["function"]["name"] == name), None)
         if builtin:
+            if name.startswith("schedule_") and not self.scheduling_available():
+                raise ValueError("此运行环境未启用后台定时任务。")
             schema = builtin["function"]["parameters"]
             mode, fingerprint = "allow", digest(builtin)
         else:
@@ -256,6 +286,10 @@ class ToolHub:
                 return {"status": "denied", "message": "工具运行已关闭。"}
             try:
                 mode, fingerprint = self.inspect(name, arguments)
+                if name == f"mcp_netease_{digest('netease_open_song')[:12]}":
+                    from companion_agent.music_requests import require_lyric_match
+
+                    require_lyric_match(self, arguments, conversation, request_id)
             except ValueError as error:
                 return {"status": "denied", "message": str(error)}
             action_id = digest([conversation, request_id, name, arguments])[:32]

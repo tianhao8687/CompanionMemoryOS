@@ -57,6 +57,6 @@ UIA `set_value` 返回 `0x80004005`，因此不将它记作文本编辑通过。
 
 安装包构建继续保持 `workflow_dispatch` 手动入口；推送代码不会自动打包。
 安装版、免安装版和已有 Android APK 已发布至
-[心隅 0.2.9 GitHub Release](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.9)，
+心隅 0.2.9 GitHub Release（旧发布已由 [当前版本](https://github.com/tianhao8687/CompanionMemoryOS/releases/latest) 替代），
 同时提供安装说明与 SHA-256 校验和。发布前逐个核对 GitHub asset digest 和大小，
 发布后检查公开下载链接。源码保留在专用分支，未合并默认分支。

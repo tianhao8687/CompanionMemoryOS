@@ -1,3 +1,5 @@
+import 'settings_navigation.dart';
+
 import 'dart:convert';
 import 'dart:ui' as ui;
 
@@ -120,6 +122,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('open-settings')));
       await tester.pumpAndSettle();
+      await settingsSection(tester, '陪伴');
+      await settingsGroup(tester, '彼此的称呼');
       await tester.enterText(
         find.widgetWithText(TextFormField, '怎么称呼 TA'),
         '阿棠',
@@ -130,13 +134,15 @@ void main() {
             matching: find.byType(Scrollable),
           )
           .first;
+      await settingsGroup(tester, '我的人物资料');
       await tester.scrollUntilVisible(
         find.byKey(const Key('user-profile')),
         250,
         scrollable: settingsScroll,
       );
       await tester.enterText(find.byKey(const Key('user-profile')), '海边的画家');
-      await tester.tap(find.text('外观'));
+      await settingsSection(tester, '外观');
+      await settingsGroup(tester, '背景与头像');
       await tester.pumpAndSettle();
       for (final field in [
         'background_image',
@@ -172,7 +178,8 @@ void main() {
       final saved = controller.settings['background_image'];
       await tester.tap(find.byKey(const Key('open-settings')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('外观'));
+      await settingsSection(tester, '外观');
+      await settingsGroup(tester, '背景与头像');
       await tester.pumpAndSettle();
       final picker = find.byKey(const Key('pick-background_image'));
       await tester.scrollUntilVisible(picker, 220, scrollable: settingsScroll);
@@ -184,7 +191,7 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 20));
       });
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('关闭设置'));
+      await closeSettings(tester);
       await tester.pumpAndSettle();
       expect(controller.settings['background_image'], saved);
       expect(tester.takeException(), isNull);

@@ -3,7 +3,7 @@
 日期：2026-10-06（北京时间）。客户端版本：`0.2.11+14`。
 
 状态：源码已合入 `main`，Windows 安装版、免安装版和 Android APK 已更新为 0.2.11。
-公开入口：[心隅 0.2.11 测试版](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.11)。
+0.2.11 旧 Release 已由 [当前版本](https://github.com/tianhao8687/CompanionMemoryOS/releases/latest) 替代，本文保留当时的交付记录。
 Windows 随包引擎检查通过；Windows 原生界面本轮未测，Android 运行验收和真实语言质量未通过。
 打包仍只允许手动触发，源码推送不会自动构建安装包。
 

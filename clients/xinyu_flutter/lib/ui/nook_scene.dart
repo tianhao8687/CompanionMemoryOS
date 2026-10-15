@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+
+import 'nook_style.dart';
+
 import 'package:flutter/services.dart';
 
 class NookZone {
@@ -134,10 +137,12 @@ class NookScene extends StatefulWidget {
     required this.items,
     this.selected,
     required this.onSelected,
+    this.maxSide = 520,
   });
   final List<Map<String, dynamic>> items;
   final String? selected;
   final ValueChanged<String> onSelected;
+  final double maxSide;
   @override
   State<NookScene> createState() => NookSceneState();
 }
@@ -240,106 +245,166 @@ class NookSceneState extends State<NookScene> {
     final view = loaded
         ? (_zone == 'all' ? layout.overview : layout.zones[_zone]!.view)
         : const Rect.fromLTWH(0, 0, 1000, 1000);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: Semantics(
-              label: '阳光下的像素小窝，可点区域靠近，或使用下方按钮查看',
-              image: true,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: !loaded
-                      ? ColoredBox(
-                          color: const Color(0xfff5eddc),
-                          child: Center(
-                            child: _failed
-                                ? TextButton(
-                                    onPressed: () {
-                                      setState(() => _failed = false);
-                                      _load();
-                                    },
-                                    child: const Text('图片暂时无法读取，点此重试'),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 440;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: widget.maxSide),
+                      child: Semantics(
+                        label: _zone == 'all'
+                            ? '整个小窝，点小物件读它的故事'
+                            : '靠近看看 · ${layout?.zones[_zone]?.label ?? ''}',
+                        image: true,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: AspectRatio(
+                            aspectRatio: 1,
+                            child: !loaded
+                                ? ColoredBox(
+                                    color: NookStyle.surface,
+                                    child: Center(
+                                      child: _failed
+                                          ? TextButton(
+                                              onPressed: () {
+                                                setState(() => _failed = false);
+                                                _load();
+                                              },
+                                              child: const Text(
+                                                '图片暂时无法读取，点此重试',
+                                              ),
+                                            )
+                                          : const Text(
+                                              '正在打开小窝…',
+                                              style: TextStyle(
+                                                color: NookStyle.muted,
+                                              ),
+                                            ),
+                                    ),
                                   )
-                                : const Text('正在打开窗边的小窝…'),
+                                : TweenAnimationBuilder<Rect?>(
+                                    tween: RectTween(
+                                      begin: layout.overview,
+                                      end: view,
+                                    ),
+                                    duration:
+                                        MediaQuery.disableAnimationsOf(context)
+                                        ? Duration.zero
+                                        : const Duration(milliseconds: 240),
+                                    curve: Curves.easeOutCubic,
+                                    builder: (context, camera, child) =>
+                                        LayoutBuilder(
+                                          builder: (context, constraints) =>
+                                              GestureDetector(
+                                                key: const ValueKey(
+                                                  'nook-canvas',
+                                                ),
+                                                behavior:
+                                                    HitTestBehavior.opaque,
+                                                onTapUp: (event) => _tap(
+                                                  event.localPosition,
+                                                  constraints.biggest,
+                                                  camera,
+                                                ),
+                                                child: CustomPaint(
+                                                  painter: NookRoomPainter(
+                                                    widget.items,
+                                                    widget.selected,
+                                                    layout,
+                                                    _background!,
+                                                    camera!,
+                                                  ),
+                                                ),
+                                              ),
+                                        ),
+                                  ),
                           ),
-                        )
-                      : TweenAnimationBuilder<Rect?>(
-                          tween: RectTween(begin: layout.overview, end: view),
-                          duration: MediaQuery.disableAnimationsOf(context)
-                              ? Duration.zero
-                              : const Duration(milliseconds: 240),
-                          curve: Curves.easeOutCubic,
-                          builder: (context, camera, child) => LayoutBuilder(
-                            builder: (context, constraints) => GestureDetector(
-                              key: const ValueKey('nook-canvas'),
-                              behavior: HitTestBehavior.opaque,
-                              onTapUp: (event) => _tap(
-                                event.localPosition,
-                                constraints.biggest,
-                                camera,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (loaded)
+              Center(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final key in [
+                        'all',
+                        'window',
+                        'desk',
+                        'shelf',
+                        'wall',
+                        'floor',
+                      ])
+                        if (key == 'all' || layout.zones.containsKey(key))
+                          Semantics(
+                            key: ValueKey('nook-zone-$key'),
+                            selected: _zone == key,
+                            child: TextButton(
+                              onPressed: () => setState(() => _zone = key),
+                              style: TextButton.styleFrom(
+                                foregroundColor: _zone == key
+                                    ? NookStyle.ink
+                                    : NookStyle.muted,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: compact ? 9 : 14,
+                                ),
+                                minimumSize: const Size(44, 46),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
                               ),
-                              child: CustomPaint(
-                                painter: NookRoomPainter(
-                                  widget.items,
-                                  widget.selected,
-                                  layout,
-                                  _background!,
-                                  camera!,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color: _zone == key
+                                          ? NookStyle.accent
+                                          : Colors.transparent,
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: 7,
+                                    bottom: 8,
+                                  ),
+                                  child: Text(
+                                    key == 'all'
+                                        ? '全景'
+                                        : layout.zones[key]!.label,
+                                    style: TextStyle(
+                                      fontSize: compact ? 12 : 13,
+                                      fontWeight: _zone == key
+                                          ? FontWeight.w500
+                                          : FontWeight.w400,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        if (loaded) ...[
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _zone == 'all'
-                      ? '整个小窝'
-                      : '靠近看看 · ${layout.zones[_zone]!.label}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xff79604b),
+                    ],
                   ),
                 ),
               ),
-              if (_zone != 'all')
-                TextButton(onPressed: showOverview, child: const Text('返回全景')),
-            ],
-          ),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final entry in layout.zones.entries)
-                ChoiceChip(
-                  label: Text(entry.value.label),
-                  selected: _zone == entry.key,
-                  selectedColor: const Color(0xffe5ebdc),
-                  backgroundColor: const Color(0xfffffbf3),
-                  onSelected: (_) => setState(() => _zone = entry.key),
-                ),
-            ],
-          ),
-        ],
-        const SizedBox(height: 8),
-        const Text(
-          '点窗台、纪念架或桌面靠近看看，点小物件读它的故事。',
-          style: TextStyle(fontSize: 12, color: Color(0xff89765f), height: 1.7),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -360,7 +425,7 @@ class NookRoomPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawColor(const Color(0xfff5eddc), BlendMode.src);
+    canvas.drawColor(NookStyle.surface, BlendMode.src);
     canvas.save();
     canvas.scale(size.width / camera.width, size.height / camera.height);
     canvas.translate(-camera.left, -camera.top);

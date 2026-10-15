@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import secrets
+import sys
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime
@@ -24,9 +25,11 @@ from pydantic import Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from companion_agent import chat_search
+from companion_agent.automation.bundled_music import refresh_lyrics_catalog
 from companion_agent.automation.hub import ToolHub
 from companion_agent.automation.loop import AgentLoop, RunContext
-from companion_agent.automation.models import AutomationConfig, ScheduleInput
+from companion_agent.automation.mcp_client import MCPClient
+from companion_agent.automation.models import AutomationConfig, MCPServerConfig, ScheduleInput
 from companion_agent.channels import ChannelConfig, Channels, IncomingMessage
 from companion_agent.chat_experience import ChatExperience
 from companion_agent.chat_experience import install_routes as install_chat_experience_routes
@@ -36,10 +39,19 @@ from companion_agent.continuity import Continuity
 from companion_agent.credentials import CredentialStore, CredentialStoreError
 from companion_agent.deepseek import DeepSeekConfig, DeepSeekLLM
 from companion_agent.directives import directive_recall
+from companion_agent.focus import FocusAction, FocusClock, FocusNotice, FocusStart
+from companion_agent.focus_companion import (
+    FocusCompanion,
+    FocusPreferenceInput,
+    FocusProgressInput,
+)
 from companion_agent.images import MAX_IMAGE_BYTES, ImageAwareModel, ImagePurpose, ImageStore
 from companion_agent.journal import Journal, JournalError
 from companion_agent.journal import install_routes as install_journal_routes
 from companion_agent.llm import ContextBudgetError, MainLLM, MainLLMError
+from companion_agent.music import MusicCompanion, MusicInput
+from companion_agent.music_lyrics import MusicLyricsInput
+from companion_agent.music_requests import MusicPickInput, MusicRequests
 from companion_agent.nook import MemoryNook
 from companion_agent.nook import install_routes as install_nook_routes
 from companion_agent.offline import OfflineModel
@@ -136,6 +148,7 @@ def public_turn(turn: ConversationTurnRecord) -> dict[str, Any]:
         if turn.role.value == "user" and turn.source_ref != "memory:manual_correction"
         else None,
         "reply_to": turn.reply_to_turn_id,
+        "focus_proposal": turn.metadata.get("focus_proposal"),
     }
 
 
@@ -236,6 +249,9 @@ class RomanceHost:
             | self.chat_experience.protected_images()
         )
         self.tools = ToolHub(database)
+        if testing:
+            self.tools.external_available = lambda: False
+            self.tools.scheduling_available = lambda: False
         if testing and testing.marker.get("variant") == "no_tools":
             # A disclosed diagnostic ablation uses the existing no-loop path.
             # It cannot enable actions or persist a change to ordinary app settings.
@@ -243,10 +259,15 @@ class RomanceHost:
         self.tools.available = lambda: self.settings.storage_consent
         self.stickers = StickerStore(database)
         self.agent = self.make_agent(self.settings, self.api_key)
+        self.focus = FocusClock(database, self.key.model_dump_json())
+        self.focus_companion = FocusCompanion(self)
         self.continuity = Continuity(self)
         self.journal = Journal(self)
         self.nook = MemoryNook(self)
         self.outreach = Outreach(self)
+        self.music = MusicCompanion(self)
+        self.music_requests = MusicRequests(self)
+        self.memory.listening_context = self.music.memory_context
         self.memory.on_user_turn = self.continuity.observe
         self.channels = Channels(self)
         self.tools.scheduler.on_tick = self.continuity.tick
@@ -353,6 +374,7 @@ class RomanceHost:
             "chat_features": True,
             "journal_features": True,
             "nook_features": True,
+            "focus_features": True,
             "chat_experience": True,
             "last_conversation": self.chat_experience.last_conversation(),
             "journal_background": self.outreach.background_enabled(),
@@ -514,6 +536,15 @@ class RomanceHost:
                 raise problem(422, "empty_message", "请输入消息。")
             if not self.settings.storage_consent or not self.settings.model_consent:
                 raise problem(403, "consent_required", "请先在设置中确认本地保存与模型调用授权。")
+            self.music.observe(item)
+            focus_reply = self.focus_companion.chat(item)
+            if focus_reply is not None:
+                return focus_reply
+            self.agent.application_rules = (
+                romantic_rules(self.settings)
+                + self.focus.context()
+                + self.music.context(item.conversation_id)
+            )
             if not self.credentials_ready():
                 raise MainLLMError("main_llm_api_key_missing")
             if item.quote_id:
@@ -542,11 +573,14 @@ class RomanceHost:
                     "ORDER BY c.rowid DESC LIMIT 1",
                     (LOCAL_USER, item.conversation_id, item.request_id),
                 ).fetchone()
-            with self.loop.run(
-                item.conversation_id,
-                item.request_id,
-                json.loads(checkpoint["state"]) if checkpoint else None,
-            ) as run:
+            with (
+                self.music.memory_scope(item.conversation_id),
+                self.loop.run(
+                    item.conversation_id,
+                    item.request_id,
+                    json.loads(checkpoint["state"]) if checkpoint else None,
+                ) as run,
+            ):
                 result = self.agent.chat(
                     ProcessTurnRequest(
                         user_id=LOCAL_USER,
@@ -594,6 +628,7 @@ class RomanceHost:
             "quote": self.journal.quote(turn),
             "notice": bool(turn.metadata.get("journal_reminder")),
             "bookmarked": self.chat_experience.contains(turn.id),
+            "music_cards": self.music_requests.cards(turn),
         }
 
     def save_checkpoint(self, run: RunContext, source: str) -> None:
@@ -775,10 +810,25 @@ def create_app(
     client_token: str | None = None,
     credentials: CredentialStore | None = None,
     background_services: bool = True,
+    interactive_tools: bool | None = None,
+    native_music: MCPClient | None = None,
 ) -> FastAPI:
     if testing and Path(data_dir).resolve() != testing.directory / "data":
         raise ValueError("testing requires the owned run's isolated data directory")
     host = RomanceHost(Path(data_dir), llm, testing=testing, credentials=credentials)
+    tools_enabled = testing is None and (
+        background_services if interactive_tools is None else interactive_tools
+    )
+    scheduling_enabled = testing is None and background_services
+    host.tools.external_available = lambda: tools_enabled
+    host.tools.scheduling_available = lambda: scheduling_enabled
+    if native_music is not None:
+        host.tools.client = native_music
+        host.tools.server_available = lambda server: (
+            server.transport == "native" and server.id == "netease"
+        )
+    if tools_enabled:
+        refresh_lyrics_catalog(host.tools, sys.executable)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -812,19 +862,26 @@ def create_app(
             request.headers.get("x-xinyu-token", ""), client_token
         ):
             return JSONResponse({"detail": {"message": "本机应用凭证无效，请重新启动。"}}, 401)
-        if (
-            (testing or not background_services)
-            and request.method in {"POST", "PUT", "PATCH", "DELETE"}
-            and (
-                request.url.path.startswith("/api/channels")
-                or (
-                    request.url.path.startswith("/api/automation/")
-                    and not request.url.path.startswith("/api/automation/cancel/")
-                )
-                or request.url.path == "/api/connection"
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+            path = request.url.path
+            channels_blocked = not scheduling_enabled and (
+                path.startswith("/api/channels") or path == "/api/connection"
             )
-        ):
-            return JSONResponse({"detail": {"message": "此运行环境未启用外部工具和渠道。"}}, 403)
+            schedules_blocked = not scheduling_enabled and path.startswith(
+                "/api/automation/schedules"
+            )
+            tools_blocked = (
+                not tools_enabled
+                and path.startswith("/api/automation/")
+                and not path.startswith("/api/automation/cancel/")
+                and not path.startswith("/api/automation/schedules")
+                and not (scheduling_enabled and path == "/api/automation/notifications/read")
+            )
+            if channels_blocked or schedules_blocked or tools_blocked:
+                return JSONResponse(
+                    {"detail": {"message": "此运行环境未启用这项外部工具、定时或渠道能力。"}},
+                    403,
+                )
         origin = request.headers.get("origin")
         expected = str(request.base_url).rstrip("/")
         if origin and origin != expected:
@@ -1282,6 +1339,7 @@ def create_app(
                 "settings": host.settings.model_dump(mode="json"),
                 "conversations": host.conversations(),
                 "memory": host.memory.export(LOCAL_USER).model_dump(mode="json"),
+                "focus": host.focus.export(),
             }
             return Response(
                 json.dumps(payload, ensure_ascii=False, indent=2),
@@ -1316,12 +1374,125 @@ def create_app(
             await asyncio.to_thread(prepare)
             return {"restart_required": True}
 
+    @app.get("/api/focus", dependencies=[Depends(authorized)])
+    def focus_state(conversation_id: str | None = None) -> dict[str, Any]:
+        with host.lock:
+            result = host.focus.read(host.settings.calendar_timezone)
+            conversation_id = conversation_id or host.conversations()[0]["id"]
+            result["preferences"] = host.focus_companion.preferences(conversation_id)
+            return result
+
+    @app.put("/api/focus/preferences", dependencies=[Depends(authorized)])
+    def focus_preferences(item: FocusPreferenceInput) -> dict[str, Any]:
+        with host.exclusive():
+            if not host.settings.storage_consent:
+                raise problem(403, "storage_consent", "请先允许本机保存，再保存偏好。")
+            host.focus_companion.save_preference(item)
+            return focus_state(item.conversation_id)
+
+    @app.post("/api/focus/progress", dependencies=[Depends(authorized)])
+    def focus_progress(item: FocusProgressInput) -> dict[str, Any]:
+        with host.exclusive():
+            if not host.settings.storage_consent:
+                raise problem(403, "storage_consent", "请先允许本机保存，再留下进展。")
+            return host.focus_companion.save_progress(item)
+
+    @app.post("/api/focus/notice", dependencies=[Depends(authorized)])
+    def focus_notice(item: FocusNotice) -> dict[str, bool]:
+        return {"claimed": host.focus.claim_notice(item, host.settings.calendar_timezone)}
+
+    @app.post("/api/focus", dependencies=[Depends(authorized)])
+    def focus_start(item: FocusStart) -> dict[str, Any]:
+        with host.exclusive():
+            if not host.settings.storage_consent:
+                raise problem(403, "storage_consent", "请先在陪伴设置中允许本机保存，再开始计时。")
+            host.scope(item.conversation_id)
+            return host.focus.start(item, host.settings.calendar_timezone)
+
+    @app.post("/api/focus/action", dependencies=[Depends(authorized)])
+    def focus_action(item: FocusAction) -> dict[str, Any]:
+        with host.exclusive():
+            if not host.settings.storage_consent and item.action in {"resume", "rest", "extend"}:
+                raise problem(
+                    403, "storage_consent", "本机保存已关闭，可以结束当前计时或重新开启保存。"
+                )
+            return host.focus.act(item, host.settings.calendar_timezone)
+
+    @app.delete("/api/focus/history", dependencies=[Depends(authorized)])
+    def focus_clear_history() -> dict[str, Any]:
+        with host.exclusive():
+            host.focus.clear_history()
+            return host.focus.read(host.settings.calendar_timezone)
+
+    @app.post("/api/music", dependencies=[Depends(authorized)])
+    def music_action(item: MusicInput) -> dict[str, Any]:
+        if not tools_enabled:
+            raise problem(403, "music_unavailable", "此运行环境未启用本机音乐连接。")
+        try:
+            result = host.music.apply(item)
+            if item.action == "poll":
+                host.music.maybe_speak(item)
+                result = host.music.public()
+            return result
+        except ValueError as error:
+            raise problem(422, "music_not_ready", str(error)) from None
+
+    @app.post("/api/music/lyrics", dependencies=[Depends(authorized)])
+    def music_lyrics(item: MusicLyricsInput) -> dict[str, Any]:
+        if not tools_enabled:
+            raise problem(403, "music_unavailable", "此运行环境未启用本机音乐连接。")
+        try:
+            return host.music.lyrics.read(item)
+        except ValueError as error:
+            raise problem(422, "lyrics_not_ready", str(error)) from None
+
+    @app.post("/api/music/pick", dependencies=[Depends(authorized)])
+    def music_pick(item: MusicPickInput) -> dict[str, Any]:
+        if not tools_enabled:
+            raise problem(403, "music_unavailable", "此运行环境未启用本机音乐连接。")
+        try:
+            return host.music_requests.pick(item)
+        except ValueError as error:
+            raise problem(422, "music_pick_unavailable", str(error)) from None
+
     @app.get("/api/automation", dependencies=[Depends(authorized)])
     def automation() -> dict[str, Any]:
-        return host.tools.public_state()
+        return {
+            **host.tools.public_state(),
+            "capabilities": {
+                "interactive_tools": tools_enabled,
+                "scheduling": scheduling_enabled,
+                "netease": tools_enabled and (sys.platform == "win32" or native_music is not None),
+            },
+        }
+
+    @app.get("/api/automation/netease-template", dependencies=[Depends(authorized)])
+    def netease_template() -> dict[str, Any]:
+        if not tools_enabled or (sys.platform != "win32" and native_music is None):
+            raise problem(403, "netease_unavailable", "当前运行环境尚不支持网易云音乐连接。")
+        if native_music is not None:
+            return MCPServerConfig(
+                id="netease", label="网易云音乐", transport="native", enabled=False
+            ).model_dump(mode="json")
+        arguments = (
+            ["--mcp-server", "netease"]
+            if getattr(sys, "frozen", False)
+            else ["-m", "companion_agent.integrations.netease"]
+        )
+        return MCPServerConfig(
+            id="netease",
+            label="网易云音乐",
+            enabled=False,
+            command=sys.executable,
+            args=arguments,
+        ).model_dump(mode="json")
 
     @app.put("/api/automation/config", dependencies=[Depends(authorized)])
     def automation_config(config: AutomationConfig) -> dict[str, bool]:
+        if native_music is not None and any(
+            server.enabled and not host.tools.server_available(server) for server in config.servers
+        ):
+            raise problem(422, "native_connections_only", "安卓当前仅支持内置网易云音乐连接。")
         with host.exclusive():
             host.tools.configure(config)
         return {"saved": True}

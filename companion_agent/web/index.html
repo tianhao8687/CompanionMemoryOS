@@ -12,11 +12,15 @@
   <link rel="stylesheet" href="/static/material.css">
   <link rel="stylesheet" href="/static/controls.css">
   <link rel="stylesheet" href="/static/nook.css">
+  <link rel="stylesheet" href="/static/focus.css">
   <script src="/static/app.js" defer></script>
   <script src="/static/automation.js" defer></script>
   <script src="/static/life.js" defer></script>
   <script src="/static/controls.js" defer></script>
   <script src="/static/nook.js" defer></script>
+  <script src="/static/focus-view.js" defer></script>
+  <script src="/static/focus-audio.js" defer></script>
+  <script src="/static/focus.js" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -50,6 +54,7 @@
       </header>
 
       <div class="connection-notice" id="setup-notice" hidden><span>初次见面，先选一个喜欢的相处方式。</span><button id="setup-now">认识一下<svg class="icon" aria-hidden="true"><use href="/static/icons.svg#arrow"/></svg></button></div>
+      <div class="focus-mini" id="focus-mini" hidden><span class="focus-mini-light" aria-hidden="true"></span><span id="focus-mini-label"></span><strong id="focus-mini-time" role="timer" aria-live="off"></strong><button id="focus-mini-open" type="button">看看小窝</button><button id="focus-mini-pause" type="button">暂停</button><button id="focus-mini-finish" type="button">结束</button></div>
 
       <section class="messages-scroll" id="messages-scroll" aria-label="聊天内容">
         <button class="load-older" id="load-older" hidden>查看更早的对话</button>
@@ -79,6 +84,7 @@
               <button type="button" class="composer-tool" id="voice-input" aria-label="语音输入" title="语音输入"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#mic"/></svg></button>
               <button type="button" class="composer-tool" id="read-reply" aria-label="朗读回复" title="朗读回复"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#speaker"/></svg></button>
               <details class="more-tools" id="composer-more"><summary class="composer-tool" aria-label="更多聊天选项" title="更多聊天选项"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#more"/></svg></summary><div class="tools-popover"><button type="button" id="stop-reply">停止朗读与语音</button><button type="button" id="browser-notifications">开启桌面通知</button></div></details>
+              <button type="button" class="composer-tool focus-entry" id="open-focus" aria-label="陪我专注"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#clock"/></svg><span>陪我专注</span></button>
               <span class="composer-prompt">把今天的小事，说给我听。</span>
             </div>
             <button type="submit" class="send-button" id="send-message" aria-label="发送消息"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#up"/></svg></button>
@@ -139,11 +145,23 @@
     <div class="dialog-heading"><div><p class="eyebrow">LITTLE STORIES, LITTLE HOME</p><h2 id="nook-title">回忆小窝</h2></div><button type="button" class="icon-button" data-close="nook-dialog" aria-label="关闭回忆小窝">×</button></div>
     <div class="nook-body">
       <p class="nook-intro">让聊过的小事，住进一间像素小屋。</p>
-      <div class="nook-scene">
+      <div class="nook-focus-layout"><div class="nook-scene">
         <canvas id="nook-room" width="1000" height="1000" role="img" aria-label="阳光下的像素小窝，可点区域靠近，或使用下方按钮查看"></canvas>
+      <div class="focus-clock" id="focus-clock" hidden><span id="focus-stage" role="status"></span><strong id="focus-time" role="timer" aria-live="off" aria-label="剩余时间">30:00</strong><button class="focus-glass-button" id="focus-popout" type="button">迷你陪伴窗 ↗</button></div>
         <p id="nook-scene-message" role="status">正在打开窗边的小窝…</p>
       </div>
+      <section class="focus-controls" id="focus-desk" aria-label="这段陪伴">
+        <div class="focus-presence"><div class="avatar small-avatar" aria-hidden="true"><span id="focus-avatar">禾</span></div><div><span id="focus-note-author">小禾</span><p id="focus-note" role="status">坐一会儿也好。</p></div></div>
+        <button type="button" class="focus-primary" id="focus-desk-entry">在这里专注一会儿</button>
+        <div id="focus-active" hidden><p class="focus-current-task" id="focus-current-task"></p><div class="focus-actions"><button class="focus-primary" id="focus-primary-action" type="button">暂停</button><button class="focus-secondary" id="focus-extend" type="button" hidden>再加五分钟</button><button class="focus-secondary" id="focus-finish" type="button">结束</button></div></div>
+        <button class="focus-secondary" id="focus-new" type="button" hidden>再留一段时间</button>
+        <div class="focus-room-tools"><details id="focus-options"><summary>声音与提醒</summary><label>环境声<select data-focus-ambient aria-label="小窝环境声"><option value="silent">安静</option><option value="rain">轻雨</option></select></label><button id="focus-play-rain" class="focus-secondary" type="button" hidden>播放雨声</button><label class="focus-check"><input type="checkbox" id="focus-notice-on" checked>到时间提醒一次</label><button id="focus-allow-notice" class="focus-secondary" type="button">允许桌面通知</button><p data-focus-notice-status></p><p class="focus-notice-hint">关闭网页或手机系统挂起时无法保证提醒。回来后会按实际时间恢复，不会算作失败。</p></details><button type="button" class="focus-text-button" id="focus-history-open">活动记录</button></div>
+        <p class="focus-notice-hint" id="focus-background-hint">可以离开去做自己的事，计时会继续。</p>
+        <div class="focus-error" id="focus-error" role="alert" hidden></div>
+      </section>
+      </div>
       <div class="nook-view-heading"><span id="nook-view-label">整个小窝</span><button type="button" id="nook-overview" hidden>返回全景</button></div>
+      <button type="button" id="nook-desk-focus" class="secondary-button" hidden>在这里专注一会儿</button>
       <div id="nook-zones" class="nook-zones" aria-label="靠近看看"></div>
       <p class="nook-hint">点窗台、纪念架或桌面靠近看看，点小物件读它的故事。喜欢的这一版，可以珍藏下来。</p>
       <p id="nook-empty">小窝还空着。聊起喜欢的东西、有名字的小事，或刚完成的心愿，给 TA 一点灵感。</p>
@@ -162,6 +180,27 @@
     <div class="dialog-footer"><span class="field-hint">来自真实对话，随你的新表达更新。</span><button class="secondary-button" id="export-data">导出本地记录 ↓</button></div>
   </dialog>
   <div class="toast" id="toast" role="status" hidden></div>
+
+  <dialog class="focus-setup-dialog" id="focus-setup-dialog" aria-labelledby="focus-setup-title">
+    <div class="dialog-heading"><div><p class="eyebrow">留一段时间，一起</p><h2 id="focus-setup-title">陪我专注</h2></div><button type="button" class="icon-button" data-close="focus-setup-dialog" aria-label="关闭专注确认">×</button></div>
+    <form id="focus-form" class="focus-form">
+      <label for="focus-intention">想做的事 <span class="optional">可以不填</span></label>
+      <input id="focus-intention" maxlength="160" placeholder="比如，整理商品资料" autocomplete="off">
+      <fieldset class="focus-presets"><legend>留多久？</legend><div><button type="button" data-focus-minutes="15" aria-pressed="false">15 分钟</button><button type="button" data-focus-minutes="30" aria-pressed="true">30 分钟</button><button type="button" data-focus-minutes="45" aria-pressed="false">45 分钟</button></div></fieldset>
+      <div class="focus-durations"><label>专注 / 分钟<input id="focus-minutes" type="number" min="1" max="120" step="1" value="30" required></label><label>休息 / 分钟<input id="focus-rest-minutes" type="number" min="1" max="60" step="1" value="5" required></label></div>
+      <label class="focus-option">环境声<select data-focus-ambient aria-label="专注环境声"><option value="silent">安静</option><option value="rain">轻雨</option></select></label>
+      <p class="focus-notice-hint" data-focus-notice-status></p>
+      <button class="primary-button" id="focus-start" type="submit">开始</button>
+      <p class="focus-error" id="focus-setup-error" role="alert" hidden></p>
+    </form>
+  </dialog>
+  <dialog class="focus-history-dialog" id="focus-history-dialog" aria-labelledby="focus-history-title">
+    <div class="dialog-heading"><div><p class="eyebrow">一起度过的时间</p><h2 id="focus-history-title">活动记录</h2></div><button type="button" class="icon-button" data-close="focus-history-dialog" aria-label="关闭活动记录">×</button></div>
+    <p class="focus-history-caption">这里只记录计时。事情做到了哪一步，由你来说。</p>
+    <div id="focus-history-list" class="focus-history-list"></div>
+    <form id="focus-progress-form" class="focus-progress-form" hidden><label for="focus-progress">有一点进展想留住？ <span class="optional">选填</span></label><textarea id="focus-progress" maxlength="500" rows="3" placeholder="比如，第一批商品资料整理完了。"></textarea><button class="primary-button" type="submit">把这句话留进手札</button><p id="focus-progress-result" role="status"></p></form>
+    <div class="dialog-footer"><span class="field-hint">手札中的进展可以查看来源、修改或遗忘。</span><button class="text-button" id="focus-clear" type="button">清除已结束的活动</button></div>
+  </dialog>
   <dialog class="automation-dialog" id="automation-dialog" aria-labelledby="automation-title">
     <div class="dialog-heading"><div><p class="eyebrow">DO LITTLE THINGS, TOGETHER</p><h2 id="automation-title">能力与定时</h2></div><button type="button" class="icon-button" data-close="automation-dialog" aria-label="关闭能力与定时">×</button></div>
     <nav class="automation-tabs" aria-label="能力面板"><button type="button" data-auto-tab="tasks" aria-pressed="true">待办与提醒</button><button type="button" data-auto-tab="connections" aria-pressed="false">工具连接</button><button type="button" data-auto-tab="channels" aria-pressed="false">消息渠道</button><button type="button" data-auto-tab="history" aria-pressed="false">操作记录</button></nav>
@@ -188,7 +227,7 @@
           <div class="two-columns"><label>总时限（秒）<input id="loop-timeout" type="number" min="10" max="600" required></label><label>Token 预算<input id="loop-tokens" type="number" min="1000" max="100000" required></label></div>
           <button type="submit" class="secondary-button">保存执行范围</button>
         </form>
-        <div class="auto-section-heading"><h3>MCP 服务</h3><button id="add-phone-template" class="text-button">填入安卓 / 微信模板</button></div>
+        <div class="auto-section-heading"><h3>MCP 服务</h3><div class="auto-controls"><button id="add-netease-template" class="text-button">填入网易云模板</button><button id="add-phone-template" class="text-button">填入安卓 / 微信模板</button></div></div>
         <p class="field-hint">仅连接你信任的服务。本地命令将在这台电脑运行，所选工具的返回内容会进入模型上下文。工具默认每次确认，可逐项关闭或允许。</p>
         <div id="mcp-server-list"></div>
         <form id="mcp-form">

@@ -1,3 +1,5 @@
+import 'settings_navigation.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xinyu_flutter/data/demo_repository.dart';
@@ -31,6 +33,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('open-settings')));
       await tester.pumpAndSettle();
+      await settingsSection(tester, '陪伴');
+      await settingsGroup(tester, '相处风格');
       final scroll = find
           .descendant(
             of: find.byKey(const Key('settings-scroll')),
@@ -50,13 +54,15 @@ void main() {
       expect(controller.settings['custom_style_avoid'], '不要每轮用同一种安慰开场。');
       await tester.tap(find.byKey(const Key('open-settings')));
       await tester.pumpAndSettle();
+      await settingsSection(tester, '陪伴');
+      await settingsGroup(tester, '相处风格');
       await tester.scrollUntilVisible(examples, 200, scrollable: scroll);
       expect(
         tester.widget<TextFormField>(examples).controller!.text,
         '你选的这部电影，今晚慢慢看。',
       );
       await tester.enterText(examples, '这份修改不保存。');
-      await tester.tap(find.byTooltip('关闭设置'));
+      await closeSettings(tester);
       await tester.pumpAndSettle();
       expect(controller.settings['custom_style_examples'], '你选的这部电影，今晚慢慢看。');
       expect(tester.takeException(), isNull);
@@ -84,6 +90,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('open-settings')));
       await tester.pumpAndSettle();
+      await settingsSection(tester, '陪伴');
+      await settingsGroup(tester, '情感浓度');
       final scroll = find
           .descendant(
             of: find.byKey(const Key('settings-scroll')),
@@ -105,6 +113,8 @@ void main() {
       expect(controller.settings['natural_chat'], isFalse);
       await tester.tap(find.byKey(const Key('open-settings')));
       await tester.pumpAndSettle();
+      await settingsSection(tester, '陪伴');
+      await settingsGroup(tester, '情感浓度');
       await tester.scrollUntilVisible(intensity, 220, scrollable: scroll);
       expect(find.text('浓烈'), findsWidgets);
       await tester.tap(
@@ -113,7 +123,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('含蓄').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('关闭设置'));
+      await closeSettings(tester);
       await tester.pumpAndSettle();
       expect(controller.settings['emotional_intensity'], 'intense');
       expect(tester.takeException(), isNull);
@@ -129,6 +139,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('open-settings')));
       await tester.pumpAndSettle();
+      await settingsSection(tester, '陪伴');
+      await settingsGroup(tester, '相处风格');
       final scroll = find
           .descendant(
             of: find.byKey(const Key('settings-scroll')),

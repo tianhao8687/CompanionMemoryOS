@@ -28,6 +28,10 @@ dependencies = [
   "typer>=0.15,<1",
   "tzdata>=2025.1; sys_platform == 'win32'",
   "uvicorn>=0.34,<1",
+  "winrt-Windows.Media.Control==3.2.1; sys_platform == 'win32'",
+  "winrt-Windows.Media==3.2.1; sys_platform == 'win32'",
+  "winrt-Windows.Foundation==3.2.1; sys_platform == 'win32'",
+  "winrt-Windows.Foundation.Collections==3.2.1; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
@@ -48,6 +52,7 @@ companion-memoryos = "companion_memoryos.cli:main"
 companion-agent = "companion_agent.cli:main"
 companion-romance = "companion_agent.app:main"
 companion-phone-mcp = "companion_agent.integrations.phone:main"
+companion-netease-mcp = "companion_agent.integrations.netease:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["companion_memoryos", "companion_agent"]

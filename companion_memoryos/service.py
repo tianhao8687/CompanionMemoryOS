@@ -405,6 +405,10 @@ class CompanionMemoryService:
     def recall(self, request: RecallRequest) -> CompanionContext:
         return recall_service.recall(self, request)
 
+    def _memory_sources_allowed(self, record: MemoryRecord, request: RecallRequest) -> bool:
+        """Applications may apply additional source restrictions before ranking/rendering."""
+        return True
+
     def profile(self, user_id: str, scope: MemoryScope | None = None) -> ProfileSnapshot:
         return state_service.profile(self, user_id, scope)
 
