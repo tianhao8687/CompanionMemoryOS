@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import json
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from companion_agent import app as app_module
 from companion_agent.app import create_app
 from companion_agent.automation.models import AutomationConfig, MCPServerConfig
 from companion_agent.integrations.netease_android import AndroidMusicClient
@@ -86,7 +89,17 @@ class Player:
 
 
 @pytest.fixture(params=["native", "stdio"])
-def comfort_app(tmp_path: Path, request: Any):
+def comfort_app(tmp_path: Path, request: Any, monkeypatch: pytest.MonkeyPatch):
+    # Only the app's capability gate is simulated. Other modules must retain the
+    # real platform, including credentials, subprocesses and native libraries.
+    monkeypatch.setattr(
+        app_module,
+        "sys",
+        SimpleNamespace(
+            platform="win32" if request.param == "stdio" else "android",
+            executable=sys.executable,
+        ),
+    )
     player = Player()
     model = SongModel()
     model.plan = [(TOOL, SONG)]
@@ -122,7 +135,9 @@ def comfort_app(tmp_path: Path, request: Any):
     with TestClient(app, base_url="http://127.0.0.1", headers=HEADERS) as client:
         client.get("/")
         conversation = setup_host(host)
-        template = client.get("/api/automation/netease-template").json()
+        response = client.get("/api/automation/netease-template")
+        assert response.status_code == 200, response.text
+        template = response.json()
         template["enabled"] = True
         host.tools.configure(AutomationConfig(servers=[MCPServerConfig.model_validate(template)]))
         host.tools.discover("netease")
