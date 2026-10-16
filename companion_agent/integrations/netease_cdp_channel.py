@@ -202,13 +202,14 @@ class LocalChannel:
             with httpx.Client(timeout=2, follow_redirects=False, trust_env=False) as client:
                 self.version = client_version(self._json(client, "/json/version"))
                 target = validate_target(self._json(client, "/json/list"))
-            if sys.platform != "win32":
-                raise BackgroundUnavailable("unsupported_platform")
-            import websocket
+            if sys.platform == "win32":
+                import websocket
 
-            self.socket = websocket.create_connection(
-                target, timeout=3, suppress_origin=True, http_no_proxy=["127.0.0.1"]
-            )
+                self.socket = websocket.create_connection(
+                    target, timeout=3, suppress_origin=True, http_no_proxy=["127.0.0.1"]
+                )
+            else:
+                raise BackgroundUnavailable("unsupported_platform")
             self.check_owner()
         except BackgroundUnavailable:
             self.close()
