@@ -8,6 +8,7 @@ import 'connected_apps.dart';
 import 'local_image.dart';
 import 'stickers.dart';
 import 'ui_standard.dart';
+import 'persona_import_sheet.dart';
 
 Future<void> showCompanionSettings(
   BuildContext context,
@@ -243,6 +244,63 @@ class _SettingsSheetState extends State<SettingsSheet> {
           children: [
             if (overview) _navigation(sidebar: false),
             if (selected == 0) ...[
+              GlassSurface(
+                blur: 0,
+                tint: const Color(0x60e2edf7),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text('从一份人设开始', style: XinYuLayout.section),
+                    const SizedBox(height: 6),
+                    const Text(
+                      '粘贴文字或选择角色卡，一次填好。也可以在聊天里让 AI 帮你设置。',
+                      style: XinYuLayout.note,
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: working
+                          ? null
+                          : () async {
+                              final saved = await showPersonaImport(
+                                context,
+                                widget.controller,
+                              );
+                              if (saved == true && mounted) {
+                                setState(() {
+                                  final imported = widget.controller.settings;
+                                  for (final field in [
+                                    'companion_name',
+                                    'style',
+                                    'custom_style',
+                                    'custom_style_examples',
+                                    'custom_style_avoid',
+                                    'persona_notes',
+                                  ]) {
+                                    values[field] = imported[field];
+                                  }
+                                  companion.text =
+                                      imported['companion_name'] as String;
+                                  customStyle.text =
+                                      imported['custom_style'] as String;
+                                  styleExamples.text =
+                                      imported['custom_style_examples']
+                                          as String;
+                                  styleAvoid.text =
+                                      imported['custom_style_avoid'] as String;
+                                  notes.text =
+                                      imported['persona_notes'] as String;
+                                  notice = '人设已导入并保存，下面仍可逐项修改。';
+                                });
+                              }
+                            },
+                      icon: const Icon(Icons.badge_outlined),
+                      label: const Text('导入人设'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
               ..._persona(),
               const SizedBox(height: 14),
               ..._messages(),
@@ -403,6 +461,17 @@ class _SettingsSheetState extends State<SettingsSheet> {
         const Text(
           '发送文字后留一点时间继续说，也可以点“现在回应”。关闭后立即发送并整段显示。',
           style: TextStyle(fontSize: 14, height: 1.6, color: XinYuColors.muted),
+        ),
+        const Divider(height: 28),
+        SwitchListTile.adaptive(
+          key: const Key('comfort-music'),
+          contentPadding: EdgeInsets.zero,
+          title: const Text('用音乐陪我缓一缓'),
+          subtitle: const Text(
+            '聊天中累了、难过时，可以主动放一首歌。需已连接网易云；不打断正在播放的歌。也可以直接说“别自动放歌”。',
+          ),
+          value: values['comfort_music_enabled'] != false,
+          onChanged: (v) => setState(() => values['comfort_music_enabled'] = v),
         ),
       ],
     ),
@@ -620,24 +689,42 @@ class _SettingsSheetState extends State<SettingsSheet> {
       title: '彼此的称呼',
       icon: Icons.alternate_email_rounded,
       children: [
-        TextFormField(
-          controller: companion,
-          decoration: const InputDecoration(
-            labelText: '怎么称呼 TA',
-            counterText: '',
-          ),
-          maxLength: 24,
-          validator: (v) => v == null || v.trim().isEmpty ? '请填写一个称呼' : null,
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text('怎么称呼 TA', style: XinYuLayout.note),
         ),
-        const SizedBox(height: 14),
-        TextFormField(
-          controller: user,
-          decoration: const InputDecoration(
-            labelText: '希望 TA 怎么称呼你',
-            hintText: '留空也没关系',
-            counterText: '',
+        const SizedBox(height: 8),
+        Semantics(
+          label: '怎么称呼 TA',
+          child: TextFormField(
+            key: const Key('companion-name'),
+            controller: companion,
+            scrollPadding: const EdgeInsets.fromLTRB(20, 72, 20, 24),
+            decoration: const InputDecoration(
+              hintText: 'TA 的名字',
+              counterText: '',
+            ),
+            maxLength: 24,
+            validator: (v) => v == null || v.trim().isEmpty ? '请填写一个称呼' : null,
           ),
-          maxLength: 24,
+        ),
+        const SizedBox(height: 20),
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text('希望 TA 怎么称呼你', style: XinYuLayout.note),
+        ),
+        const SizedBox(height: 8),
+        Semantics(
+          label: '希望 TA 怎么称呼你',
+          child: TextFormField(
+            controller: user,
+            scrollPadding: const EdgeInsets.fromLTRB(20, 72, 20, 24),
+            decoration: const InputDecoration(
+              hintText: '留空也没关系',
+              counterText: '',
+            ),
+            maxLength: 24,
+          ),
         ),
       ],
     ),
@@ -1062,14 +1149,16 @@ class _SettingsGroup extends StatelessWidget {
   final List<Widget> children;
   @override
   Widget build(BuildContext context) => Material(
-    color: Colors.white,
+    color: const Color(0x9effffff),
     borderRadius: XinYuLayout.corners,
     clipBehavior: Clip.antiAlias,
     child: ExpansionTile(
       key: ValueKey(title),
       maintainState: true,
       tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      // Floating field labels extend above their outline, including with the
+      // system's larger text sizes and when the keyboard changes the viewport.
+      childrenPadding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
       shape: const Border(),
       collapsedShape: const Border(),
       leading: Icon(icon, size: 22, color: XinYuColors.accent),

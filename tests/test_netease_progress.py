@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from companion_agent.integrations import netease_progress as progress
+from companion_agent.integrations.netease_identity import window_matches
 from companion_agent.integrations.netease_windows import NetEaseMedia
 from tests.test_netease import SyntheticSeekSession, SyntheticSession
 
@@ -109,3 +110,21 @@ def test_metadata_change_while_reading_rejects_previous_tracks_clock() -> None:
     result = asyncio.run(media.state())
     assert result["title"] == "another song"
     assert "position_ms" not in result and "song_id" not in result
+
+
+@pytest.mark.parametrize(
+    "window,title,artist,expected",
+    [
+        ("合成歌 - 甲/乙", "合成歌", "甲", True),
+        ("合成歌 - 甲/乙", "合成歌", "甲 / 乙", True),
+        ("合成歌 - 甲/乙", "合成歌", "丙", False),
+        ("合成歌 - 甲/乙", "合成歌", "甲甲", False),
+        ("合成歌 (Live) - 甲/乙", "合成歌", "甲", False),
+        ("Other - 甲", "合成歌", "甲", False),
+        ("合成歌 - 甲/乙", "合成歌", "/", False),
+    ],
+)
+def test_player_window_accepts_primary_artist_without_guessing_song_version(
+    window: str, title: str, artist: str, expected: bool
+) -> None:
+    assert window_matches(window, title, artist) is expected

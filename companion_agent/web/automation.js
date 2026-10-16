@@ -211,7 +211,7 @@ $("add-phone-template").addEventListener("click", (event) => autoAction(event.cu
 }));
 $("add-netease-template").addEventListener("click", (event) => autoAction(event.currentTarget, async () => {
   fillServer(await api("/api/automation/netease-template"));
-  autoMessage("网易云模板已填入。勾选启用并保存，再连接并发现工具。播放控制需在网易云中开启系统媒体控制（SMTC）；新工具默认每次确认。");
+  autoMessage("网易云模板已填入。勾选启用并保存，再连接并发现工具。普通音乐请求默认直接执行，可改为逐次确认。播放控制需在网易云中开启系统媒体控制（SMTC）。");
 }));
 $("schedule-repeat").addEventListener("change", () => { $("schedule-interval-label").hidden = $("schedule-repeat").value !== "interval"; });
 $("schedule-form").addEventListener("submit", (event) => {

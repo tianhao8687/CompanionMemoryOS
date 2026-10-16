@@ -125,7 +125,7 @@ void main() {
       await settingsSection(tester, '陪伴');
       await settingsGroup(tester, '彼此的称呼');
       await tester.enterText(
-        find.widgetWithText(TextFormField, '怎么称呼 TA'),
+        find.byKey(const Key('companion-name')),
         '阿棠',
       );
       final settingsScroll = find

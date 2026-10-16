@@ -124,6 +124,7 @@
         </div>
         <div class="form-section consent-section" id="settings-memory" data-settings-panel="memory" role="tabpanel" aria-labelledby="tab-memory" hidden><h3>把相处，留在日常里</h3><label class="check-label"><input id="storage-consent" type="checkbox"><span>在这台设备保存对话与记忆<small>延续称呼、偏好、共同经历和相处边界。</small></span></label><label class="check-label"><input id="model-consent" type="checkbox"><span>允许当前对话模式处理聊天与相关记忆<small>离线模式只在本机处理；API 模式会发送到你配置的服务并使用额度。</small></span></label>
           <p class="field-hint">聊天中的明确喜好和相处方式会自动记住。直接说出变化或“忘掉咖啡的喜好”即可调整，不需要逐条确认。</p>
+          <label class="check-label"><input id="comfort-music-enabled" type="checkbox"><span>用音乐陪我缓一缓<small>聊天中累了、难过时，可以主动放一首歌。需已连接网易云；也可以直接说“别自动放歌”。</small></span></label>
           <label class="check-label"><input id="proactive-enabled" type="checkbox"><span>允许对手札中安排的事件主动关心一次<small>至少空闲 4 小时、两次间隔 12 小时、每天最多 2 次；未回应时暂停主动联系。</small></span></label>
           <div class="two-columns"><label>安静开始（小时）<input id="quiet-start" type="number" min="0" max="23"></label><label>安静结束（小时）<input id="quiet-end" type="number" min="0" max="23"></label></div>
           <label>所在地时区<input id="calendar-timezone" required maxlength="128" placeholder="Asia/Shanghai"></label><p class="field-hint">例如 Asia/Shanghai 或 America/New_York，用于理解日期和安排安静时段。</p>
@@ -224,7 +225,7 @@
         <form id="loop-form" class="form-section">
           <h3>每轮的执行范围</h3><label class="check-label"><input id="loop-enabled" type="checkbox"><span>启用工具与定时任务<small>关闭后停止接收新工具调用与定时触发。已经发出的操作需核对结果。</small></span></label>
           <div class="two-columns"><label>最多思考轮数<input id="loop-steps" type="number" min="1" max="12" required></label><label>最多工具调用<input id="loop-calls" type="number" min="1" max="24" required></label></div>
-          <div class="two-columns"><label>总时限（秒）<input id="loop-timeout" type="number" min="10" max="600" required></label><label>Token 预算<input id="loop-tokens" type="number" min="1000" max="100000" required></label></div>
+          <div class="two-columns"><label>总时限（秒）<input id="loop-timeout" type="number" min="10" max="600" required></label><label>整轮累计 Token 上限<input id="loop-tokens" type="number" min="1000" max="1000000" required></label></div>
           <button type="submit" class="secondary-button">保存执行范围</button>
         </form>
         <div class="auto-section-heading"><h3>MCP 服务</h3><div class="auto-controls"><button id="add-netease-template" class="text-button">填入网易云模板</button><button id="add-phone-template" class="text-button">填入安卓 / 微信模板</button></div></div>

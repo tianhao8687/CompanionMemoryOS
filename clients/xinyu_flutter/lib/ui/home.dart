@@ -17,6 +17,9 @@ import 'chat_search.dart';
 import 'character_home.dart';
 import 'companion_remark.dart';
 import 'problem_dialog.dart';
+import 'persona_import_sheet.dart';
+import 'app_experience.dart';
+import 'connected_apps.dart';
 
 class XinYuHome extends StatefulWidget {
   const XinYuHome({super.key, required this.controller, required this.probe});
@@ -28,14 +31,17 @@ class XinYuHome extends StatefulWidget {
 
 class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
   final scaffold = GlobalKey<ScaffoldState>();
+  late Widget _conversationView;
   bool _problemVisible = false;
   bool _problemScheduled = false;
   @override
   void initState() {
     super.initState();
+    _conversationView = ConversationView(controller: widget.controller);
     WidgetsBinding.instance.addObserver(this);
     widget.controller.focus.announcement.addListener(_focusNotice);
     widget.controller.problem.addListener(_problemChanged);
+    widget.controller.requestedPage.addListener(_requestedPage);
     _problemChanged();
   }
 
@@ -48,6 +54,68 @@ class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message), duration: const Duration(seconds: 4)),
       );
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  void _requestedPage() {
+    final page = widget.controller.requestedPage.value;
+    if (page == null || !mounted) return;
+    widget.controller.requestedPage.value = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final c = widget.controller;
+      // A tool can only select known application surfaces, never a URL or a
+      // native intent supplied by model output / imported character content.
+      switch (page) {
+        case 'persona_import':
+          await showPersonaImport(context, c);
+        case 'companion':
+          await showCompanionSettings(context, c, initialTab: 0);
+        case 'appearance':
+          await showCompanionSettings(context, c, initialTab: 2);
+        case 'connected_apps':
+          await showConnectedApps(context, c);
+        case 'music':
+          await showMusicScreen(context, c);
+        case 'focus':
+          await showFocusScreen(context, c);
+        case 'memory':
+          await showMemories(context, c);
+        case 'experience':
+          await showAppExperience(context, c);
+        case 'notification_permission':
+          final status = await c.notifications.call<Map>('status');
+          if (status == null) {
+            c.reportProblem('系统通知授权目前支持安卓端。');
+          } else {
+            await c.notifications.call('requestPermission');
+          }
+        case 'music_permission':
+          try {
+            await const MethodChannel('xinyu/music')
+                .invokeMethod('openPermissionSettings');
+          } catch (_) {
+            c.reportProblem('请在网易云设置中开启 SMTC，安卓端则需要系统通知使用权。');
+          }
+        case 'music_account':
+          final pending = c.pendingMusicLibrary;
+          c.pendingMusicLibrary = null;
+          try {
+            final connected = await const MethodChannel('xinyu/music')
+                .invokeMethod<bool>('connectAccount');
+            if (connected == true && pending != null && c.localConnection != null) {
+              final result = await c.localConnection!.resumeMusicLibrary(pending);
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(result['message'] as String? ?? '账号已连接。')),
+              );
+              await c.automation.refresh(silent: true);
+            }
+          } catch (_) {
+            c.reportProblem('账号连接暂未完成。电脑端请先在网易云登录；手机端可稍后重新连接。');
+          }
+      }
     });
     WidgetsBinding.instance.ensureVisualUpdate();
   }
@@ -89,10 +157,13 @@ class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
   void didUpdateWidget(covariant XinYuHome oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
+      _conversationView = ConversationView(controller: widget.controller);
       oldWidget.controller.focus.announcement.removeListener(_focusNotice);
       widget.controller.focus.announcement.addListener(_focusNotice);
       oldWidget.controller.problem.removeListener(_problemChanged);
+      oldWidget.controller.requestedPage.removeListener(_requestedPage);
       widget.controller.problem.addListener(_problemChanged);
+      widget.controller.requestedPage.addListener(_requestedPage);
       _problemChanged();
     }
   }
@@ -102,6 +173,7 @@ class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     widget.controller.focus.announcement.removeListener(_focusNotice);
     widget.controller.problem.removeListener(_problemChanged);
+    widget.controller.requestedPage.removeListener(_requestedPage);
     super.dispose();
   }
 
@@ -226,7 +298,7 @@ class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1040),
-            child: ConversationView(controller: widget.controller),
+            child: _conversationView,
           ),
         ),
       ),

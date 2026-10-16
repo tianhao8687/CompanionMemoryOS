@@ -133,7 +133,12 @@ class XinYuPage extends StatelessWidget {
         },
         child: Scaffold(
           backgroundColor: XinYuColors.canvas,
-          body: SafeArea(child: content),
+          body: Stack(
+            children: [
+              const Positioned.fill(child: XinYuWallpaper()),
+              SafeArea(child: content),
+            ],
+          ),
         ),
       );
     }

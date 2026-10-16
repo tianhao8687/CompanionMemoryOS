@@ -6,13 +6,26 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:xinyu_flutter/main.dart';
 import 'package:xinyu_flutter/state/companion_controller.dart';
 import 'package:xinyu_flutter/state/music_controller.dart';
+import 'package:xinyu_flutter/ui/music_screen.dart';
 
 import 'focus_presence_test.dart' show PresenceRepository;
 import 'settings_navigation.dart';
 
 class ListeningRepository extends PresenceRepository {
+  final openRequests = <Map<String, dynamic>>[];
+  @override
+  Future<Map<String, dynamic>> openMusic(Map<String, dynamic> request) async {
+    openRequests.add({...request});
+    return {
+      'status': 'succeeded',
+      'delivery': 'requested',
+      'playback_verified': false,
+    };
+  }
+
   final musicRequests = <Map<String, dynamic>>[];
   Completer<Map<String, dynamic>>? pendingPoll;
+  Completer<Map<String, dynamic>>? pendingStart;
   Map<String, dynamic> musicState = {
     'active': true,
     'id': 'music-1',
@@ -70,6 +83,9 @@ class ListeningRepository extends PresenceRepository {
   @override
   Future<Map<String, dynamic>> music(Map<String, dynamic> request) async {
     musicRequests.add({...request});
+    if (request['action'] == 'start' && pendingStart != null) {
+      return pendingStart!.future;
+    }
     if (request['action'] == 'poll' && pendingPoll != null) {
       return pendingPoll!.future;
     }
@@ -109,6 +125,55 @@ class ListeningRepository extends PresenceRepository {
 }
 
 void main() {
+  test('entering together listening reconciles a receipt already confirmed on start', () async {
+    final repo = ListeningRepository();
+    repo.musicState['receipt_revision'] = 1;
+    var refreshes = 0;
+    final c = MusicController(
+      () => repo,
+      () => 'test',
+      composing: () => false,
+      onMessage: () async {
+        refreshes++;
+      },
+    );
+    addTearDown(c.dispose);
+    addTearDown(repo.close);
+    await c.act('start');
+    expect(refreshes, 1);
+    await c.poll();
+    expect(refreshes, 1);
+    expect(repo.openRequests, isEmpty);
+  });
+
+  test(
+    'late playback receipt refreshes song cards once without another chat',
+    () async {
+      final repo = ListeningRepository();
+      var refreshes = 0;
+      final c = MusicController(
+        () => repo,
+        () => 'test',
+        composing: () => false,
+        onMessage: () async {
+          refreshes++;
+        },
+      );
+      addTearDown(c.dispose);
+      addTearDown(repo.close);
+      await c.act('start');
+      await c.poll();
+      expect(refreshes, 0);
+      repo.musicState['receipt_revision'] = 1;
+      await c.poll();
+      expect(refreshes, 1);
+      await c.poll();
+      expect(refreshes, 1);
+      expect(repo.sent, isEmpty);
+      expect(repo.openRequests, isEmpty);
+    },
+  );
+
   test('stale poll cannot undo quiet or resurrect an ended activity', () async {
     final repo = ListeningRepository();
     final c = MusicController(
@@ -177,6 +242,7 @@ void main() {
         await t.pumpWidget(XinYuApp(controller: c));
         await t.pumpAndSettle();
         await composeAction(t, 'open-music');
+        expect(repo.openRequests, hasLength(1));
         expect(find.text('晚风里的小路'), findsOneWidget);
         expect(repo.sent, isEmpty);
         await t.ensureVisible(find.byKey(const Key('music-pause')));
@@ -187,6 +253,10 @@ void main() {
         await t.tap(find.byKey(const Key('music-quiet')));
         await t.pumpAndSettle();
         expect(c.music.quiet, true);
+        c.music.setForeground(false);
+        c.music.setForeground(true);
+        await t.pumpAndSettle();
+        expect(repo.openRequests, hasLength(1));
         expect(find.text('可以说点话'), findsOneWidget);
         t.view.viewInsets = const FakeViewPadding(bottom: 260);
         addTearDown(t.view.resetViewInsets);
@@ -205,4 +275,58 @@ void main() {
       }),
     );
   }
+
+  for (final platform in [TargetPlatform.android, TargetPlatform.windows]) {
+    testWidgets('open player once per route entry on $platform', (t) async {
+      final repo = ListeningRepository();
+      final c = CompanionController(repository: repo);
+      addTearDown(c.dispose);
+      await t.pumpWidget(XinYuApp(controller: c));
+      await t.pumpAndSettle();
+      expect(repo.openRequests, isEmpty);
+      await composeAction(t, 'open-music');
+      expect(repo.openRequests, hasLength(1));
+      await c.music.poll();
+      await t.pump(const Duration(milliseconds: 100));
+      expect(repo.openRequests, hasLength(1));
+      await t.tap(find.byTooltip('返回聊天'));
+      await t.pumpAndSettle();
+      expect(c.music.active, isTrue);
+      await composeAction(t, 'open-music');
+      expect(repo.openRequests, hasLength(2));
+      expect(
+        repo.musicRequests.where((r) => r['action'] == 'start'),
+        hasLength(1),
+      );
+      expect(
+        repo.openRequests[0]['request_id'],
+        isNot(repo.openRequests[1]['request_id']),
+      );
+      await c.music.act('end');
+      c.focus.connect(false);
+      await t.pumpWidget(const SizedBox());
+    }, variant: TargetPlatformVariant({platform}));
+  }
+
+  testWidgets('leaving during startup does not launch the external player', (
+    t,
+  ) async {
+    final repo = ListeningRepository()..pendingStart = Completer();
+    final c = CompanionController(repository: repo);
+    addTearDown(c.dispose);
+    await t.pumpWidget(XinYuApp(controller: c));
+    await t.pumpAndSettle();
+    final context = t.element(find.byType(Scaffold).first);
+    final route = showMusicScreen(context, c);
+    await t.pumpAndSettle();
+    await t.tap(find.byTooltip('返回聊天'));
+    await t.pumpAndSettle();
+    await route;
+    repo.pendingStart!.complete(repo.copyState());
+    await t.pumpAndSettle();
+    expect(repo.openRequests, isEmpty);
+    await c.music.act('end');
+    c.focus.connect(false);
+    await t.pumpWidget(const SizedBox());
+  });
 }

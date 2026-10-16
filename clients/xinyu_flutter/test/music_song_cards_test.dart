@@ -135,6 +135,25 @@ Future<CompanionController> mount(
 }
 
 void main() {
+  testWidgets('unconfirmed playback is distinct from permission approval', (
+    tester,
+  ) async {
+    final repo = SongRepository();
+    await mount(
+      tester,
+      repo,
+      values: [
+        {...cards.first, 'state': 'not_started'},
+        {...cards.last, 'state': 'paused'},
+      ],
+    );
+    expect(find.text('网易云仍在其他歌曲 · 这首尚未开始'), findsOneWidget);
+    expect(find.text('已切到这首歌 · 网易云处于暂停状态'), findsOneWidget);
+    expect(find.textContaining('待确认'), findsNothing);
+    expect(find.text('确认播放'), findsNothing);
+    expect(repo.picks, isEmpty);
+  });
+
   TestWidgetsFlutterBinding.ensureInitialized();
   const destination = String.fromEnvironment('MUSIC_REVIEW_DIR');
   setUpAll(() async {
@@ -173,6 +192,26 @@ void main() {
     });
     await tester.pumpAndSettle();
   });
+  testWidgets(
+    'comfort card shows one chosen song without another playback on render',
+    (tester) async {
+      final repo = SongRepository();
+      await mount(
+        tester,
+        repo,
+        width: 320,
+        scale: 2,
+        values: [
+          {...cards.first, 'state': 'verified', 'comfort': true},
+        ],
+      );
+      expect(find.text('陪你缓一缓'), findsOneWidget);
+      expect(find.text('已确认开始播放'), findsOneWidget);
+      expect(repo.picks, isEmpty);
+      expect(repo.decisions, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('pending card confirms existing action without a second open', (
     tester,
   ) async {

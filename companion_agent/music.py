@@ -20,6 +20,7 @@ from companion_agent.context import ChatMessage
 from companion_agent.deepseek import DeepSeekLLM
 from companion_agent.evidence_policy import filter_superseded_context
 from companion_agent.music_lyrics import ListeningLyrics, track_key
+from companion_agent.music_profile import taste_context
 from companion_agent.persona.models import PersonaModel
 from companion_agent.romance import romantic_rules
 from companion_memoryos.discourse import direct_clauses
@@ -56,6 +57,11 @@ class MusicInput(PersonaModel):
     track_key: str = Field(default="", max_length=64)
     quiet: bool = False
     composing: bool = False
+
+
+class MusicOpenInput(PersonaModel):
+    conversation_id: str = Field(min_length=1, max_length=128)
+    request_id: str = Field(min_length=1, max_length=128)
 
 
 class MusicCompanion:
@@ -201,6 +207,12 @@ class MusicCompanion:
                 self.last_check = now
                 try:
                     self.session["media"] = self._read()
+                    if self.host.music_requests.observe(
+                        item.conversation_id, self.session["media"]
+                    ):
+                        self.session["receipt_revision"] = (
+                            self.session.get("receipt_revision", 0) + 1
+                        )
                 except Exception as error:
                     self.session["media"] = {
                         "available": False,
@@ -409,6 +421,8 @@ class MusicCompanion:
                     ChatMessage(
                         role="system",
                         content=romantic_rules(settings)
+                        + taste_context(settings)
+                        + self.host.music_library.context()
                         + preference_rules(preferences)
                         + "\n用户选择一起听，允许偶尔一句文字陪伴。当前用户没发新消息。"
                         "有贴合聊天的自然理由才说一两句短话；没有就只输出 [skip]。"

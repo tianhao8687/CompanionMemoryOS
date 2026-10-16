@@ -22,6 +22,7 @@ class MusicController extends ChangeNotifier {
   late final MusicLyricsController lyrics;
   final lyricClock = MusicLyricClock();
   String? _alignedSong;
+  String? _receiptRevision;
   final LocalRepository? Function() connection;
   final String? Function() conversation;
   final bool Function() composing;
@@ -95,6 +96,38 @@ class MusicController extends ChangeNotifier {
   Future<void> seek(int milliseconds, String trackKey) =>
       act('seek', position: milliseconds, trackKey: trackKey);
 
+  Future<void> openPlayer() async {
+    if (busy || _disposed) return;
+    final generation = _generation;
+    busy = true;
+    error = null;
+    _emit();
+    try {
+      final repository = connection(), current = conversation();
+      if (repository == null || current == null) {
+        throw const CompanionException('请先打开本机数据。');
+      }
+      final result = await repository.openMusic({
+        'conversation_id': current,
+        'request_id':
+            '${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(1 << 30)}',
+      });
+      if (_disposed || generation != _generation) return;
+      if (result['status'] != 'succeeded') {
+        error = result['message'] as String? ?? '网易云打开结果尚未确认，请查看客户端。';
+      }
+    } catch (e) {
+      if (!_disposed && generation == _generation) {
+        error = userProblemMessage(e, fallback: '网易云暂时没能打开，请确认已安装。');
+      }
+    } finally {
+      if (!_disposed && generation == _generation) {
+        busy = false;
+        _emit();
+      }
+    }
+  }
+
   int? positionMs([DateTime? at]) {
     final position = media['position_ms'];
     final duration = media['duration_ms'];
@@ -131,6 +164,7 @@ class MusicController extends ChangeNotifier {
     _generation++;
     _timer?.cancel();
     _accept(null);
+    _receiptRevision = null;
     error = null;
     busy = _polling = false;
     _emit();
@@ -193,6 +227,7 @@ class MusicController extends ChangeNotifier {
       });
       if (_disposed || generation != _generation) return;
       _accept(result['active'] == true ? result : null);
+      await _refreshReceipts(result);
       final operation = automationMap(result['operation']);
       if (operation.isNotEmpty && operation['status'] != 'succeeded') {
         final data = automationMap(operation['data']);
@@ -225,6 +260,19 @@ class MusicController extends ChangeNotifier {
     }
   }
 
+  Future<void> _refreshReceipts(
+    Map<String, dynamic> result, {
+    bool reply = false,
+  }) async {
+    final revision = result['receipt_revision'] == null
+        ? null
+        : '${result['id']}:${result['receipt_revision']}';
+    if (reply || (revision != null && revision != _receiptRevision)) {
+      await onMessage();
+      _receiptRevision = revision;
+    }
+  }
+
   Future<void> poll() async {
     if (_disposed || _polling || busy || !active || !_foreground) return;
     final generation = _generation;
@@ -242,9 +290,10 @@ class MusicController extends ChangeNotifier {
       }
       _accept(result['active'] == true ? result : null);
       error = null;
-      if (result['reply_id'] != null && result['reply_id'] != reply) {
-        await onMessage();
-      }
+      await _refreshReceipts(
+        result,
+        reply: result['reply_id'] != null && result['reply_id'] != reply,
+      );
       _emit();
     } catch (_) {
       if (!_disposed && generation == _generation && operation == _operation) {

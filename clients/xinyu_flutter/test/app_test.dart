@@ -181,7 +181,7 @@ void main() {
     await tester.pumpAndSettle();
     await settingsSection(tester, '陪伴');
     await settingsGroup(tester, '彼此的称呼');
-    await tester.enterText(find.widgetWithText(TextFormField, '怎么称呼 TA'), '小夏');
+    await tester.enterText(find.byKey(const Key('companion-name')), '小夏');
     await settingsSection(tester, '外观');
     await settingsGroup(tester, '字号');
     await tester.pumpAndSettle();

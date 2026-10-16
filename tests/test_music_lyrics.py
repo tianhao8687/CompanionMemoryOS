@@ -79,7 +79,69 @@ def test_matching_keeps_live_versions_artist_album_and_duration_distinct() -> No
         {"duration_ms": 240000},
     ]:
         assert not exact_version(media, {**song, **changes})
-    assert not exact_version({**media, "album": ""}, song)
+    assert exact_version({**media, "album": ""}, song)
+    assert not exact_version({**media, "album": "", "duration_ms": None}, song)
+
+
+def test_primary_artist_only_is_enough_when_player_song_id_is_verified() -> None:
+    media = {"song_id": "456", "title": "合成歌", "artist": "甲", "duration_ms": 180000}
+    song = {"id": "456", "name": "合成歌", "artists": ["甲", "乙"], "duration_ms": 180000}
+    assert exact_version(media, song)
+    assert not exact_version({**media, "song_id": None}, song)
+    assert not exact_version(media, {**song, "id": "789"})
+    assert not exact_version(media, {**song, "name": "合成歌 (Live)"})
+
+
+def test_native_id_loads_lyrics_even_when_track_is_absent_from_search_results(
+    listening: Any,
+) -> None:
+    f = listening
+    search_calls = setup_catalog(f)
+    f.bridge.state.update(song_id="456", album="", artist="测试歌手")
+    f.now[0] += 2
+    poll(f)
+    paths = []
+
+    def provider(request: httpx.Request) -> httpx.Response:
+        paths.append(request.url.path)
+        if request.url.path.endswith("detail/"):
+            return httpx.Response(
+                200,
+                json={
+                    "code": 200,
+                    "songs": [
+                        {
+                            "id": 456,
+                            "name": "合成歌曲",
+                            "duration": 180000,
+                            "artists": [{"name": "测试歌手"}, {"name": "合唱歌手"}],
+                            "album": {"name": "专辑"},
+                        }
+                    ],
+                },
+            )
+        assert request.url.path.endswith("lyric")
+        return httpx.Response(200, json={"code": 200, "lrc": {"lyric": "[00:00.00]合成歌词"}})
+
+    f.host.music.lyrics.catalog = NetEaseCatalog(httpx.MockTransport(provider))
+    result = request_lyrics(f).json()
+    assert result["status"] == "ready" and result["song_id"] == "456"
+    assert result["match"] == "exact"
+    assert not search_calls and not f.model.inputs
+    assert all("get/web" not in path for path in paths)
+
+
+@pytest.mark.parametrize("ambiguous", [False, True])
+def test_absent_album_uses_unique_title_artist_duration_match(
+    listening: Any, ambiguous: bool
+) -> None:
+    f = listening
+    setup_catalog(f, ambiguous=ambiguous)
+    f.bridge.state["album"] = ""
+    f.now[0] += 2
+    poll(f)
+    result = request_lyrics(f).json()
+    assert result["status"] == ("choose" if ambiguous else "ready")
 
 
 def test_windows_uses_provider_timeline_and_keeps_absent_progress_unknown() -> None:

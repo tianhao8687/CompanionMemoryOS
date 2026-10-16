@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import base64
-import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -104,7 +102,7 @@ def test_catalog_accepts_empty_results() -> None:
     assert asyncio.run(NetEaseCatalog(transport).search("synthetic"))["songs"] == []
 
 
-def test_song_handoff_has_no_shell_and_never_claims_playback(
+def test_song_selection_uses_only_background_adapter_without_launching(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -112,19 +110,19 @@ def test_song_handoff_has_no_shell_and_never_claims_playback(
     executable.parent.mkdir()
     executable.touch()
     calls = []
-    monkeypatch.setattr(windows.sys, "platform", "win32")
-    monkeypatch.setattr(windows.subprocess, "Popen", lambda *a, **kw: calls.append((a, kw)))
+    monkeypatch.setattr(windows, "sys", SimpleNamespace(platform="win32"))
+    monkeypatch.setattr(
+        windows.subprocess, "Popen", lambda *a, **kw: pytest.fail("launch forbidden")
+    )
+
+    def play(self: object, identifier: str) -> dict[str, object]:
+        calls.append(identifier)
+        return {"status": "failed", "reason": "background_not_initialized"}
+
+    monkeypatch.setattr(windows.BackgroundPlayer, "play", play)
     result = windows.open_song("123", executable)
-    arguments, options = calls[0]
-    assert arguments[0][0] == str(executable.resolve())
-    uri = arguments[0][1].removeprefix("--webcmd=")
-    assert json.loads(base64.b64decode(uri.removeprefix("orpheus://"))) == {
-        "type": "song",
-        "id": "123",
-        "cmd": "play",
-    }
-    assert not options.get("shell")
-    assert result["delivery"] == "requested" and result["playback_verified"] is False
+    assert calls == ["123"]
+    assert result == {"status": "failed", "reason": "background_not_initialized"}
     with pytest.raises(ValueError):
         windows.open_song("123; calc", executable)
     assert len(calls) == 1
@@ -137,9 +135,26 @@ def test_invalid_install_path_and_android_cannot_launch(
     arbitrary = tmp_path / "other.exe"
     arbitrary.touch()
     assert windows.find_executable(arbitrary) is None
-    monkeypatch.setattr(windows.sys, "platform", "linux")
+    monkeypatch.setattr(windows, "sys", SimpleNamespace(platform="linux"))
     with pytest.raises(ValueError, match="安卓"):
         windows.open_song("123", arbitrary)
+
+
+def test_open_client_needs_no_song_or_media_session_and_never_claims_playback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = tmp_path / "cloudmusic.exe"
+    executable.touch()
+    calls = []
+    monkeypatch.setattr(windows, "sys", SimpleNamespace(platform="win32"))
+    monkeypatch.setattr(windows.subprocess, "Popen", lambda *a, **kw: calls.append((a, kw)))
+    result = windows.open_app(executable)
+    assert calls[0][0][0] == [str(executable.resolve())]
+    assert not calls[0][1].get("shell")
+    assert result["status"] == "succeeded" and not result["playback_verified"]
+    assert "song_id" not in result
+    assert windows.open_app(tmp_path / "other.exe")["status"] == "failed"
+    assert len(calls) == 1
 
 
 class SyntheticSession:
@@ -211,6 +226,17 @@ def test_ambiguous_netease_sessions_are_not_guessed() -> None:
     assert not one.calls and not two.calls and not one.reads and not two.reads
 
 
+@pytest.mark.parametrize("running", [True, False, None])
+def test_absent_session_only_confirms_idle_when_player_is_closed(
+    monkeypatch: pytest.MonkeyPatch, running: bool | None
+) -> None:
+    monkeypatch.setattr(windows, "player_running", lambda: running)
+    state = asyncio.run(media_with().state())
+    assert state["idle"] is (running is False)
+    assert state["status"] == ("succeeded" if running is False else "failed")
+    assert state["available"] is False
+
+
 @pytest.mark.parametrize("action", ["play", "pause", "next", "previous"])
 def test_controls_verify_target_state_and_only_touch_netease(action: windows.MediaAction) -> None:
     other, target = SyntheticSession("msedge.exe"), SyntheticSession()
@@ -254,11 +280,15 @@ def test_mcp_tool_contracts_and_invalid_calls_have_no_external_effects() -> None
         tools = {tool.name: tool for tool in await server.list_tools()}
         assert set(tools) == {
             "netease_status",
+            "netease_open_app",
             "netease_search_songs",
             "netease_open_song",
             "netease_playback_state",
             "netease_control",
             "netease_seek",
+            "netease_account",
+            "netease_user_playlists",
+            "netease_playlist_songs",
         }
         assert tools["netease_control"].inputSchema["properties"]["action"]["enum"] == [
             "play",

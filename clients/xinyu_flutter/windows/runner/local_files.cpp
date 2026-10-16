@@ -14,17 +14,19 @@ std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> CreateLocalFile
       messenger, "xinyu/local-files", &flutter::StandardMethodCodec::GetInstance());
   channel->SetMethodCallHandler([window](const auto& call, auto result) {
     const bool image = call.method_name() == "pickImage";
+    const bool persona = call.method_name() == "pickPersona";
     const bool save = call.method_name() == "saveBackup";
-    if (!save && !image && call.method_name() != "pickBackup") { result->NotImplemented(); return; }
+    if (!save && !image && !persona && call.method_name() != "pickBackup") { result->NotImplemented(); return; }
     wchar_t path[32768] = L"xinyu-backup.sqlite";
-    if (image) path[0] = 0;
+    if (image || persona) path[0] = 0;
     OPENFILENAMEW dialog{};
     dialog.lStructSize = sizeof(dialog);
     dialog.hwndOwner = window;
     dialog.lpstrFile = path;
     dialog.nMaxFile = 32768;
     dialog.lpstrFilter = image ? L"Images\0*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp\0\0" : L"XinYu backup (*.sqlite)\0*.sqlite\0\0";
-    dialog.lpstrDefExt = image ? nullptr : L"sqlite";
+    if (persona) dialog.lpstrFilter = L"Character card\0*.png;*.json;*.txt\0\0";
+    dialog.lpstrDefExt = image || persona ? nullptr : L"sqlite";
     dialog.Flags = OFN_NOCHANGEDIR | OFN_PATHMUSTEXIST |
         (save ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST);
     if (!(save ? GetSaveFileNameW(&dialog) : GetOpenFileNameW(&dialog))) {
@@ -53,7 +55,7 @@ std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> CreateLocalFile
         result->Success(EncodableValue(true));
       } else {
         const auto size = std::filesystem::file_size(path);
-        if (size < (image ? 1u : 100u) || size > (image ? 20u : 64u) * 1024 * 1024) throw std::runtime_error("size");
+        if (size < (image || persona ? 1u : 100u) || size > (image || persona ? 20u : 64u) * 1024 * 1024) throw std::runtime_error("size");
         std::vector<uint8_t> bytes(static_cast<size_t>(size));
         std::ifstream input(std::filesystem::path(path), std::ios::binary);
         input.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(size));

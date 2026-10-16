@@ -38,11 +38,19 @@ class _TogetherMusicScreenState extends State<TogetherMusicScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !widget.controller.music.active) {
-        unawaited(widget.controller.music.act('start'));
-      }
+      if (mounted) unawaited(_enter());
     });
     input.addListener(_typing);
+  }
+
+  Future<void> _enter() async {
+    final music = widget.controller.music;
+    if (!music.active) await music.act('start');
+    // One launch per route entry, including returning to an existing session.
+    // Rebuilds, polling and returning from the external app never re-enter here.
+    if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+      await music.openPlayer();
+    }
   }
 
   void _typing() =>

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import sys
 from contextlib import AsyncExitStack
 from datetime import timedelta
 from typing import Any
@@ -47,10 +48,73 @@ class MCPClient:
         if server.transport == "native":
             raise MCPFailure("此引擎未连接安卓音乐服务。")
         try:
+            # A Windows stdio MCP process belongs to the SDK's kill-on-close Job.
+            # A GUI launched inside it would be killed before forwarding its command.
+            # Retain the existing host route for the two fixed bundled music tools.
+            # open_song now uses CDP and never launches; open_app remains separate.
+            # ToolHub authorization/idempotency and exact contracts still apply.
+            from companion_agent.automation.bundled_music import is_bundled_music
+
+            if (
+                sys.platform == "win32"
+                and name in {"netease_open_app", "netease_open_song"}
+                and is_bundled_music(server, sys.executable)
+            ):
+                return asyncio.run(
+                    self._host_music_launch(server, name, arguments, expected, timeout)
+                )
             return asyncio.run(self._session(server, name, arguments, expected, timeout))
         except Exception:
             # Never expose subprocess stderr, headers, credentials or SDK exception groups.
             raise MCPFailure("MCP 连接或执行失败；请检查服务、环境变量和超时设置。") from None
+
+    async def _host_music_launch(
+        self,
+        server: MCPServerConfig,
+        name: str,
+        arguments: dict[str, Any] | None,
+        expected: dict[str, Any] | None,
+        timeout: float | None,
+    ) -> dict[str, Any]:
+        from companion_agent.integrations.netease import build_server
+
+        # Use the same MCP definitions and argument validation as discovery. No second
+        # schema, model-selected executable, generic dispatch, or retry on failure.
+        async with asyncio.timeout(min(server.timeout_seconds, timeout or server.timeout_seconds)):
+            local = build_server()
+            tool = next((tool for tool in await local.list_tools() if tool.name == name), None)
+            if (
+                tool is None
+                or {
+                    "name": tool.name,
+                    "description": (tool.description or "")[:2000],
+                    "inputSchema": tool.inputSchema,
+                }
+                != expected
+            ):
+                raise MCPFailure("tool changed; rediscover and authorize")
+            result = await local.call_tool(name, arguments or {})
+            if not isinstance(result, tuple):
+                raise MCPFailure("bundled launch result is missing structured content")
+            content, structured = result
+            return self._result(content, structured, False)
+
+    @staticmethod
+    def _result(content: Any, structured: Any, is_error: bool) -> dict[str, Any]:
+        text = "\n".join(item.text for item in content if item.type == "text")[:12000]
+        if structured is not None and len(json.dumps(structured)) > 12000:
+            structured = {"truncated": True}
+        declared = structured.get("status") if isinstance(structured, dict) else None
+        status = (
+            "failed"
+            if is_error
+            else (
+                declared
+                if declared in {"succeeded", "failed", "uncertain", "denied"}
+                else "succeeded"
+            )
+        )
+        return {"status": status, "text": text, "data": structured}
 
     async def _session(
         self,
@@ -142,22 +206,4 @@ class MCPClient:
             if found is None or found != expected:
                 raise MCPFailure("tool changed; rediscover and authorize")
             result = await session.call_tool(name, arguments or {})
-            text = "\n".join(item.text for item in result.content if item.type == "text")[:12000]
-            structured = result.structuredContent
-            if structured is not None and len(json.dumps(structured)) > 12000:
-                structured = {"truncated": True}
-            declared = structured.get("status") if isinstance(structured, dict) else None
-            status = (
-                "failed"
-                if result.isError
-                else (
-                    declared
-                    if declared in {"succeeded", "failed", "uncertain", "denied"}
-                    else "succeeded"
-                )
-            )
-            return {
-                "status": status,
-                "text": text,
-                "data": structured,
-            }
+            return self._result(result.content, result.structuredContent, result.isError)

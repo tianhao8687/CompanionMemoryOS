@@ -91,6 +91,10 @@ class Win32Window {
   static void UpdateTheme(HWND const window);
 
   bool quit_on_close_ = false;
+  ULONGLONG quiet_music_deadline_ = 0;
+  UINT_PTR quiet_music_ticket_ = 0;
+  bool quiet_music_was_topmost_ = false;
+  void EndQuietMusic();
 
   // window handle for top level window.
   HWND window_handle_ = nullptr;

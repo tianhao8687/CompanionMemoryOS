@@ -20,6 +20,9 @@
             </intent-filter>
         </service>
         <service android:name=".OutreachJobService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false" />
+        <activity android:name=".NetEaseAccountActivity" android:exported="false"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar"
+            android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -54,6 +57,10 @@
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
+        <intent>
+            <action android:name="android.provider.action.PICK_IMAGES" />
+            <data android:mimeType="image/*" />
+        </intent>
         <package android:name="com.netease.cloudmusic" />
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>

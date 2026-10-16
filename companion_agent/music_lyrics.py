@@ -5,9 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import re
 import time
-import unicodedata
 from collections import OrderedDict
 from copy import deepcopy
 from threading import RLock
@@ -17,6 +15,7 @@ from pydantic import Field
 
 from companion_agent.automation.mcp_client import MCPFailure
 from companion_agent.integrations.netease_catalog import NetEaseCatalog, song_id
+from companion_agent.integrations.netease_identity import artists_match, normalized
 from companion_agent.integrations.netease_lyrics import fetch_lyrics
 from companion_agent.persona.models import PersonaModel
 
@@ -38,37 +37,31 @@ def track_key(media: dict[str, Any]) -> str:
     return hashlib.sha256(json.dumps(identity, ensure_ascii=False).encode()).hexdigest()[:24]
 
 
-def normalized(value: str) -> str:
-    return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
-
-
 def exact_version(media: dict[str, Any], song: dict[str, Any]) -> bool:
     identifier = media.get("song_id")
     if identifier is not None and identifier != song.get("id"):
         return False
-    artist = str(media.get("artist", ""))
-    artists = {normalized(a) for a in re.split(r"\s*[/、,，]\s*", artist) if a.strip()}
-    expected = {normalized(a) for a in song.get("artists", [])}
     duration, candidate_duration = media.get("duration_ms"), song.get("duration_ms")
+    same_id = identifier is not None and identifier == song.get("id")
+    same_duration = (
+        type(duration) is int
+        and type(candidate_duration) is int
+        and abs(duration - candidate_duration) <= 2000
+    )
     return bool(
         normalized(str(media.get("title", ""))) == normalized(song.get("name", ""))
-        and artists
-        and artists == expected
+        and artists_match(
+            str(media.get("artist", "")), song.get("artists", []), primary_only=same_id
+        )
         and (
-            (identifier == song.get("id") and identifier is not None)
+            same_id
             or (
                 media.get("album")
                 and normalized(str(media["album"])) == normalized(song.get("album", ""))
             )
+            or (not media.get("album") and same_duration)
         )
-        and (
-            duration is None
-            or (
-                type(duration) is int
-                and type(candidate_duration) is int
-                and abs(duration - candidate_duration) <= 2000
-            )
-        )
+        and (duration is None or same_duration)
     )
 
 
@@ -109,16 +102,28 @@ class ListeningLyrics:
                 args = {"query": query[:120], "limit": 8}
                 with self.music.host.tools.lock:
                     server, tool = self.music._binding("netease_search_songs", args)
-                    try:
-                        found = self.music.host.tools.client.call(server, tool["name"], args, tool)
-                    except MCPFailure:
-                        raise ValueError("网易云歌曲查询暂时不可用，请稍后重试。") from None
-                data = found.get("data")
-                if not isinstance(data, dict) or data.get("status") != "succeeded":
-                    raise ValueError("暂时无法匹配歌词，请稍后重试。")
-                choices = data.get("songs", [])
-                if not isinstance(choices, list):
-                    raise ValueError("歌曲列表暂时无法读取。")
+                choices = []
+                identifier = media.get("song_id")
+                if isinstance(identifier, str):
+                    detail = asyncio.run(self.catalog.detail(identifier))
+                    if detail and exact_version(media, detail):
+                        choices = [detail]
+                if not choices:
+                    with self.music.host.tools.lock:
+                        # Recheck after the optional network detail lookup.
+                        server, tool = self.music._binding("netease_search_songs", args)
+                        try:
+                            found = self.music.host.tools.client.call(
+                                server, tool["name"], args, tool
+                            )
+                        except MCPFailure:
+                            raise ValueError("网易云歌曲查询暂时不可用，请稍后重试。") from None
+                    data = found.get("data")
+                    if not isinstance(data, dict) or data.get("status") != "succeeded":
+                        raise ValueError("暂时无法匹配歌词，请稍后重试。")
+                    choices = data.get("songs", [])
+                    if not isinstance(choices, list):
+                        raise ValueError("歌曲列表暂时无法读取。")
                 self.choices[key] = choices
                 while len(self.choices) > 24:
                     self.choices.popitem(last=False)

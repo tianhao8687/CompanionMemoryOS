@@ -24,6 +24,8 @@ class AutomationStore:
                     tool_name TEXT NOT NULL, arguments TEXT NOT NULL, fingerprint TEXT NOT NULL,
                     status TEXT NOT NULL, result TEXT NOT NULL, created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL);
+                CREATE INDEX IF NOT EXISTS idx_agent_actions_tool_time
+                    ON agent_actions(tool_name, created_at);
                 CREATE TABLE IF NOT EXISTS agent_jobs (
                     id TEXT PRIMARY KEY, data TEXT NOT NULL, next_run TEXT NOT NULL,
                     status TEXT NOT NULL, last_result TEXT NOT NULL, created_at TEXT NOT NULL);
@@ -69,6 +71,17 @@ class AutomationStore:
         row["result"] = json.loads(row["result"])
         row.pop("fingerprint", None)
         return row
+
+    def request_actions(self, conversation: str, request_id: str) -> list[dict[str, Any]]:
+        # Media polling must not push a suspended chat's receipts out of the
+        # recent-action list before its approval is resumed.
+        with self.database.connection() as db:
+            rows = db.execute(
+                "SELECT * FROM agent_actions WHERE conversation_id=? AND request_id=? "
+                "ORDER BY rowid DESC LIMIT 24",
+                (conversation, request_id),
+            ).fetchall()
+        return [self.action_dict(dict(row)) for row in rows]
 
     def notification(self, conversation: str, title: str, message: str) -> None:
         with self.database.connection() as db:

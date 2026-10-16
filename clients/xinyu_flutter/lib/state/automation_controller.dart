@@ -123,7 +123,7 @@ class AutomationController extends ChangeNotifier {
     config['servers'] = servers;
     await repository.saveAutomation(config);
     await repository.connectNetease();
-    notice = '已连接。可以在聊天里让 TA 帮你听歌；新工具默认每次确认。';
+    notice = '已连接。直接说想听什么，TA 会找歌并播放；可在权限中改为逐次确认。';
   });
 
   Future<void> disableNetease() => _mutate((repository) async {

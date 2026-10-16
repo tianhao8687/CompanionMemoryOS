@@ -106,7 +106,22 @@ def test_disabled_native_tools_hide_restored_catalog_and_block_management(tmp_pa
         assert {item["function"]["name"] for item in host.tools.definitions()} == {
             "calculate",
             "local_time",
+            # In-app configuration remains available without external tools.
+            "app_settings",
+            "app_configure",
+            "app_experience",
+            "app_open",
+            "app_undo_settings",
+            "app_connect_music",
+            "app_open_music",
         }
+        assert (
+            host.tools.invoke(
+                "app_connect_music", {}, host.conversations()[0]["id"], "unavailable"
+            )["status"]
+            == "denied"
+        )
+        assert not fake.calls
         assert not host.tools.bindings()
         with pytest.raises(ValueError, match="外部工具"):
             host.tools.discover("fixture")
@@ -194,7 +209,20 @@ def test_netease_template_is_valid_and_uses_the_correct_entrypoint(
             if frozen
             else ["-m", "companion_agent.integrations.netease"]
         )
-        assert config.tools == {} and config.env == {} and not config.bearer_env
+        assert set(config.tools) == {
+            "netease_status",
+            "netease_open_app",
+            "netease_search_songs",
+            "netease_open_song",
+            "netease_playback_state",
+            "netease_control",
+            "netease_seek",
+            "netease_account",
+            "netease_user_playlists",
+            "netease_playlist_songs",
+        }
+        assert all(rule.mode == "allow" and not rule.arguments for rule in config.tools.values())
+        assert config.env == {} and not config.bearer_env
 
 
 def test_netease_template_is_unavailable_on_other_platforms(

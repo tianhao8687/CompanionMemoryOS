@@ -25,6 +25,7 @@ import org.json.JSONObject
 class MusicNotificationListener : NotificationListenerService()
 
 object MusicBridge {
+    private class NoMediaSession : IllegalStateException("网易云尚未开始播放。")
     private const val PACKAGE = "com.netease.cloudmusic"
     @Volatile private var foreground = WeakReference<Activity>(null)
 
@@ -55,10 +56,8 @@ object MusicBridge {
         val matches = manager.getActiveSessions(
             ComponentName(context, MusicNotificationListener::class.java)
         ).filter { it.packageName == PACKAGE }
-        check(matches.size == 1) {
-            if (matches.isEmpty()) "请在网易云播放一首歌，再回到心隅。"
-            else "发现多个网易云媒体会话，请保留一个播放器后重试。"
-        }
+        if (matches.isEmpty()) throw NoMediaSession()
+        check(matches.size == 1) { "发现多个网易云媒体会话，请保留一个播放器后重试。" }
         return matches.single()
     }
 
@@ -91,6 +90,19 @@ object MusicBridge {
                 put("seek", actions and PlaybackState.ACTION_SEEK_TO != 0L)
             })
             .apply {
+                val mediaId = text(MediaMetadata.METADATA_KEY_MEDIA_ID)
+                val identifier = if (Regex("[1-9][0-9]{0,17}").matches(mediaId)) mediaId else {
+                    val uri = Uri.parse(mediaId)
+                    when {
+                        uri.scheme == "orpheus" && uri.host == "song" -> uri.lastPathSegment
+                        uri.scheme in listOf("https", "http") && uri.host == "music.163.com" &&
+                            uri.path == "/song" -> uri.getQueryParameter("id")
+                        else -> null
+                    }
+                }
+                if (identifier != null && Regex("[1-9][0-9]{0,17}").matches(identifier)) {
+                    put("song_id", identifier)
+                }
                 val duration = metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
                 if (duration in 1..86_400_000L) {
                     put("duration_ms", duration)
@@ -111,6 +123,10 @@ object MusicBridge {
 
     private fun state(context: Context): JSONObject = try {
         snapshot(session(context)).put("permission", true)
+    } catch (error: NoMediaSession) {
+        JSONObject().put("status", "succeeded").put("available", false)
+            .put("permission", true).put("idle", true).put("reason", "no_session")
+            .put("message", error.message)
     } catch (error: IllegalStateException) {
         failure(error.message ?: "网易云播放器尚未就绪。")
             .put("available", false).put("permission", allowed(context))
@@ -194,16 +210,27 @@ object MusicBridge {
         if (!Regex("[0-9]{1,18}").matches(songId) || songId.all { it == '0' }) {
             return failure("请提供有效的歌曲 ID。")
         }
-        val activity = foreground.get() ?: return failure("请回到心隅前台，再打开歌曲。")
+        return launch(songId) {
+            Intent(Intent.ACTION_VIEW, Uri.parse("orpheus://song/$songId")).setPackage(PACKAGE)
+        }
+    }
+
+    private fun openApp(): JSONObject = launch(null) {
+        it.packageManager.getLaunchIntentForPackage(PACKAGE)
+    }
+
+    private fun launch(songId: String?, intent: (Activity) -> Intent?): JSONObject {
+        val activity = foreground.get() ?: return failure("请回到心隅前台，再打开网易云。")
         val latch = CountDownLatch(1)
         val expired = AtomicBoolean(false)
         var opened = false
         activity.runOnUiThread {
             try {
                 if (!expired.get() && foreground.get() === activity && !activity.isFinishing) {
-                    activity.startActivity(Intent(Intent.ACTION_VIEW,
-                        Uri.parse("orpheus://song/$songId")).setPackage(PACKAGE))
-                    opened = true
+                    intent(activity)?.let {
+                        activity.startActivity(it)
+                        opened = true
+                    }
                 }
             } catch (_: Exception) { } finally { latch.countDown() }
         }
@@ -212,10 +239,13 @@ object MusicBridge {
             return JSONObject().put("status", "uncertain")
                 .put("message", "打开结果尚未确认，请查看网易云。")
         }
-        if (!opened) return failure("无法打开歌曲，请确认已安装网易云音乐。")
-        return JSONObject().put("status", "succeeded").put("song_id", songId)
+        if (!opened) return failure("无法打开网易云，请确认已安装网易云音乐。")
+        return JSONObject().put("status", "succeeded").apply {
+                if (songId != null) put("song_id", songId)
+            }
             .put("delivery", "requested").put("playback_verified", false)
-            .put("message", "已交给网易云打开，实际播放及歌曲权限请在客户端确认。")
+            .put("message", if (songId == null) "已请求打开网易云，没有选歌或开始播放。"
+                else "已交给网易云打开，实际播放及歌曲权限请在客户端确认。")
     }
 
     private fun failure(message: String) = JSONObject()
@@ -226,6 +256,7 @@ object MusicBridge {
         return try {
             val arguments = JSONObject(raw)
             when (name) {
+                "netease_account" -> NetEaseAccount.current()
                 "netease_status" -> JSONObject().put("status", "succeeded")
                     .put("platform", "android").put("media", state(context))
                     .put("installed", try {
@@ -235,6 +266,7 @@ object MusicBridge {
                 "netease_control" -> control(context, arguments.optString("action"))
                 "netease_seek" -> seek(context, arguments)
                 "netease_open_song" -> openSong(arguments.optString("song_id"))
+                "netease_open_app" -> openApp()
                 else -> failure("不支持这项音乐操作。")
             }.toString()
         } catch (error: IllegalStateException) {

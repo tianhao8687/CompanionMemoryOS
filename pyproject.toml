@@ -28,6 +28,7 @@ dependencies = [
   "typer>=0.15,<1",
   "tzdata>=2025.1; sys_platform == 'win32'",
   "uvicorn>=0.34,<1",
+  "websocket-client==1.9.2; sys_platform == 'win32'",
   "winrt-Windows.Media.Control==3.2.1; sys_platform == 'win32'",
   "winrt-Windows.Media==3.2.1; sys_platform == 'win32'",
   "winrt-Windows.Foundation==3.2.1; sys_platform == 'win32'",

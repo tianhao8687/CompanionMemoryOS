@@ -174,7 +174,11 @@ void main() {
       await music.poll();
       await t.pump();
       expect(slider, findsNothing);
-      expect(find.text('播放进度请在网易云内调整'), findsOneWidget);
+      expect(find.text('到网易云调整进度'), findsOneWidget);
+      await t.tap(find.byKey(const Key('music-open-player')));
+      await t.pumpAndSettle();
+      expect(repo.openRequests.length, 1);
+      expect(repo.openRequests.single['conversation_id'], 'test');
       await music.act('end');
       await t.pumpWidget(const SizedBox());
     },

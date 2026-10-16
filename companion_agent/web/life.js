@@ -9,6 +9,7 @@ function fillLifeSettings(settings) {
   $("embedding-model").value = settings.cognition.embedding.model;
   $("embedding-key-env").value = settings.cognition.embedding.api_key_env;
   $("proactive-enabled").checked = settings.proactive_enabled;
+  $("comfort-music-enabled").checked = settings.comfort_music_enabled !== false;
   $("quiet-start").value = settings.quiet_start;
   $("quiet-end").value = settings.quiet_end;
   $("calendar-timezone").value = settings.calendar_timezone;
@@ -18,6 +19,7 @@ function readLifeSettings() {
   return {
     model_mode: $("model-mode").value,
     proactive_enabled: $("proactive-enabled").checked,
+    comfort_music_enabled: $("comfort-music-enabled").checked,
     quiet_start: Number($("quiet-start").value), quiet_end: Number($("quiet-end").value),
     calendar_timezone: $("calendar-timezone").value.trim(),
     cognition: { ...state.config.settings.cognition,

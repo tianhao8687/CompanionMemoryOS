@@ -12,6 +12,7 @@ from typing import Any, Literal
 import httpx
 
 SEARCH_URL = "https://music.163.com/api/search/get/web"
+PLAYLIST_URL = "https://music.163.com/api/v6/playlist/detail"
 MAX_RESPONSE_BYTES = 1_000_000
 SearchType = Literal["song", "lyrics"]
 
@@ -43,6 +44,199 @@ def song_id(value: str) -> str:
 class NetEaseCatalog:
     def __init__(self, transport: httpx.AsyncBaseTransport | None = None) -> None:
         self.transport = transport
+
+    async def user_playlists(self, user_id: str, limit: int = 6, offset: int = 0) -> dict[str, Any]:
+        user_id = song_id(user_id)
+        if (
+            type(limit) is not int
+            or not 1 <= limit <= 20
+            or type(offset) is not int
+            or not 0 <= offset <= 1000
+        ):
+            raise ValueError("歌单列表分页超出范围。")
+        payload = await self.read_json(
+            "https://music.163.com/api/user/playlist",
+            {"uid": user_id, "limit": limit, "offset": offset},
+        )
+        items = payload.get("playlist")
+        if not isinstance(items, list):
+            raise ValueError("主页歌单不可用，可能需要登录或被设为私密。")
+        result = []
+        for item in items[:limit]:
+            if not isinstance(item, dict) or type(item.get("id")) is not int:
+                continue
+            creator = item.get("creator")
+            creator_id = str(creator.get("userId", "")) if isinstance(creator, dict) else ""
+            result.append(
+                {
+                    "id": song_id(str(item["id"])),
+                    "name": str(item.get("name", ""))[:100],
+                    "track_count": item.get("trackCount")
+                    if type(item.get("trackCount")) is int
+                    else None,
+                    "kind": "created" if creator_id == user_id else "collected",
+                    "tags": [t[:30] for t in item.get("tags", [])[:8] if isinstance(t, str)]
+                    if isinstance(item.get("tags"), list)
+                    else [],
+                }
+            )
+        return {
+            "status": "succeeded",
+            "user_id": user_id,
+            "playlists": result,
+            "offset": offset,
+            "more": bool(payload.get("more") or len(items) > limit),
+            "evidence": "公开主页歌单，不是听歌排行，也未验证该账号归属。",
+        }
+
+    async def playlist_songs(
+        self, playlist_id: str, limit: int = 20, offset: int = 0
+    ) -> dict[str, Any]:
+        playlist_id = song_id(playlist_id)
+        if (
+            type(limit) is not int
+            or not 1 <= limit <= 50
+            or type(offset) is not int
+            or not 0 <= offset <= 1000
+        ):
+            raise ValueError("歌曲分页超出范围。")
+        payload = await self.read_json(
+            PLAYLIST_URL,
+            {"id": playlist_id, "n": offset + limit, "s": 0},
+        )
+        playlist = payload.get("result", payload.get("playlist"))
+        if not isinstance(playlist, dict) or str(playlist.get("id")) != playlist_id:
+            raise ValueError("歌单不可用，可能需要登录或被设为私密。")
+        tracks = playlist.get("tracks")
+        if not isinstance(tracks, list):
+            raise ValueError("歌单没有返回可读取的歌曲。")
+        # The current endpoint can return all track IDs but only a few hydrated
+        # tracks. Resolve this page's missing metadata, not the entire collection.
+        page, expected_count = await self._playlist_page(playlist, tracks, limit, offset)
+        songs = []
+        for item in page:
+            if (
+                not isinstance(item, dict)
+                or type(item.get("id")) is not int
+                or not isinstance(item.get("name"), str)
+            ):
+                continue
+            artists, album = (
+                item.get("artists", item.get("ar", [])),
+                item.get("album", item.get("al", {})),
+            )
+            songs.append(
+                {
+                    "id": song_id(str(item["id"])),
+                    "name": item["name"][:200],
+                    "artists": [
+                        a["name"][:100]
+                        for a in artists[:10]
+                        if isinstance(a, dict) and isinstance(a.get("name"), str)
+                    ]
+                    if isinstance(artists, list)
+                    else [],
+                    "album": str(album.get("name", ""))[:200] if isinstance(album, dict) else "",
+                }
+            )
+        total = playlist.get("trackCount")
+        identifiers = playlist.get("trackIds")
+        total = (
+            total
+            if type(total) is int and total >= 0
+            else len(identifiers if isinstance(identifiers, list) else tracks)
+        )
+        if not songs and (expected_count or offset < total):
+            raise ValueError("已取得歌单，但这页歌曲的资料暂时不可读；不能当成空歌单。")
+        return {
+            "status": "succeeded",
+            "playlist_id": playlist_id,
+            "name": str(playlist.get("name", ""))[:100],
+            "songs": songs,
+            "total": total,
+            "offset": offset,
+            "returned": len(songs),
+            "partial": offset > 0 or len(songs) < total,
+            "unavailable_tracks": max(0, expected_count - len(songs)),
+            "evidence": "歌单收录，只能作为选歌参考；不是用户常听次数或最爱证明。",
+        }
+
+    async def _playlist_page(
+        self, playlist: dict[str, Any], tracks: list[Any], limit: int, offset: int
+    ) -> tuple[list[Any], int]:
+        identifiers = playlist.get("trackIds")
+        if identifiers is None:
+            page = tracks[offset : offset + limit]
+            return page, len(page)
+        if not isinstance(identifiers, list):
+            raise ValueError("网易云歌单的歌曲目录格式已变化，暂时无法读取。")
+        wanted: list[int] = []
+        for item in identifiers[offset : offset + limit]:
+            if not isinstance(item, dict) or type(item.get("id")) is not int:
+                raise ValueError("网易云歌单返回了无效的歌曲编号。")
+            identifier = int(song_id(str(item["id"])))
+            if identifier not in wanted:
+                wanted.append(identifier)
+        known = {
+            item["id"]: item
+            for item in tracks
+            if isinstance(item, dict)
+            and type(item.get("id")) is int
+            and item["id"] in wanted
+            and isinstance(item.get("name"), str)
+        }
+        missing = [identifier for identifier in wanted if identifier not in known]
+        if missing:
+            # Fixed public metadata endpoint; no cookie, audio URL or login bypass.
+            detail = await self.read_json(
+                "https://music.163.com/api/song/detail/", {"ids": json.dumps(missing)}
+            )
+            items = detail.get("songs")
+            if not isinstance(items, list):
+                raise ValueError("歌单歌曲的资料暂时不可读。")
+            for item in items:
+                if (
+                    isinstance(item, dict)
+                    and type(item.get("id")) is int
+                    and item["id"] in missing
+                    and isinstance(item.get("name"), str)
+                ):
+                    known[item["id"]] = item
+        return [known[i] for i in wanted if i in known], len(wanted)
+
+    async def detail(self, identifier: str) -> dict[str, Any] | None:
+        """Resolve the player's exact ID, without relying on search ranking."""
+        identifier = song_id(identifier)
+        payload = await self.read_json(
+            "https://music.163.com/api/song/detail/", {"ids": json.dumps([int(identifier)])}
+        )
+        items = payload.get("songs", [])
+        if not isinstance(items, list):
+            raise ValueError("歌曲信息暂时无法读取。")
+        for item in items[:10]:
+            if not isinstance(item, dict) or type(item.get("id")) is not int:
+                continue
+            if str(item["id"]) != identifier or not isinstance(item.get("name"), str):
+                continue
+            artists, album = item.get("artists", []), item.get("album", {})
+            result: dict[str, Any] = {
+                "id": identifier,
+                "name": item["name"][:200],
+                "artists": [
+                    a["name"][:100]
+                    for a in artists[:10]
+                    if isinstance(a, dict) and isinstance(a.get("name"), str)
+                ]
+                if isinstance(artists, list)
+                else [],
+                "album": str(album.get("name", ""))[:200] if isinstance(album, dict) else "",
+                "url": f"https://music.163.com/song?id={identifier}",
+            }
+            duration = item.get("duration")
+            if type(duration) is int and 0 < duration <= 86_400_000:
+                result["duration_ms"] = duration
+            return result
+        return None
 
     async def search(
         self, query: str, limit: int = 5, search_type: SearchType = "song"
@@ -156,6 +350,8 @@ class NetEaseCatalog:
             SEARCH_URL,
             "https://music.163.com/api/song/detail/",
             "https://music.163.com/api/song/lyric",
+            "https://music.163.com/api/user/playlist",
+            PLAYLIST_URL,
         }:
             raise ValueError("不支持的网易云接口。")
         async with httpx.AsyncClient(

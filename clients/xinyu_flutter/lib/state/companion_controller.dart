@@ -61,6 +61,8 @@ class CompanionController extends ChangeNotifier {
   String draft = '', status = '';
   String? _lastError;
   final problem = ValueNotifier<UserProblem?>(null);
+  final requestedPage = ValueNotifier<String?>(null);
+  Map<String, dynamic>? pendingMusicLibrary;
   String? get error => _lastError;
   set error(String? value) {
     _lastError = value;
@@ -987,6 +989,9 @@ class CompanionController extends ChangeNotifier {
     }
     _emit();
     var completed = false;
+    var configurationChanged = false;
+    final sentConversation = active!;
+    String? pageToOpen;
     try {
       await for (final event in _repository.send(
         active!,
@@ -1011,6 +1016,29 @@ class CompanionController extends ChangeNotifier {
             _emit();
           case 'result':
             final result = event['result'] as Map<String, dynamic>;
+            final configuration = result['configuration'];
+            if (configuration is Map && configuration['settings'] is Map) {
+              configurationChanged = true;
+              settings = Map<String, dynamic>.from(
+                configuration['settings'] as Map,
+              );
+              capabilities = {
+                ...capabilities,
+                ...Map<String, dynamic>.from(configuration),
+              }..remove('settings');
+            }
+            final actions = result['app_actions'];
+            if (actions is List) {
+              for (final action in actions.whereType<Map>()) {
+                if (action['page'] is String) pageToOpen = action['page'] as String;
+              }
+              if (pageToOpen == 'music_account') {
+                pendingMusicLibrary = {
+                  'conversation_id': sentConversation,
+                  'request_id': request,
+                };
+              }
+            }
             completed = true;
             final user = ChatLine.fromJson(
               Map<String, dynamic>.from(result['user'] as Map),
@@ -1054,6 +1082,38 @@ class CompanionController extends ChangeNotifier {
         _receiveFocusReply(request, failure: error);
       }
     } finally {
+      if (!completed && !_disposed && localConnection != null) {
+        try {
+          final outcome = await localConnection!.appOutcome(
+            sentConversation,
+            request,
+          );
+          final configuration = outcome['configuration'];
+          if (!_disposed &&
+              configuration is Map &&
+              configuration['settings'] is Map) {
+            configurationChanged = true;
+            settings = Map<String, dynamic>.from(
+              configuration['settings'] as Map,
+            );
+            capabilities = {
+              ...capabilities,
+              ...Map<String, dynamic>.from(configuration),
+            }..remove('settings');
+          }
+        } catch (_) {
+          // Preserve the original model error; no automatic action retry.
+        }
+      }
+      if (configurationChanged && !_disposed) {
+        unawaited(
+          notifications.call('configure', {
+            'enabled':
+                settings['proactive_enabled'] == true ||
+                capabilities['journal_background'] == true,
+          }),
+        );
+      }
       _paintTimer?.cancel();
       _paintTimer = null;
       sending = false;
@@ -1062,6 +1122,9 @@ class CompanionController extends ChangeNotifier {
       _activeRequest = null;
       draft = '';
       _emit();
+      if (!_disposed && completed && pageToOpen != null) {
+        requestedPage.value = pageToOpen;
+      }
     }
   }
 
@@ -1076,6 +1139,7 @@ class CompanionController extends ChangeNotifier {
   String _error(Object e) => userProblemMessage(e);
   @override
   void dispose() {
+    requestedPage.dispose();
     _disposed = true;
     _paintTimer?.cancel();
     _updateTimer?.cancel();

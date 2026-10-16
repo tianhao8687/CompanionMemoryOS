@@ -17,7 +17,7 @@ class LoopConfig(PersonaModel):
     max_steps: int = Field(default=6, ge=1, le=12)
     max_tool_calls: int = Field(default=8, ge=1, le=24)
     timeout_seconds: int = Field(default=180, ge=10, le=600)
-    max_total_tokens: int = Field(default=30000, ge=1000, le=100000)
+    max_total_tokens: int = Field(default=240000, ge=1000, le=1000000)
 
 
 class ToolRule(PersonaModel):

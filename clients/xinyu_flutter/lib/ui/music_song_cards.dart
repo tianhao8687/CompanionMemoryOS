@@ -5,9 +5,12 @@ import '../state/companion_controller.dart';
 String songReceipt(String? state) => switch (state) {
   'pending' => '等待确认播放',
   'running' => '正在交给网易云',
-  'requested' => '已交给网易云 · 播放待确认',
+  'requested' => '正在等待网易云切歌…',
   'verified' => '已确认开始播放',
   'metadata_matched' => '已匹配播放器中的歌曲信息',
+  'paused' => '已切到这首歌 · 网易云处于暂停状态',
+  'not_started' => '网易云仍在其他歌曲 · 这首尚未开始',
+  'unverified' => '暂未核实播放状态，可查看网易云',
   'failed' => '未能打开歌曲',
   'denied' => '已取消播放',
   'uncertain' => '结果待核对，请先查看网易云',
@@ -122,6 +125,15 @@ class _SongCardState extends State<_SongCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (card['comfort'] == true) ...[
+            Text(
+              '陪你缓一缓',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: colors.primary,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

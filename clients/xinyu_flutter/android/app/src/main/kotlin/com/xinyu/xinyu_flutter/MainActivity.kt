@@ -10,6 +10,7 @@ class MainActivity : FlutterActivity() {
     private val worker = EngineBridge.worker
     private val localFiles = LocalFiles(this, worker)
     private var notifications: MethodChannel? = null
+    private var musicAccountResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -21,6 +22,13 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     } catch (_: Exception) {
                         result.error("music_permission", "无法打开系统通知使用权设置。", null)
+                    }
+                } else if (call.method == "connectAccount") {
+                    if (musicAccountResult != null) {
+                        result.error("music_account_busy", "账号连接窗口已经打开。", null)
+                    } else {
+                        musicAccountResult = result
+                        startActivityForResult(Intent(this, NetEaseAccountActivity::class.java), NetEaseAccount.REQUEST)
                     }
                 } else result.notImplemented()
             }
@@ -107,6 +115,11 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == NetEaseAccount.REQUEST) {
+            musicAccountResult?.success(resultCode == RESULT_OK)
+            musicAccountResult = null
+            return
+        }
         if (!localFiles.result(requestCode, resultCode, data)) {
             super.onActivityResult(requestCode, resultCode, data)
         }

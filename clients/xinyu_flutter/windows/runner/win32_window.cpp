@@ -17,6 +17,10 @@ namespace {
 #endif
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
+constexpr UINT kQuietMusicLaunch = WM_APP + 0x59;
+constexpr UINT kQuietMusicRestore = WM_APP + 0x5A;
+constexpr UINT kQuietMusicEnd = WM_APP + 0x5B;
+constexpr UINT_PTR kQuietMusicTimer = 0x58594D;
 
 /// Registry key for app theme preference.
 ///
@@ -183,7 +187,58 @@ Win32Window::MessageHandler(HWND hwnd,
                             WPARAM const wparam,
                             LPARAM const lparam) noexcept {
   switch (message) {
+    case kQuietMusicLaunch:
+      // The foreground owner protects focus while its engine starts NetEase.
+      // Windows releases this lock on a deliberate user app switch (e.g. Alt+Tab).
+      // A fixed timer and destruction cleanup also prevent a lingering lock.
+      // LockSetForegroundWindow can return false when this process already
+      // owns the lock. Renew our existing protection as well as acquiring it.
+      if (GetForegroundWindow() == hwnd &&
+          (LockSetForegroundWindow(LSFW_LOCK) || quiet_music_deadline_ != 0)) {
+        if (quiet_music_deadline_ == 0) {
+          quiet_music_was_topmost_ =
+              (GetWindowLongPtr(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0;
+        }
+        quiet_music_deadline_ = GetTickCount64() + 12000;
+        // Foreground focus and visual stacking are different. A running client
+        // can show itself above us even when SetForegroundWindow is locked.
+        if (!SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                          SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)) {
+          EndQuietMusic();
+          return 0;
+        }
+        if (!SetTimer(hwnd, kQuietMusicTimer, 12000, nullptr)) {
+          EndQuietMusic();
+          return 0;
+        }
+        if (++quiet_music_ticket_ == 0) ++quiet_music_ticket_;
+        return quiet_music_ticket_;
+      }
+      return 0;
+
+    case kQuietMusicRestore: {
+      if (wparam != quiet_music_ticket_ || GetTickCount64() >= quiet_music_deadline_) return 0;
+      const HWND current = GetForegroundWindow();
+      if (current == hwnd) return 1;
+      if (current != reinterpret_cast<HWND>(lparam)) return 0;
+      SetForegroundWindow(hwnd);
+      return GetForegroundWindow() == hwnd ? 1 : 0;
+    }
+
+    case kQuietMusicEnd:
+      // An older handoff must never release a newer handoff's protection.
+      if (wparam == quiet_music_ticket_) EndQuietMusic();
+      return 1;
+
+    case WM_TIMER:
+      if (wparam == kQuietMusicTimer) {
+        if (GetTickCount64() >= quiet_music_deadline_) EndQuietMusic();
+        return 0;
+      }
+      break;
+
     case WM_DESTROY:
+      EndQuietMusic();
       window_handle_ = nullptr;
       Destroy();
       if (quit_on_close_) {
@@ -223,6 +278,17 @@ Win32Window::MessageHandler(HWND hwnd,
   }
 
   return DefWindowProc(window_handle_, message, wparam, lparam);
+}
+
+void Win32Window::EndQuietMusic() {
+  if (quiet_music_deadline_ == 0) return;
+  quiet_music_deadline_ = 0;
+  KillTimer(window_handle_, kQuietMusicTimer);
+  LockSetForegroundWindow(LSFW_UNLOCK);
+  if (!quiet_music_was_topmost_) {
+    SetWindowPos(window_handle_, HWND_NOTOPMOST, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+  }
 }
 
 void Win32Window::Destroy() {

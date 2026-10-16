@@ -29,14 +29,47 @@ def tool(name: str, description: str, properties: dict[str, Any]) -> dict[str, A
         "inputSchema": {
             "type": "object",
             "properties": properties,
-            "required": [key for key in properties if key not in {"limit", "search_type"}],
+            "required": [
+                key for key in properties if key not in {"limit", "search_type", "offset"}
+            ],
             "additionalProperties": False,
         },
     }
 
 
 CATALOG = [
+    tool(
+        "netease_account",
+        "读取心隅已连接的网易云账号 ID，首次未连接会返回 needs_login；"
+        "不需要分享链接，不读取其他应用的私有文件，不返回密码或 Cookie。",
+        {},
+    ),
+    tool(
+        "netease_user_playlists",
+        "读取公开主页歌单；ID 来自 netease_account 或用户提供，不猜账号。"
+        "创建或收藏不等于常听、最爱或账号归属证明。",
+        {
+            "user_id": {"type": "string", "pattern": "^[1-9][0-9]{0,17}$"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 20, "default": 6},
+            "offset": {"type": "integer", "minimum": 0, "maximum": 1000, "default": 0},
+        },
+    ),
+    tool(
+        "netease_playlist_songs",
+        "读取指定公开歌单的歌曲取样，不读取音频。ID 来自用户分享或主页歌单。"
+        "partial=true 时不能声称读完；收录不是常听证明。",
+        {
+            "playlist_id": {"type": "string", "pattern": "^[1-9][0-9]{0,17}$"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20},
+            "offset": {"type": "integer", "minimum": 0, "maximum": 1000, "default": 0},
+        },
+    ),
     tool("netease_status", "检查本机网易云安装、媒体会话与授权，不读取通知内容。", {}),
+    tool(
+        "netease_open_app",
+        "用户想听歌时直接打开本机网易云，无需媒体授权或指定歌曲，不宣称已播放。",
+        {},
+    ),
     tool(
         "netease_search_songs",
         "搜索网易云歌曲。歌词找歌用 search_type=lyrics，query 只填用户提供的一句歌词，"
@@ -110,6 +143,10 @@ class AndroidMusicPeer:
                 Draft202012Validator(definition["inputSchema"]).validate(arguments)
                 if name == "netease_search_songs":
                     data = asyncio.run(self.catalog.search(**arguments))
+                elif name == "netease_user_playlists":
+                    data = asyncio.run(self.catalog.user_playlists(**arguments))
+                elif name == "netease_playlist_songs":
+                    data = asyncio.run(self.catalog.playlist_songs(**arguments))
                 else:
                     data = self.bridge(str(name), arguments)
                 result = {
@@ -154,7 +191,11 @@ class AndroidMusicClient(MCPClient):
             raise MCPFailure("安卓仅支持内置网易云连接。")
         # Search uses at most 10 s plus an optional 2 s artwork lookup.
         budget = min(server.timeout_seconds, timeout or server.timeout_seconds)
-        if budget < (12 if name == "netease_search_songs" else 4):
+        if budget < (
+            12
+            if name in {"netease_search_songs", "netease_user_playlists", "netease_playlist_songs"}
+            else 4
+        ):
             raise MCPFailure("剩余执行时间不足，请重新发起请求。")
         peer = AndroidMusicPeer(self.bridge, self.catalog)
 

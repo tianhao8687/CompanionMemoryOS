@@ -129,7 +129,18 @@ class _XinYuAppState extends State<XinYuApp> {
           borderRadius: XinYuShapes.fieldCorners,
           borderSide: const BorderSide(color: XinYuColors.accent, width: 1.4),
         ),
-        labelStyle: const TextStyle(color: XinYuColors.muted, fontSize: 14),
+        labelStyle: const TextStyle(
+          color: XinYuColors.muted,
+          fontSize: 14,
+          height: 1.2,
+          fontWeight: FontWeight.w400,
+        ),
+        floatingLabelStyle: const TextStyle(
+          color: XinYuColors.accent,
+          fontSize: 14,
+          height: 1.2,
+          fontWeight: FontWeight.w400,
+        ),
         hintStyle: const TextStyle(color: XinYuColors.muted),
       ),
       filledButtonTheme: FilledButtonThemeData(

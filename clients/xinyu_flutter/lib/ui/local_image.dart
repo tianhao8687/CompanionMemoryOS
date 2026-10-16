@@ -24,8 +24,23 @@ class LocalImage extends StatelessWidget {
   Widget build(BuildContext context) => FutureBuilder<Uint8List>(
     future: controller.image(id),
     builder: (context, snapshot) => snapshot.hasData
-        ? Image.memory(
-            snapshot.data!,
+        ? Image(
+            image:
+                width != null &&
+                    height != null &&
+                    width!.isFinite &&
+                    height!.isFinite
+                ? ResizeImage(
+                    MemoryImage(snapshot.data!),
+                    width: (width! * MediaQuery.devicePixelRatioOf(context))
+                        .ceil()
+                        .clamp(1, 1600),
+                    height: (height! * MediaQuery.devicePixelRatioOf(context))
+                        .ceil()
+                        .clamp(1, 1600),
+                    policy: ResizeImagePolicy.fit,
+                  )
+                : MemoryImage(snapshot.data!),
             fit: fit,
             width: width,
             height: height,

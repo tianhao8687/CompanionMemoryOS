@@ -3,7 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+import time
 from collections.abc import Callable
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from threading import RLock
 from typing import Any
@@ -11,7 +13,12 @@ from typing import Any
 from jsonschema import Draft202012Validator
 from referencing import Registry
 
-from companion_agent.automation.bundled_music import relocate_packaged_music
+from companion_agent.automation.bundled_music import (
+    MUSIC_TOOLS,
+    is_bundled_music,
+    migrate_music_permissions,
+    relocate_packaged_music,
+)
 from companion_agent.automation.calculator import NAME_PATTERN
 from companion_agent.automation.mcp_client import MCPClient
 from companion_agent.automation.models import (
@@ -129,6 +136,12 @@ class ToolHub:
         self.store = AutomationStore(database)
         self.client = client or MCPClient()
         self.lock = RLock()
+        self.local_tools: list[dict[str, Any]] = []
+        self.local_handler: Callable[[str, dict[str, Any], str], dict[str, Any]] | None = None
+        self.local_tool_filter: Callable[[str], bool] = lambda _: True
+        self.current_action: ContextVar[tuple[str, str, str, float | None] | None] = ContextVar(
+            "current_tool_action", default=None
+        )
         self.available: Callable[[], bool] = lambda: True
         self.external_available: Callable[[], bool] = lambda: True
         self.server_available: Callable[[MCPServerConfig], bool] = lambda server: (
@@ -140,6 +153,8 @@ class ToolHub:
         saved = json.loads(row["data"]) if row else {}
         self.config = AutomationConfig.model_validate(saved.get("config", {}))
         self.catalog: dict[str, list[dict[str, Any]]] = saved.get("catalog", {})
+        self.defaults_version = int(saved.get("defaults_version", 0))
+        changed = False
         if (
             sys.platform == "win32"
             and getattr(sys, "frozen", False)
@@ -147,6 +162,16 @@ class ToolHub:
         ):
             # Only the known bundled template moves; rules/catalog remain intact.
             # Pending approvals retain their old fingerprint and cannot carry over.
+            changed = True
+        if self.defaults_version < 1:
+            migrate_music_permissions(self.config, sys.executable)
+            # The former default covered barely two large input envelopes. Keep
+            # deliberately different budgets and all later user edits intact.
+            if self.config.loop.max_total_tokens == 30000:
+                self.config.loop.max_total_tokens = 240000
+            self.defaults_version = 1
+            changed = True
+        if changed:
             self.persist()
         self.scheduler = Scheduler(self.store)
         self.scheduler.dispatch = self.dispatch_job
@@ -164,6 +189,7 @@ class ToolHub:
                         {
                             "config": self.config.model_dump(mode="json"),
                             "catalog": self.catalog,
+                            "defaults_version": self.defaults_version,
                         }
                     ),
                 ),
@@ -215,7 +241,12 @@ class ToolHub:
         for server in self.config.servers:
             if server.enabled and self.server_available(server):
                 for tool in self.catalog.get(server.id, []):
-                    rule = server.tools.get(tool["name"], ToolRule())
+                    default = (
+                        ToolRule(mode="allow")
+                        if is_bundled_music(server, sys.executable) and tool["name"] in MUSIC_TOOLS
+                        else ToolRule()
+                    )
+                    rule = server.tools.get(tool["name"], default)
                     if rule.mode != "off":
                         name = f"mcp_{server.id}_{digest(tool['name'])[:12]}"
                         result[name] = (server, tool, rule)
@@ -223,12 +254,16 @@ class ToolHub:
 
     def definitions(self) -> list[dict[str, Any]]:
         with self.lock:
+            local = [t for t in self.local_tools if self.local_tool_filter(t["function"]["name"])]
+            if not self.config.loop.enabled:
+                return local
             result = [
                 item
                 for item in BUILTINS
                 if self.scheduling_available()
                 or not item["function"]["name"].startswith("schedule_")
             ]
+            result.extend(local)
             for name, (server, tool, rule) in self.bindings().items():
                 result.append(
                     {
@@ -247,7 +282,9 @@ class ToolHub:
     def inspect(self, name: str, arguments: dict[str, Any]) -> tuple[str, str]:
         if len(canonical(arguments)) > 12000:
             raise ValueError("工具参数过长。")
-        builtin = next((d for d in BUILTINS if d["function"]["name"] == name), None)
+        builtin = next(
+            (d for d in [*BUILTINS, *self.local_tools] if d["function"]["name"] == name), None
+        )
         if builtin:
             if name.startswith("schedule_") and not self.scheduling_available():
                 raise ValueError("此运行环境未启用后台定时任务。")
@@ -282,7 +319,8 @@ class ToolHub:
         timeout: float | None = None,
     ) -> dict[str, Any]:
         with self.lock:
-            if not self.available() or not self.config.loop.enabled:
+            local = any(d["function"]["name"] == name for d in self.local_tools)
+            if not self.available() or (not self.config.loop.enabled and not local):
                 return {"status": "denied", "message": "工具运行已关闭。"}
             try:
                 mode, fingerprint = self.inspect(name, arguments)
@@ -292,7 +330,23 @@ class ToolHub:
                     require_lyric_match(self, arguments, conversation, request_id)
             except ValueError as error:
                 return {"status": "denied", "message": str(error)}
-            action_id = digest([conversation, request_id, name, arguments])[:32]
+            identity: list[Any] = [conversation, request_id, name, arguments]
+            if name == f"mcp_netease_{digest('netease_playback_state')[:12]}":
+                # A preflight read cannot stand in for the observation after
+                # opening a song. Reuse remains scoped to that same handoff.
+                with self.store.database.connection() as db:
+                    opened = db.execute(
+                        "SELECT id FROM agent_actions WHERE conversation_id=? AND request_id=? "
+                        "AND tool_name=? AND status='succeeded' ORDER BY rowid DESC LIMIT 1",
+                        (
+                            conversation,
+                            request_id,
+                            f"mcp_netease_{digest('netease_open_song')[:12]}",
+                        ),
+                    ).fetchone()
+                if opened is not None:
+                    identity.append(opened["id"])
+            action_id = digest(identity)[:32]
             with self.store.database.atomic() as db:
                 old = db.execute("SELECT * FROM agent_actions WHERE id=?", (action_id,)).fetchone()
                 if old:
@@ -332,16 +386,33 @@ class ToolHub:
         request_id: str,
         timeout: float | None = None,
     ) -> dict[str, Any]:
+        token = self.current_action.set((action_id, conversation, request_id, timeout))
         try:
             if name.startswith("mcp_"):
                 server, tool, _ = self.bindings()[name]
+                started = time.monotonic()
                 result = self.client.call(server, tool["name"], arguments, tool, timeout)
+                if tool["name"] == "netease_playback_state":
+                    from companion_agent.automation.music_confirmation import confirm_playback
+
+                    result = confirm_playback(
+                        self,
+                        server,
+                        tool,
+                        conversation,
+                        request_id,
+                        result,
+                        min(server.timeout_seconds, timeout or server.timeout_seconds)
+                        - (time.monotonic() - started),
+                    )
             else:
                 result = self._builtin(name, arguments, conversation, request_id + action_id)
         except ValueError:
             result = {"status": "failed", "message": "参数或任务状态无效，请检查内容与时间。"}
         except Exception:
             result = {"status": "uncertain", "message": "工具没有返回明确结果，请核对后再操作。"}
+        finally:
+            self.current_action.reset(token)
         result["action_id"] = action_id
         with self.store.database.connection() as db:
             db.execute(
@@ -397,6 +468,8 @@ class ToolHub:
     def _builtin(
         self, name: str, args: dict[str, Any], conversation: str, key: str
     ) -> dict[str, Any]:
+        if self.local_handler and any(d["function"]["name"] == name for d in self.local_tools):
+            return self.local_handler(name, args, conversation)
         if name == "calculate":
             from companion_agent.automation.calculator import CalculationError, calculate
 

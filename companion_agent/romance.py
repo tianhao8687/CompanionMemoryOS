@@ -11,6 +11,7 @@ from pydantic import Field, SecretStr, field_validator, model_validator
 
 from companion_agent.cognition import CognitionSettings
 from companion_agent.deepseek import DeepSeekConfig
+from companion_agent.music_profile import MusicLibrarySource, PersonaKey, Taste
 from companion_agent.persona import PersonaDefinition, load_persona
 from companion_agent.persona.models import (
     PersonaIdentity,
@@ -64,6 +65,10 @@ class RomanceSettings(PersonaModel):
     model_mode: Literal["offline", "api"] = "offline"
     cognition: CognitionSettings = Field(default_factory=CognitionSettings)
     proactive_enabled: bool = False
+    comfort_music_enabled: bool = True
+    music_library_enabled: bool = True
+    character_music_tastes: dict[PersonaKey, Taste] = Field(default_factory=dict, max_length=24)
+    music_library_sources: list[MusicLibrarySource] = Field(default_factory=list, max_length=8)
     proactive_frequency: Literal["low", "normal", "high"] = "normal"
     stickers_enabled: bool = True
     notification_preview: bool = False

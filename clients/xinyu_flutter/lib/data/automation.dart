@@ -37,9 +37,30 @@ class AutomationState {
   String permission(String name) =>
       automationMap(automationMap(netease?['tools'])[name])['mode']
           as String? ??
+      tools
+              .where(
+                (tool) =>
+                    tool['server_id'] == 'netease' &&
+                    tool['remote_name'] == name,
+              )
+              .firstOrNull?['mode']
+          as String? ??
       'ask';
 
   String actionTitle(Map<String, dynamic> action) {
+    final localTitle = const {
+      'app_settings': '查看心隅设置',
+      'app_configure': '调整陪伴与界面设置',
+      'app_experience': '开启应用内体验',
+      'app_open': '打开功能入口',
+      'app_connect_music': '连接网易云音乐',
+      'app_open_music': '打开网易云音乐',
+      'app_comfort_music': '音乐陪伴',
+      'app_music_taste': '角色的音乐品味',
+      'app_music_library': '了解音乐喜好',
+      'app_undo_settings': '恢复此前的设置',
+    }[action['tool_name']];
+    if (localTitle != null) return localTitle;
     final binding = tools
         .where((tool) => tool['name'] == action['tool_name'])
         .firstOrNull;
@@ -62,6 +83,10 @@ class AutomationState {
 }
 
 String musicToolTitle(String name) => switch (name) {
+  'netease_account' => '识别网易云账号',
+  'netease_user_playlists' => '读取我的歌单',
+  'netease_playlist_songs' => '了解歌单里的歌曲',
+  'netease_open_app' => '打开网易云音乐',
   'netease_status' => '检查网易云连接',
   'netease_search_songs' => '找一首歌',
   'netease_open_song' => '在网易云打开歌曲',
@@ -73,6 +98,10 @@ String musicToolTitle(String name) => switch (name) {
 
 String musicToolDescription(Map<String, dynamic> tool) =>
     switch (tool['name']) {
+      'netease_account' => '自动识别已连接账号，无需复制歌单链接。',
+      'netease_user_playlists' => '读取账号可访问的创建和收藏歌单，作为选歌参考。',
+      'netease_playlist_songs' => '读取歌单歌曲取样，不把收藏当成实际播放次数。',
+      'netease_open_app' => '直接唤起这台设备上的网易云，不需要先选歌或授予媒体控制权限。',
       'netease_status' => '查看这台电脑是否安装网易云，以及播放器是否就绪。',
       'netease_search_songs' => '按歌名、歌手或一句歌词找歌，核对后再播放。',
       'netease_open_song' => '将你选好的歌曲交给网易云客户端打开，播放仍遵循你的账号权限。',

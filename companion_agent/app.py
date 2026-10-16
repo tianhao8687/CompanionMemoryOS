@@ -49,8 +49,11 @@ from companion_agent.images import MAX_IMAGE_BYTES, ImageAwareModel, ImagePurpos
 from companion_agent.journal import Journal, JournalError
 from companion_agent.journal import install_routes as install_journal_routes
 from companion_agent.llm import ContextBudgetError, MainLLM, MainLLMError
-from companion_agent.music import MusicCompanion, MusicInput
+from companion_agent.music import MusicCompanion, MusicInput, MusicOpenInput
+from companion_agent.music_comfort import MusicComfort, eligible
+from companion_agent.music_library import MusicLibrary
 from companion_agent.music_lyrics import MusicLyricsInput
+from companion_agent.music_profile import music_relevant, taste_context
 from companion_agent.music_requests import MusicPickInput, MusicRequests
 from companion_agent.nook import MemoryNook
 from companion_agent.nook import install_routes as install_nook_routes
@@ -249,6 +252,12 @@ class RomanceHost:
             | self.chat_experience.protected_images()
         )
         self.tools = ToolHub(database)
+        from companion_agent.app_assistant import TOOLS, AppAssistant
+
+        self.app_assistant = AppAssistant(self)
+        self.tools.local_tools = TOOLS
+        self.tools.local_handler = self.app_assistant.call
+        self.tools.local_tool_filter = self.app_assistant.offered
         if testing:
             self.tools.external_available = lambda: False
             self.tools.scheduling_available = lambda: False
@@ -256,6 +265,7 @@ class RomanceHost:
             # A disclosed diagnostic ablation uses the existing no-loop path.
             # It cannot enable actions or persist a change to ordinary app settings.
             self.tools.config.loop.enabled = False
+            self.tools.local_tools = []
         self.tools.available = lambda: self.settings.storage_consent
         self.stickers = StickerStore(database)
         self.agent = self.make_agent(self.settings, self.api_key)
@@ -266,6 +276,8 @@ class RomanceHost:
         self.nook = MemoryNook(self)
         self.outreach = Outreach(self)
         self.music = MusicCompanion(self)
+        self.music_comfort = MusicComfort(self)
+        self.music_library = MusicLibrary(self)
         self.music_requests = MusicRequests(self)
         self.memory.listening_context = self.music.memory_context
         self.memory.on_user_turn = self.continuity.observe
@@ -320,6 +332,7 @@ class RomanceHost:
             ),
             self.tools,
             token_counter=self.memory.token_counter,
+            cancellation_source=getattr(self, "loop", None),
         )
         self.loop.on_pending = self.persist_suspension
         return CompanionAgent(
@@ -334,6 +347,7 @@ class RomanceHost:
             presentation_rules=chat_presentation_rules(settings),
             application_context_provider=lambda request: self.nook.chat_context(request),
             max_persona_tokens=1600,
+            max_context_tokens=self.loop.max_context_tokens,
             context_variant=(
                 self.testing.marker.get("variant", "full")
                 if self.testing and self.testing.marker.get("variant") != "no_tools"
@@ -520,6 +534,15 @@ class RomanceHost:
                     self.images.discard(previous_image, protected)
             return self.public_settings()
 
+    def chat_music_context(self, text: str) -> str:
+        if not (music_relevant(text) or eligible(text)):
+            return ""
+        return (
+            self.music_comfort.context()
+            + taste_context(self.settings)
+            + self.music_library.context()
+        )
+
     def chat(self, item: ChatInput) -> dict[str, Any]:
         if self.testing:
             with self.testing.turn(item) as trace:
@@ -540,11 +563,6 @@ class RomanceHost:
             focus_reply = self.focus_companion.chat(item)
             if focus_reply is not None:
                 return focus_reply
-            self.agent.application_rules = (
-                romantic_rules(self.settings)
-                + self.focus.context()
-                + self.music.context(item.conversation_id)
-            )
             if not self.credentials_ready():
                 raise MainLLMError("main_llm_api_key_missing")
             if item.quote_id:
@@ -565,6 +583,14 @@ class RomanceHost:
                 )
             self.images.bind(item.conversation_id, item.request_id, item.image_ids)
             item = item.model_copy(update={"content": item.content.strip() or "[图片]"})
+            if previous is None:
+                self.music_comfort.observe(item)
+            self.agent.application_rules = (
+                romantic_rules(self.settings)
+                + self.focus.context()
+                + self.music.context(item.conversation_id)
+                + self.chat_music_context(item.content)
+            )
             with self.database.connection() as db:
                 checkpoint = db.execute(
                     "SELECT c.state FROM agent_checkpoints c JOIN conversation_turns t "
@@ -574,6 +600,7 @@ class RomanceHost:
                     (LOCAL_USER, item.conversation_id, item.request_id),
                 ).fetchone()
             with (
+                self.app_assistant.turn(item.content),
                 self.music.memory_scope(item.conversation_id),
                 self.loop.run(
                     item.conversation_id,
@@ -612,6 +639,21 @@ class RomanceHost:
             return {
                 "user": self.public_turn(source),
                 "assistant": self.public_turn(result.turn),
+                "app_actions": [
+                    {"page": receipt["page"]}
+                    for receipt in self.app_assistant.receipts(
+                        item.conversation_id, item.request_id
+                    )
+                    if "page" in receipt and not result.reused
+                ][-1:],
+                "configuration": self.public_settings()
+                if any(
+                    receipt.get("settings_changed")
+                    for receipt in self.app_assistant.receipts(
+                        item.conversation_id, item.request_id
+                    )
+                )
+                else None,
                 "reused": result.reused,
                 "execution": {
                     "steps": run.steps,
@@ -725,11 +767,20 @@ class RomanceHost:
                     "UPDATE agent_checkpoints SET status='resuming' WHERE action_id=?", (action_id,)
                 )
             try:
-                with self.loop.run(
-                    source.scope.conversation_id or "",
-                    source.idempotency_key,
-                    json.loads(row["state"]),
-                ) as run:
+                self.agent.application_rules = (
+                    romantic_rules(self.settings)
+                    + self.focus.context()
+                    + self.music.context(source.scope.conversation_id or "")
+                    + self.chat_music_context(source.content)
+                )
+                with (
+                    self.app_assistant.turn(source.content),
+                    self.loop.run(
+                        source.scope.conversation_id or "",
+                        source.idempotency_key,
+                        json.loads(row["state"]),
+                    ) as run,
+                ):
                     result = self.agent.chat(
                         ProcessTurnRequest(
                             user_id=LOCAL_USER,
@@ -998,6 +1049,21 @@ def create_app(
     @app.put("/api/settings", dependencies=[Depends(authorized)])
     def settings(update: SettingsUpdate) -> dict[str, Any]:
         return host.save_settings(update)
+
+    @app.get("/api/app-outcome", dependencies=[Depends(authorized)])
+    def app_outcome(
+        conversation_id: str = Query(min_length=1, max_length=128),
+        request_id: str = Query(min_length=1, max_length=128),
+    ) -> dict[str, Any]:
+        # A model can fail after a successful settings tool. Let the client
+        # reconcile the persisted result without replaying the side effect.
+        with host.lock:
+            host.scope(conversation_id)
+            changed = any(
+                r.get("settings_changed")
+                for r in host.app_assistant.receipts(conversation_id, request_id)
+            )
+            return {"configuration": host.public_settings() if changed else None}
 
     @app.get("/api/search", dependencies=[Depends(authorized)])
     def search_chats(
@@ -1437,6 +1503,37 @@ def create_app(
         except ValueError as error:
             raise problem(422, "music_not_ready", str(error)) from None
 
+    @app.post("/api/music/open", dependencies=[Depends(authorized)])
+    def music_open(item: MusicOpenInput) -> dict[str, Any]:
+        if not tools_enabled:
+            raise problem(403, "music_unavailable", "此运行环境未启用本机音乐连接。")
+        with host.exclusive():
+            host.scope(item.conversation_id)
+            return host.tools.invoke(
+                "app_open_music", {}, item.conversation_id, "music_open:" + item.request_id
+            )
+
+    @app.post("/api/music/library/resume", dependencies=[Depends(authorized)])
+    def music_library_resume(item: MusicOpenInput) -> dict[str, Any]:
+        if not tools_enabled:
+            raise problem(403, "music_unavailable", "此运行环境未启用本机音乐连接。")
+        with host.exclusive():
+            host.scope(item.conversation_id)
+            receipts = host.tools.store.request_actions(item.conversation_id, item.request_id)
+            if not any(
+                a["tool_name"] == "app_music_library"
+                and a["status"] == "succeeded"
+                and a["result"].get("page") == "music_account"
+                for a in receipts
+            ):
+                raise problem(403, "music_source", "没有待继续的账号连接请求。")
+            return host.tools.invoke(
+                "app_music_library",
+                {"action": "read", "after_connection": True},
+                item.conversation_id,
+                item.request_id,
+            )
+
     @app.post("/api/music/lyrics", dependencies=[Depends(authorized)])
     def music_lyrics(item: MusicLyricsInput) -> dict[str, Any]:
         if not tools_enabled:
@@ -1468,11 +1565,17 @@ def create_app(
 
     @app.get("/api/automation/netease-template", dependencies=[Depends(authorized)])
     def netease_template() -> dict[str, Any]:
+        from companion_agent.automation.bundled_music import music_rules
+
         if not tools_enabled or (sys.platform != "win32" and native_music is None):
             raise problem(403, "netease_unavailable", "当前运行环境尚不支持网易云音乐连接。")
         if native_music is not None:
             return MCPServerConfig(
-                id="netease", label="网易云音乐", transport="native", enabled=False
+                id="netease",
+                label="网易云音乐",
+                transport="native",
+                enabled=False,
+                tools=music_rules(),
             ).model_dump(mode="json")
         arguments = (
             ["--mcp-server", "netease"]
@@ -1485,7 +1588,28 @@ def create_app(
             enabled=False,
             command=sys.executable,
             args=arguments,
+            tools=music_rules(),
         ).model_dump(mode="json")
+
+    host.app_assistant.music_template = netease_template
+
+    def launch_music() -> dict[str, Any]:
+        # A fixed first-party app shortcut, independent of editable MCP commands.
+        # Launching requires neither media-session permission nor player control.
+        if native_music is not None:
+            template = MCPServerConfig.model_validate(netease_template())
+            definition = next(
+                t for t in native_music.discover(template) if t["name"] == "netease_open_app"
+            )
+            result = native_music.call(template, "netease_open_app", {}, definition)
+            data = result.get("data")
+            return data if isinstance(data, dict) else {"status": "failed"}
+        from companion_agent.integrations.netease_windows import open_app
+
+        return open_app()
+
+    if tools_enabled and (sys.platform == "win32" or native_music is not None):
+        host.app_assistant.music_launcher = launch_music
 
     @app.put("/api/automation/config", dependencies=[Depends(authorized)])
     def automation_config(config: AutomationConfig) -> dict[str, bool]:

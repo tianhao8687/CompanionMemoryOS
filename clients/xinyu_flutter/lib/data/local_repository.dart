@@ -35,6 +35,20 @@ class LocalRepository extends CompanionRepository {
   Future<Map<String, dynamic>> music(Map<String, dynamic> request) =>
       _json('POST', '/api/music', request);
 
+  Future<Map<String, dynamic>> openMusic(Map<String, dynamic> request) =>
+      _json('POST', '/api/music/open', request);
+
+  Future<Map<String, dynamic>> resumeMusicLibrary(Map<String, dynamic> request) =>
+      _json('POST', '/api/music/library/resume', request);
+
+  Future<Map<String, dynamic>> appOutcome(
+    String conversation,
+    String request,
+  ) => _json(
+    'GET',
+    '/api/app-outcome?conversation_id=${Uri.encodeQueryComponent(conversation)}&request_id=${Uri.encodeQueryComponent(request)}',
+  );
+
   Future<Map<String, dynamic>> musicLyrics(Map<String, dynamic> request) =>
       _json('POST', '/api/music/lyrics', request);
 

@@ -63,7 +63,7 @@ def test_native_protocol_requires_handshake_and_detaches_discovery() -> None:
     assert peer.exchange({"jsonrpc": "2.0", "method": "notifications/initialized"}) is None
     assert (
         len(peer.exchange({"jsonrpc": "2.0", "id": 4, "method": "tools/list"})["result"]["tools"])
-        == 6
+        == 10
     )
     client = AndroidMusicClient(bridge)
     found = client.discover(server())

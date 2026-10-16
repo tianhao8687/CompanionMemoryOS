@@ -161,7 +161,7 @@ class _MusicLyricsState extends State<MusicLyrics> {
           key: const Key('music-match-lyrics'),
           onPressed: () => chooseMusicLyrics(context, music),
           icon: const Icon(Icons.lyrics_outlined, size: 20),
-          label: const Text('匹配这首歌的歌词'),
+          label: const Text('有多个相近版本，选一次歌词'),
         ),
       );
     }

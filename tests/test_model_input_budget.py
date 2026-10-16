@@ -126,6 +126,10 @@ def test_real_application_counts_media_and_tools_before_allocating_history(tmp_p
     model = CaptureToolModel()
     client = client_for(tmp_path, model)
     configure(client)
+    # Retain the original tight-budget regression as well as the app's new 64K
+    # default; tool headroom must work when a host deliberately sets a lower cap.
+    client.app.state.host.agent.max_context_tokens = 16000
+    client.app.state.host.loop.max_context_tokens = 16000
     history = []
     for index in range(18):
         content = f"第 {index} 段材料。" + "窗外的银杏在风中摇摆，走廊尽头的灯亮着。" * 40
@@ -188,7 +192,7 @@ def test_input_that_cannot_fit_is_reported_without_calling_or_truncating(tmp_pat
     configure(client)
     host = client.app.state.host
     content = "测试内容。" * 1000
-    host.agent.max_context_tokens = 1000
+    host.agent.max_context_tokens = host.loop.max_context_tokens = 1000
     payload = message(client, content, "oversized")
     failed = client.post("/api/chat", json=payload)
     assert failed.status_code == 422
@@ -201,7 +205,7 @@ def test_input_that_cannot_fit_is_reported_without_calling_or_truncating(tmp_pat
     assert events[-1]["type"] == "done"
     assert any(e.get("code") == "context_budget_exceeded" for e in events)
     assert not model.requests
-    host.agent.max_context_tokens = 16000
+    host.agent.max_context_tokens = host.loop.max_context_tokens = 16000
     assert (
         client.post("/api/chat", json=message(client, "这次先聊一句。", "next")).status_code == 200
     )

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from pydantic import Field
@@ -57,12 +59,12 @@ class MusicPickInput(PersonaModel):
     request_id: str = Field(min_length=1, max_length=80)
 
 
-def songs_from(result: dict[str, Any]) -> list[dict[str, Any]]:
+def songs_from(result: dict[str, Any], *, limit: int = 10) -> list[dict[str, Any]]:
     data = result.get("data", {})
     if not isinstance(data, dict) or not isinstance(data.get("songs"), list):
         return []
     songs = []
-    for raw in data["songs"][:10]:
+    for raw in data["songs"][:limit]:
         if not isinstance(raw, dict) or not isinstance(raw.get("name"), str):
             continue
         try:
@@ -102,9 +104,87 @@ def playback_receipt(song: dict[str, Any], media: dict[str, Any]) -> str:
     return "requested"
 
 
+def request_receipt(song: dict[str, Any], media: dict[str, Any]) -> str:
+    state = playback_receipt(song, media)
+    confirmation = media.get("confirmation", {})
+    if (
+        state == "requested"
+        and isinstance(confirmation, dict)
+        and confirmation.get("song_id") == song["id"]
+        and confirmation.get("state") in {"paused", "not_started", "unverified"}
+    ):
+        return str(confirmation["state"])
+    return state
+
+
 class MusicRequests:
     def __init__(self, host: RomanceHost) -> None:
         self.host = host
+
+    def observe(self, conversation: str, media: dict[str, Any]) -> bool:
+        """Attach late positive evidence to the latest request, without any I/O to the player."""
+        if media.get("available") is not True or media.get("playback") != "playing":
+            return False
+        with self.host.database.atomic() as db:
+            row = db.execute(
+                "SELECT * FROM agent_actions WHERE conversation_id=? AND tool_name=? "
+                "ORDER BY rowid DESC LIMIT 1",
+                (conversation, OPEN),
+            ).fetchone()
+            if row is None or row["status"] != "succeeded":
+                return False
+            attempt = self.host.tools.store.action_dict(dict(row))
+            if (
+                attempt["result"].get("playback_confirmation")
+                or not 0
+                <= (
+                    datetime.now(UTC) - datetime.fromisoformat(attempt["updated_at"])
+                ).total_seconds()
+                <= 120
+            ):
+                return False
+            request = attempt["request_id"]
+            if request.startswith("music_card:"):
+                search_id = request.split(":", 2)[1]
+            else:
+                search_row = db.execute(
+                    "SELECT id FROM agent_actions WHERE conversation_id=? AND request_id=? "
+                    "AND tool_name=? AND status='succeeded' ORDER BY rowid DESC LIMIT 1",
+                    (conversation, request, SEARCH),
+                ).fetchone()
+                if search_row is None:
+                    return False
+                search_id = search_row["id"]
+            try:
+                search = self._search(search_id, conversation)
+            except ValueError:
+                return False
+            song = next(
+                (
+                    s
+                    for s in songs_from(search["result"])
+                    if s["id"] == attempt["arguments"].get("song_id")
+                ),
+                None,
+            )
+            if song is None or (state := playback_receipt(song, media)) == "requested":
+                return False
+            evidence = {
+                "state": state,
+                "song_id": song["id"],
+                "observed_at": datetime.now(UTC).isoformat(),
+                "source": "media_poll",
+            }
+            db.execute(
+                "UPDATE agent_actions SET result=? WHERE id=?",
+                (
+                    json.dumps(
+                        {**attempt["result"], "playback_confirmation": evidence}, ensure_ascii=False
+                    ),
+                    attempt["id"],
+                ),
+            )
+            return True
 
     def _search(self, action_id: str, conversation: str) -> dict[str, Any]:
         self.host.journal.require_storage()
@@ -155,6 +235,10 @@ class MusicRequests:
         opened = [a["arguments"].get("song_id") for a in actions if a["tool_name"] == OPEN]
         if opened:
             songs.sort(key=lambda song: song["id"] != opened[-1])
+        comfort = any(a["tool_name"] == "app_comfort_music" for a in actions)
+        if comfort:
+            # Companionship is one selected song, not another list of decisions.
+            songs = [s for s in songs if opened and s["id"] == opened[-1]][:1]
         cards = []
         for song in songs[:3]:
             state, pending = "candidate", None
@@ -181,10 +265,26 @@ class MusicRequests:
                     if observations:
                         media = observations[-1]["result"].get("data", {})
                         if isinstance(media, dict):
-                            state = playback_receipt(song, media)
+                            state = request_receipt(song, media)
+                    evidence = attempt["result"].get("playback_confirmation", {})
+                    if (
+                        isinstance(evidence, dict)
+                        and evidence.get("song_id") == song["id"]
+                        and evidence.get("state") in {"verified", "metadata_matched"}
+                    ):
+                        state = evidence["state"]
+                    if (
+                        state == "requested"
+                        and (
+                            datetime.now(UTC) - datetime.fromisoformat(attempt["updated_at"])
+                        ).total_seconds()
+                        > 15
+                    ):
+                        state = "unverified"
             cards.append(
                 {
                     **song,
+                    "comfort": comfort,
                     "search_action_id": search["id"],
                     "state": state,
                     "pending_action_id": pending,
@@ -215,7 +315,7 @@ class MusicRequests:
                         observation = self.host.tools.approve(observation["action_id"], True)
                     media = observation.get("data", {})
                     if observation["status"] == "succeeded" and isinstance(media, dict):
-                        state = playback_receipt(song, media)
+                        state = request_receipt(song, media)
                 except ValueError:
                     pass  # Opening is still only requested when the state permission is off.
             return {"operation": result, "state": state, "song_id": item.song_id}

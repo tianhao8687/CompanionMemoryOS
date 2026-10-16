@@ -21,7 +21,8 @@ class _ConversationViewState extends State<ConversationView> {
   final viewport = GlobalKey();
   final rows = <String, GlobalKey>{};
   String? conversation;
-  List<String> previousIds = [];
+  Set<String> previousIds = {};
+  Object? _viewSnapshot;
   int revision = 0, unseen = 0, restoreGeneration = 0;
   bool follow = true, scheduled = false, restoring = false, remembering = false;
   @override
@@ -68,15 +69,39 @@ class _ConversationViewState extends State<ConversationView> {
 
   void _updated() {
     final c = widget.controller;
+    final selected = c.selectedMessages.toList()..sort();
+    final snapshot = (
+      c.messages,
+      c.active,
+      c.outgoingRevision,
+      c.sending,
+      c.loading,
+      c.draft,
+      c.status,
+      c.hasMore,
+      c.selecting,
+      selected.join(','),
+      c.companionDisplayName,
+      c.userName,
+      c.settings['companion_avatar'],
+      c.settings['user_avatar'],
+      c.hasJournal,
+      c.hasExperience,
+      c.busy,
+    );
+    // Music progress, connection refreshes and draft persistence do not change
+    // the transcript. Keep scrolling rows out of those unrelated rebuilds.
+    if (_viewSnapshot == snapshot) return;
+    _viewSnapshot = snapshot;
     final changed = conversation != c.active;
     final outgoing = revision != c.outgoingRevision;
-    final ids = c.messages.map((m) => m.id).toList();
+    final ids = c.messages.map((m) => m.id).toSet();
     final added = c.messages
         .where(
           (m) => !previousIds.contains(m.id) && !m.isUser && m.sequence > 0,
         )
         .length;
-    final position = !changed && !outgoing && !follow && !restoring
+    final position = added > 0 && !changed && !outgoing && !follow && !restoring
         ? _position()
         : null;
     if (changed) {
@@ -96,6 +121,7 @@ class _ConversationViewState extends State<ConversationView> {
     if (!changed && !follow) unseen += added;
     revision = c.outgoingRevision;
     previousIds = ids;
+    rows.removeWhere((id, _) => !ids.contains(id));
     if (follow) {
       _bottom();
     } else if (position != null && added > 0) {
@@ -131,6 +157,7 @@ class _ConversationViewState extends State<ConversationView> {
     child: Align(
       alignment: Alignment.centerRight,
       child: GlassSurface(
+        blur: 0,
         radius: 999,
         padding: EdgeInsets.zero,
         tint: const Color(0x80ffffff),

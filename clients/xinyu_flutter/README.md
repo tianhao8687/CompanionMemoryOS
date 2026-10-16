@@ -4,16 +4,19 @@ Flutter 玻璃界面 + 原有 Python 记忆引擎。电脑和手机各自保存�
 不互通，不依赖电脑给手机提供服务，也不需要租服务器。当前源码和实际产物状态见
 [本地版交付记录](../../docs/LOCAL_APP_DELIVERY.md)；源码接入不等于安装包已经验收。
 
-当前主版本：[心隅 0.2.17 Windows / Android](https://github.com/tianhao8687/CompanionMemoryOS/releases/latest)。
-源码版本为 `0.2.17+20`，包含网易云 MCP、一起听、歌词滚动与点歌、陪听共同经历记忆、
-陪伴专注，以及整理后的设置和应用连接界面。保留回忆小窝、心隅图标与统一字体。
-Windows 提供免安装 ZIP；Android 提供 `0.2.17-preview` ARM64 APK，应用名「心隅·测试」，
-包名 `com.xinyu.xinyu_flutter.preview`。可更新之前同签名的测试包，与旧公开版数据各自独立。
+当前 Windows 版本：[心隅 0.2.26](https://github.com/tianhao8687/CompanionMemoryOS/releases/latest)。
+源码版本为 `0.2.26+29`，新增 Windows 后台点歌、当前账号歌单参考、不同人设的音乐品味，
+修复旧歌单接口失效及歌曲资料不完整；还包含角色卡导入、AI 固定应用操作和移动界面优化。
+保留一起听、歌词滚动、共同经历记忆、陪伴专注、回忆小窝、心隅图标与统一字体。
+Windows 提供免安装 ZIP；Android 当前公开下载仍为 [0.2.17 Preview](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.17)，不包含本次修复。
+该 ARM64 APK 应用名「心隅·测试」，包名 `com.xinyu.xinyu_flutter.preview`。
+可更新之前同签名的测试包，与旧公开版数据各自独立。
 请通过现有备份功能迁移需要的内容，安装时不要为解决签名问题直接卸载有数据的旧版。
 
-Windows 随包引擎与 Android 包结构、签名、16 KB 对齐检查通过；Android 真机运行、
-真实模型的点歌和回忆表达尚未验收。当前交付、文件校验与限制见 [0.2.17 交付记录](../../docs/XINYU_0217_DELIVERY.md)。
-旧 Release 和附件由本版替代，下面保留历史改动说明，不作为当前安装包的验收结论。
+Windows 随包引擎、账号歌单读取及当前网易云构建的后台播放已经实测；
+本次未重新生成 Android APK，真实模型的点歌和回忆表达仍需体验验收。
+当前交付、校验与限制见 [0.2.26 交付记录](../../docs/XINYU_0226_DELIVERY.md)。
+下面保留历史改动说明，不作为当前安装包的验收结论。
 
 2026-09-29 的新前端已按确认的 Android / Windows 原型完成，当时源码版本为 `0.2.10+13`：
 暖白底色、蓝灰消息、统一玻璃组件，Windows 双栏与 Android 单列适配；设置、角色主页、
@@ -71,7 +74,7 @@ Flutter 会话侧栏与网页品牌标识。原图、尺寸和重新生成方式
   可开启自然聊天节奏：连续纯文字短暂停顿后合成一次回应，AI 原有段落显示为相邻气泡。
 - Android 可以按用户授权在后台结合聊天和记忆主动联系，设置频率、免打扰和系统通知；
   需要在线模型及设备安全保存的 Key。Android 系统和厂商省电会影响调度，强行停止后需重新打开。
-  本地应用不启动微信、设备/MCP 连接或具有外部执行权限的工具调度器。
+  本地应用不自动启动微信、通用设备连接或外部工具调度器；内置网易云按用户连接及权限设置使用。
 
 新增功能见 [聊天操作、阅读位置与角色主页](../../docs/CHAT_EXPERIENCE_AND_PROFILES.md)、
 [手账、日期与引用](../../docs/JOURNAL_AND_QUOTES.md)及
@@ -110,6 +113,8 @@ Android 构建将 Java 临时目录放在仓库的 `dist/java-tmp`，避免某�
 流程已经上传并运行，具体版本、下载地址与验证边界见交付记录。
 Windows 产物包括 `XinYu-Windows-Setup.exe`（当前用户安装，无需管理员）和
 `XinYu-Windows.zip`（免安装，必须完整解压）；Android 为 `XinYu-Android-arm64.apk`。
+仅需本机免安装更新时，Windows 构建可加 `-PortableOnly`，不依赖 Inno Setup，
+仍执行相同的分析、测试、完整构建和打包引擎验收。安装程序版本自动取自 `pubspec.yaml`。
 构建机输出位于 `dist/xinyu-local/<构建ID>/`。用户电脑交付目录见交付记录。
 Android 构建当前使用开发签名，只用于本地验收。不同构建机的开发签名可能不同，
 不保证覆盖安装；正式分发及持续升级前需配置并妥善保管固定签名密钥。

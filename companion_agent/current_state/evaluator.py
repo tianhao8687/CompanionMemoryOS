@@ -56,7 +56,7 @@ HUMOR_REQUEST = re.compile(r"(?:讲|说|来).{0,3}(?:笑话|段子)|(?:可以|�
 CONDITIONS = {
     "fatigue": re.compile(r"疲惫|疲倦|(?:很|好|太|有点|只是)累|累(?:了|得|坏了|死了|$)"),
     "sleep_loss": re.compile(r"(?:没|没有|未)睡好|没睡够|失眠"),
-    "sadness": re.compile(r"难过|伤心|低落"),
+    "sadness": re.compile(r"难过|伤心|低落|想哭|忍不住哭"),
     "pressure": re.compile(r"压力|紧张|焦虑|担心"),
 }
 COMPLAINT = re.compile(
@@ -178,9 +178,13 @@ def analyze_current_turn(
             body = LEADING_CONTEXT.sub("", clause)
             own = not OTHER_SUBJECT.search(body) and bool(
                 re.match(r"我|很|好|太|有点|只是|没睡好|没有睡好|失眠|疲惫|疲倦", body)
+                or re.match(
+                    r"(?:不|没|没有|不是|并不|不再)(?:很|太)?(?:累|想哭|难过|伤心|低落|疲惫|疲倦)",
+                    body,
+                )
                 or re.search(r"让我|我感到|我觉得", prefix)
             )
-            if not own or re.search(r"帮我|请|翻译|解释|想问|怎么写|把.+改", prefix):
+            if not own or re.search(r"帮我|请|翻译|解释|想问|怎么写|把.+改|说过|提过", prefix):
                 continue
             if OTHER_TARGET.search(prefix) and not re.search(r"(?:让|令|使)我", prefix):
                 continue

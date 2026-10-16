@@ -122,12 +122,24 @@ class _MusicTransportState extends State<MusicTransport> {
             ],
           ),
         ),
-        if (music.available && !music.canSeek)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              '播放进度请在网易云内调整',
-              style: MusicStyle.note.copyWith(fontSize: 12),
+        if (!music.canSeek)
+          Tooltip(
+            message: music.available
+                ? '当前网易云未向心隅提供进度跳转，打开客户端即可调整'
+                : '打开已安装的网易云音乐',
+            child: TextButton.icon(
+              key: const Key('music-open-player'),
+              onPressed: music.busy ? null : music.openPlayer,
+              icon: const Icon(Icons.open_in_new_rounded, size: 15),
+              label: Text(music.available ? '到网易云调整进度' : '打开网易云'),
+              style: TextButton.styleFrom(
+                foregroundColor: MusicStyle.muted,
+                textStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                ),
+                minimumSize: const Size(48, 48),
+              ),
             ),
           ),
         const SizedBox(height: 8),

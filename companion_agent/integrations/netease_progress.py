@@ -20,6 +20,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from companion_agent.integrations.netease_identity import window_matches
+
 # NetEase 3.1.41 (205529), Patch c6406e5, x64; verified locally, not a version guess.
 DLL_SHA256 = "7f667f876caf94bc3dac3b0070d3e495117005fafdcf18b6aaa51eb004edac8c"
 DLL_IMAGE_SIZE = 41054208
@@ -147,11 +149,11 @@ class _WindowsReader:
         self.user.GetWindowTextW(window, title, len(title))
         return title.value
 
-    def _targets(self, title: str) -> list[tuple[int, int]]:
+    def _targets(self, title: str, artist: str) -> list[tuple[int, int]]:
         matches: list[tuple[int, int]] = []
 
         def visit(window: int, _: int) -> bool:
-            if self._title(window) == title:
+            if window_matches(self._title(window), title, artist):
                 pid = w.DWORD()
                 self.user.GetWindowThreadProcessId(window, ctypes.byref(pid))
                 matches.append((window, pid.value))
@@ -189,11 +191,14 @@ class _WindowsReader:
                 return int(info.base)
         return None
 
-    def read(self, title: str, executable: Path) -> dict[str, Any]:
-        targets = self._targets(title)
+    def read(self, title: str, artist: str, executable: Path) -> dict[str, Any]:
+        targets = self._targets(title, artist)
         if not targets or len({pid for _, pid in targets}) != 1:
             return {}
         window, pid = targets[0]
+        window_title = self._title(window)
+        if not window_matches(window_title, title, artist):
+            return {}
         # Query + VM_READ only. Never request write, debug, or injection permissions.
         handle = self.kernel.OpenProcess(0x410, False, pid)
         if not handle:
@@ -231,7 +236,7 @@ class _WindowsReader:
                 return data.raw
 
             result = read_clock(read, base)
-            return result if self._title(window) == title else {}
+            return result if self._title(window) == window_title else {}
         finally:
             self.kernel.CloseHandle(handle)
 
@@ -242,6 +247,6 @@ def local_progress(media: dict[str, Any], executable: Path | None) -> dict[str, 
     if not media.get("title") or not media.get("artist"):
         return {}
     try:
-        return _WindowsReader().read(f"{media['title']} - {media['artist']}", executable)
+        return _WindowsReader().read(str(media["title"]), str(media["artist"]), executable)
     except (OSError, ValueError, TypeError, struct.error):
         return {}

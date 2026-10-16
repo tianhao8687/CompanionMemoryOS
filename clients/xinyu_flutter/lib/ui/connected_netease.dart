@@ -77,7 +77,7 @@ class NeteaseConnectionCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            const Text('找歌、播放与切歌', style: XinYuLayout.note),
+            const Text('直接说想听什么，找歌、播放和切歌一次完成', style: XinYuLayout.note),
             if (tools.isNotEmpty) ...[
               const SizedBox(height: 16),
               PopupMenuButton<String>(
@@ -89,7 +89,7 @@ class NeteaseConnectionCard extends StatelessWidget {
                 itemBuilder: (_) => [
                   for (final entry in const {
                     'ask': '每次操作前确认',
-                    'allow': '允许自动操作',
+                    'allow': '按你的要求直接执行',
                     'off': '不允许操作',
                   }.entries)
                     PopupMenuItem(value: entry.key, child: Text(entry.value)),
@@ -107,7 +107,7 @@ class NeteaseConnectionCard extends StatelessWidget {
                             Text(
                               const {
                                 'ask': '每次操作前确认',
-                                'allow': '允许自动操作',
+                                'allow': '按你的要求直接执行',
                                 'off': '不允许操作',
                                 'custom': '按已有规则',
                               }[mode]!,

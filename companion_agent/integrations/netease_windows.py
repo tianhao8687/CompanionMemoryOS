@@ -1,11 +1,10 @@
-"""Windows-only NetEase app handoff and precisely targeted media sessions."""
+"""Windows NetEase startup, silent song selection, and scoped media sessions."""
 
 from __future__ import annotations
 
 import asyncio
-import base64
+import csv
 import importlib
-import json
 import math
 import os
 import subprocess
@@ -15,7 +14,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
+from companion_agent.integrations.netease_background import BackgroundPlayer
 from companion_agent.integrations.netease_catalog import song_id
+from companion_agent.integrations.netease_launch import player_is_open, quiet_launch
 
 SOURCE_ID = "cloudmusic.exe"
 MediaAction = Literal["play", "pause", "next", "previous"]
@@ -25,6 +26,31 @@ MEDIA_ACTIONS = {
     "next": ("is_next_enabled", "try_skip_next_async"),
     "previous": ("is_previous_enabled", "try_skip_previous_async"),
 }
+
+
+class NoMediaSession(ValueError):
+    pass
+
+
+def player_running() -> bool | None:
+    """Only check the fixed player's process name; failure is not proof of idle."""
+    if sys.platform != "win32":
+        return None
+    try:
+        tool = Path(os.environ.get("SYSTEMROOT", r"C:\Windows")) / "System32/tasklist.exe"
+        result = subprocess.run(
+            [str(tool), "/FI", "IMAGENAME eq cloudmusic.exe", "/FO", "CSV", "/NH"],
+            capture_output=True,
+            timeout=3,
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        if result.returncode != 0:
+            return None
+        rows = csv.reader(result.stdout.decode("utf-8", errors="replace").splitlines())
+        return any(row and row[0].casefold() == SOURCE_ID for row in rows)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
 
 
 def timeline_snapshot(session: Any, info: Any) -> dict[str, Any]:
@@ -102,33 +128,49 @@ def find_executable(explicit: Path | None = None) -> Path | None:
     return None
 
 
+def open_app(executable: Path | None = None) -> dict[str, Any]:
+    """Launch only the installed official client; no song or playback command."""
+    if sys.platform != "win32":
+        raise ValueError("此启动方式仅支持 Windows。")
+    target = find_executable(executable)
+    if target is None:
+        return {"status": "failed", "message": "这台电脑还未找到网易云音乐，请先安装客户端。"}
+    if player_is_open(target):
+        return {
+            "status": "succeeded",
+            "delivery": "already_running",
+            "playback_verified": False,
+            "message": "网易云已在运行，可以继续听歌；没有选歌或改变播放状态。",
+        }
+    try:
+        with quiet_launch(target) as startup:
+            subprocess.Popen(
+                [str(target)],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                startupinfo=startup,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+    except OSError:
+        return {"status": "failed", "message": "网易云未能打开，请检查客户端安装。"}
+    return {
+        "status": "succeeded",
+        "delivery": "requested",
+        "playback_verified": False,
+        "message": "已向系统提交打开网易云的请求；没有选歌或开始播放。",
+    }
+
+
 def open_song(identifier: str, executable: Path | None = None) -> dict[str, Any]:
+    """Select through the initialized local channel, with no launching fallback."""
     identifier = song_id(identifier)
     if sys.platform != "win32":
         raise ValueError("当前歌曲打开功能支持 Windows；安卓本机适配尚未接入。")
     target = find_executable(executable)
     if target is None:
         raise ValueError("未找到网易云音乐 Windows 客户端，请先安装并打开一次。")
-    payload = json.dumps({"type": "song", "id": identifier, "cmd": "play"}, separators=(",", ":"))
-    uri = "orpheus://" + base64.b64encode(payload.encode("utf-8")).decode("ascii")
-    try:
-        subprocess.Popen(
-            [str(target), f"--webcmd={uri}"],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
-    except OSError:
-        raise ValueError("无法启动网易云音乐，请检查客户端安装。") from None
-    return {
-        "status": "succeeded",
-        "song_id": identifier,
-        "url": f"https://music.163.com/song?id={identifier}",
-        "delivery": "requested",
-        "playback_verified": False,
-        "message": "已向网易云提交歌曲打开请求，尚未确认实际播放。账号和歌曲权限由网易云处理。",
-    }
+    return BackgroundPlayer(target).play(identifier)
 
 
 class NetEaseMedia:
@@ -163,7 +205,7 @@ class NetEaseMedia:
             s for s in manager.get_sessions() if s.source_app_user_model_id.casefold() == SOURCE_ID
         ]
         if not matches:
-            raise ValueError("网易云媒体会话尚未出现。请在网易云播放一首歌并启用系统媒体控制。")
+            raise NoMediaSession("网易云媒体会话尚未出现。请在网易云播放一首歌并启用系统媒体控制。")
         if len(matches) != 1:
             raise ValueError("检测到多个网易云媒体会话，请关闭多余的网易云窗口后重试。")
         return matches[0]
@@ -204,6 +246,15 @@ class NetEaseMedia:
                         else:
                             state = after
             return {"status": "succeeded", "available": True, **state}
+        except NoMediaSession as error:
+            closed = await asyncio.to_thread(player_running) is False
+            return {
+                "status": "succeeded" if closed else "failed",
+                "available": False,
+                "idle": closed,
+                "reason": "player_closed" if closed else "media_unavailable",
+                "message": "网易云尚未打开。" if closed else str(error),
+            }
         except ValueError as error:
             return {"status": "failed", "available": False, "message": str(error)}
         except Exception:

@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 
 import 'glass.dart';
@@ -27,28 +25,27 @@ class MessageSurface extends StatelessWidget {
     ),
     child: ClipRRect(
       borderRadius: corners,
-      child: BackdropFilter.grouped(
-        filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: corners,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color.alphaBlend(
-                  const Color(0x18ffffff),
-                  isUser ? XinYuColors.outgoing : XinYuColors.incoming,
-                ),
+      // Scrolling rows use a translucent material. Sampling the backdrop on
+      // every bubble forces repeated raster work on all Android GPUs.
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: corners,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color.alphaBlend(
+                const Color(0x18ffffff),
                 isUser ? XinYuColors.outgoing : XinYuColors.incoming,
-              ],
-            ),
-            border: Border.all(color: const Color(0x66ffffff), width: .6),
+              ),
+              isUser ? XinYuColors.outgoing : XinYuColors.incoming,
+            ],
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-            child: child,
-          ),
+          border: Border.all(color: const Color(0x66ffffff), width: .6),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          child: child,
         ),
       ),
     ),

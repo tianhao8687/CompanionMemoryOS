@@ -302,7 +302,7 @@ void main() {
       await tester.pumpAndSettle();
       await settingsSection(tester, '陪伴');
       await settingsGroup(tester, '彼此的称呼');
-      final name = find.widgetWithText(TextFormField, '怎么称呼 TA');
+      final name = find.byKey(const Key('companion-name'));
       await tester.enterText(name, '未保存的称呼');
       repo.failSave = true;
       await tester.tap(find.text('保存设置'));

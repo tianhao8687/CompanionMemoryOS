@@ -19,6 +19,7 @@ import 'journal_sheet.dart';
 import 'message_context.dart';
 import 'character_home.dart';
 import 'typography.dart';
+import 'persona_import_sheet.dart';
 export 'chat_reader.dart' show ConversationView;
 
 class MessageBubble extends StatelessWidget {
@@ -581,12 +582,120 @@ class _ComposerState extends State<Composer> {
     icon: Icon(icon),
   );
 
+  Future<void> _more() async {
+    focus.unfocus();
+    final c = widget.controller;
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0x30303e52),
+      elevation: 0,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: GlassSurface(
+            grouped: false,
+            blur: 12,
+            radius: 24,
+            tint: const Color(0x8cf1f6fc),
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 32,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0x40647188),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  '一起做点什么',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (final item in [
+                      ('image', '添加图片', Icons.photo_library_outlined),
+                      ('music', '一起听', Icons.headphones_rounded),
+                      if (c.capabilities['focus_features'] == true)
+                        ('focus', '陪我专注', Icons.timelapse_rounded),
+                      ('persona', '导入人设', Icons.badge_outlined),
+                    ])
+                      SizedBox(
+                        width: (MediaQuery.sizeOf(context).width - 76) / 2,
+                        child: Material(
+                          color: const Color(0x70ffffff),
+                          borderRadius: BorderRadius.circular(16),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => Navigator.pop(context, item.$1),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 20,
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    item.$3,
+                                    size: 26,
+                                    color: XinYuColors.accent,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    item.$2,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  '也可以直接在聊天里告诉我。',
+                  style: TextStyle(fontSize: 13, color: XinYuColors.muted),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (selected == 'image') await c.attachImage();
+    if (!mounted) return;
+    if (selected == 'music') await showMusicScreen(context, c);
+    if (!mounted) return;
+    if (selected == 'focus') await showFocusScreen(context, c);
+    if (!mounted) return;
+    if (selected == 'persona') await showPersonaImport(context, c);
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
     final compact = MediaQuery.sizeOf(context).width < 880;
     return GlassSurface(
       key: const Key('chat-composer'),
+      blur: 12,
       radius: 28,
       padding: const EdgeInsets.all(6),
       tint: const Color(0x8cffffff),
@@ -594,7 +703,6 @@ class _ComposerState extends State<Composer> {
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0x90d5deea), width: .8),
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -694,25 +802,11 @@ class _ComposerState extends State<Composer> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 if (compact)
-                  PopupMenuButton<String>(
+                  IconButton(
                     key: const Key('compose-more'),
                     tooltip: '更多',
-                    enabled: !c.busy,
+                    onPressed: c.busy ? null : _more,
                     icon: const Icon(Icons.add_rounded),
-                    onSelected: (value) {
-                      if (value == 'image') c.attachImage();
-                      if (value == 'music') showMusicScreen(context, c);
-                      if (value == 'focus') showFocusScreen(context, c);
-                    },
-                    itemBuilder: (_) => [
-                      const PopupMenuItem(value: 'image', child: Text('添加图片')),
-                      const PopupMenuItem(value: 'music', child: Text('一起听')),
-                      if (c.capabilities['focus_features'] == true)
-                        const PopupMenuItem(
-                          value: 'focus',
-                          child: Text('陪我专注'),
-                        ),
-                    ],
                   )
                 else
                   _toolButton(

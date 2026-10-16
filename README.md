@@ -9,16 +9,18 @@
 聊天、角色设置和记忆保存在当前设备的 SQLite 数据库中，Windows 与手机各自使用、各自保存。
 连接在线模型时，对话请求会发送到用户配置的服务商；默认离线模式用于功能演示，不包含本地大语言模型。
 
-[下载当前版本 0.2.17](https://github.com/tianhao8687/CompanionMemoryOS/releases/latest) · [客户端使用与构建](clients/xinyu_flutter/README.md) · [本版交付与验证](docs/XINYU_0217_DELIVERY.md) · [网页使用说明](docs/ROMANCE_AGENT.md) · [记忆引擎接入](docs/INTEGRATION_0.7.5.md)
+[下载 Windows 0.2.26](https://github.com/tianhao8687/CompanionMemoryOS/releases/latest) · [客户端使用与构建](clients/xinyu_flutter/README.md) · [本版交付与验证](docs/XINYU_0226_DELIVERY.md) · [网页使用说明](docs/ROMANCE_AGENT.md) · [记忆引擎接入](docs/INTEGRATION_0.7.5.md)
 
 ## 心隅能做什么
 
 - **日常聊天**：流式回复、图片与表情、引用、搜索、收藏、多选复制；切换会话保留草稿和阅读位置。
-- **自定义相处方式**：角色名字、头像、资料、性格和说话偏好；支持独立备注名与私人备注。
+- **自定义相处方式**：角色名字、头像、资料、性格和说话偏好；支持粘贴人设、导入 PNG / JSON 角色卡，再逐项修改，保留独立备注名与私人备注。
+- **让 AI 帮忙设置**：可以在聊天中提出导入人设、连接网易云或开启体验功能等需求，AI 通过固定应用操作执行；系统权限和首次账号登录仍由用户完成。
 - **延续记忆**：在授权范围内保存偏好、经历、关系和短期状态，支持查看来源、更正、遗忘和清理。
 - **记忆手账**：保存共同回忆、照片、纪念日与约定；Android 可按授权和免打扰设置主动通知。
 - **一起听歌**：连接网易云音乐，显示唱片、歌曲与滚动歌词；播放时唱片旋转，暂停时停住。桌面侧边聊天、手机适配键盘，支持安静陪伴和有节制的主动发言。
 - **一句歌词点歌**：明确要求找歌或播放时，通过现有 MCP 工具搜索并核对歌词；多个版本显示歌曲卡片，由用户选择。播放交给本机网易云，继续遵守工具权限与客户端播放权限。
+- **后台点歌与音乐品味**：Windows 初始化本机控制通道后，点歌直接操作网易云内部队列，不唤起窗口。不同人设保留自己的音乐品味，可读取当前账号可访问的歌单取样作为选歌参考；用户表达疲惫、难过时，AI 可在开启的陪伴设置内有节制地放歌。
 - **让歌曲连接回忆**：陪听中明确分享的个人感受、往事与当时的歌曲关联，进入现有共同经历记忆；支持以后召回、更正、遗忘与来源限制。仅播放或引用歌词不会自动变成个人经历。
 - **陪我专注**：独立陪伴页、计时、休息与轻互动；用户主动写下的进展进入记忆，计时本身不推断任务完成。
 - **回忆小窝**：温馨斜俯视像素房间，支持区域放大和物品近看。AI 自主挑选回忆、绘制 32×32 原创像素物件并布置小屋；可查看来源、收纳和回看历史。创作需开启并使用在线模型，实际 AI 画作质量仍待验收；见 [实现与验证记录](docs/MEMORY_NOOK_V1.md)。
@@ -29,19 +31,21 @@ Windows 随包附带引擎进程，Android 使用嵌入式运行时，无需手�
 
 ## 下载与当前进展
 
-当前主版本为 **0.2.17（build 20）**，发布于 2026-10-15。源码以 `main` 为准。
+当前 Windows 版本为 **0.2.26（build 29）**，发布于 2026-10-17。源码以 `main` 为准。
+Android 当前公开下载仍为 **0.2.17 Preview**；本次更新包含安卓源码改进，但没有发布新的 APK。
 
 | 内容 | 状态与入口 |
 | --- | --- |
-| Windows 免安装包 | [下载 0.2.17 ZIP](https://github.com/tianhao8687/CompanionMemoryOS/releases/download/xinyu-v0.2.17/XinYu-Windows-0.2.17-Music.zip)，完整解压后运行 `XinYu/xinyu_flutter.exe`，无需自行安装 Python |
-| Android 测试 APK | [下载 0.2.17 Preview APK](https://github.com/tianhao8687/CompanionMemoryOS/releases/download/xinyu-v0.2.17/XinYu-Android-0.2.17-Preview.apk)，Android 7.0+ / ARM64；应用名「心隅·测试」，与旧公开版独立安装、独立保存数据 |
-| 发布说明与校验 | [当前 Release](https://github.com/tianhao8687/CompanionMemoryOS/releases/latest) 提供安装说明、SHA-256 和交付清单；功能范围与验收结果见 [0.2.17 记录](docs/XINYU_0217_DELIVERY.md) |
+| Windows 免安装包 | [下载 0.2.26 ZIP](https://github.com/tianhao8687/CompanionMemoryOS/releases/download/xinyu-v0.2.26/XinYu-Windows-0.2.26.zip)，完整解压后运行 `XinYu/xinyu_flutter.exe`，无需自行安装 Python |
+| Android 既有测试 APK | [下载 0.2.17 Preview APK](https://github.com/tianhao8687/CompanionMemoryOS/releases/download/xinyu-v0.2.17/XinYu-Android-0.2.17-Preview.apk)，Android 7.0+ / ARM64；不包含本次新增修复。应用名「心隅·测试」，与旧公开版独立安装、独立保存数据 |
+| 发布说明与校验 | [当前 Release](https://github.com/tianhao8687/CompanionMemoryOS/releases/latest) 提供安装说明、SHA-256 和交付清单；功能范围与验收结果见 [0.2.26 记录](docs/XINYU_0226_DELIVERY.md) |
 
-本版是公开测试版本。Python 全量 1,628 项通过、1 项跳过，最终文字边界专项 50 项通过；
-真实应用后端与 Windows 随包引擎检查通过。Android 包结构、签名和对齐通过，手机实测仍待进行；
-歌词点歌与记忆的真实模型表达尚未验收。AI 使用歌曲信息、歌词与用户分享，没有接收歌曲音频。
+本版是公开测试版本。Windows 本地 Python 全量 1,887 项通过、1 项跳过，Flutter 分析及 150 项测试通过；
+发布前补做跨平台检查和音乐专项回归。Windows 随包引擎与实际账号歌单读取通过。
+网易云 3.1.41 已验证最小化和托盘状态下后台点歌、持续输入与焦点不变；另外三个已适配构建只有静态与离线验证。
+真实模型的选歌及表达仍需体验验收。AI 使用歌曲信息、歌词与用户分享，没有接收歌曲音频。
 
-旧 Release 和安装附件由本版替代，Git 提交历史及历史验证记录保留。安装包仅手动构建，
+0.2.17 Release 保留供 Android 下载及历史核对。安装包仅手动构建，
 推送代码只运行常规源码 CI。此前聊天口吻的验收限制见 [口吻修复记录](docs/CHAT_VOICE_REPAIR_20261006.md)。
 
 ## 开始使用
@@ -51,9 +55,11 @@ Windows 随包附带引擎进程，Android 使用嵌入式运行时，无需手�
 Key 默认仅供本次运行使用，也可选择 Windows 凭据管理器或 Android Keystore 保存。
 安装、备份与开发构建步骤见 [客户端说明](clients/xinyu_flutter/README.md)。
 
-**网易云与一起听**：在「设置 → 连接」连接本机网易云。Windows 先开启网易云的 SMTC 系统媒体控制；
-Android 按引导授予通知使用权，再在网易云播放一首歌。进入「一起听」即可查看歌曲与歌词、边听边聊。
-Windows 自动同步兼容已验证的网易云 3.1.41 本地进度格式；其他版本及拖动进度能力以实际状态为准。
+**网易云与一起听**：在「设置 → 连接」连接本机网易云。Windows 媒体控制需要开启网易云的 SMTC；
+后台点歌还需单独[初始化本机控制通道](docs/NETEASE_CDP_VALIDATION.md#初始化与发布边界)，首次登录或初始化可能需要进入网易云。
+初始化后点歌不再调用协议唤起；控制通道不可用时明确报错，不自动弹出或重启客户端。
+Android 按引导授予通知使用权；当前源码的账号歌单连接首次需在官方登录页登录一次。
+进入「一起听」可查看歌曲与歌词、边听边聊；拖动进度能力以客户端实际开放的控制为准。
 详见 [网易云连接](docs/NETEASE_MUSIC_MCP.md)、[歌词点歌](docs/LYRIC_SONG_REQUESTS.md) 和 [陪听记忆](docs/LISTENING_MEMORY.md)。
 
 **本机网页界面**：使用 Python 3.12+ 在源码目录运行：
@@ -75,7 +81,7 @@ Key 不写入数据库或浏览器存储。默认仅在本次运行中使用；W
 切换预设会保留自定义草稿；再次选择自定义才会启用。设置保存后即可继续当前对话。
 
 网页 / Agent 另提供 Agent Loop、MCP 工具、定时任务、微信文本／模拟消息和 Android ADB 接入。
-这些外部能力不由本地客户端自动启动；真实账号、设备及模型需按各自授权和环境单独验证。
+本地客户端仅接入用户选择的内置应用能力，其他外部渠道不自动启动；真实账号、设备及模型需按各自授权和环境单独验证。
 用法见 [心隅使用说明](docs/ROMANCE_AGENT.md)、[功能说明](docs/FUNCTIONAL_COMPANION.md)
 及 [工具接入说明](docs/AGENT_TOOLS.md)。
 

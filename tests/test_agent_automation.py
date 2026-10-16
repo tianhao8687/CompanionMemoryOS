@@ -274,6 +274,7 @@ def test_denial_still_possible_after_capabilities_disabled(tmp_path: Path) -> No
 
 def test_token_budget_stops_before_external_action(tmp_path: Path) -> None:
     hub, client, name = hub_at(tmp_path, mode="allow")
+    hub.config.loop.max_total_tokens = 10000
 
     class OverBudget(ScriptModel):
         def generate_step(

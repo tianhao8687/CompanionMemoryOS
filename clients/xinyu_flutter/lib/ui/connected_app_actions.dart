@@ -110,7 +110,8 @@ class ConnectedAppAction extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (action['status'] == 'succeeded')
+                if (action['status'] == 'succeeded' &&
+                    !(action['tool_name'] as String? ?? '').startsWith('app_'))
                   TextButton(
                     key: ValueKey('resume-$id'),
                     onPressed: disabled
