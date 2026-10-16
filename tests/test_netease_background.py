@@ -33,6 +33,8 @@ def test_native_ownership_helpers_reject_non_windows_before_loading_dlls(
         cdp._listener_rows(2)
     with pytest.raises(cdp.BackgroundUnavailable, match="unsupported_platform"):
         cdp._process_path(123)
+    with pytest.raises(cdp.BackgroundUnavailable, match="unsupported_platform"):
+        cdp.LocalChannel(Path("cloudmusic.exe"))
 
 
 @pytest.mark.parametrize(
@@ -134,7 +136,7 @@ def test_runtime_fingerprints_must_match_one_whole_profile_and_version(
 def test_listener_must_be_exclusively_loopback_and_single_owner(
     monkeypatch: pytest.MonkeyPatch, rows: list[tuple[str, int, int]], reason: str
 ) -> None:
-    monkeypatch.setattr(cdp.sys, "platform", "win32")
+    monkeypatch.setattr(cdp, "sys", SimpleNamespace(platform="win32"))
     monkeypatch.setattr(cdp, "_listener_rows", lambda family: rows if family == 2 else [])
     with pytest.raises(cdp.BackgroundUnavailable, match=reason):
         cdp.channel_owner(Path("cloudmusic.exe"))
@@ -144,7 +146,7 @@ def test_listener_owner_must_match_installation_and_remain_the_same(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     executable = tmp_path / "cloudmusic.exe"
-    monkeypatch.setattr(cdp.sys, "platform", "win32")
+    monkeypatch.setattr(cdp, "sys", SimpleNamespace(platform="win32"))
     monkeypatch.setattr(
         cdp, "_listener_rows", lambda family: [("127.0.0.1", 9223, 1)] if family == 2 else []
     )

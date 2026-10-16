@@ -202,6 +202,8 @@ class LocalChannel:
             with httpx.Client(timeout=2, follow_redirects=False, trust_env=False) as client:
                 self.version = client_version(self._json(client, "/json/version"))
                 target = validate_target(self._json(client, "/json/list"))
+            if sys.platform != "win32":
+                raise BackgroundUnavailable("unsupported_platform")
             import websocket
 
             self.socket = websocket.create_connection(
