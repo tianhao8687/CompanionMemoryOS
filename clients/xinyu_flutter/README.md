@@ -1,6 +1,6 @@
 # 心隅 · Windows / Android 本地客户端
 
-Android 9 及以上新增内置「手机能力」，复用固定版本 droid-mcp SDK，支持 24 项手机操作，
+Android 9 及以上新增内置「手机能力」，复用固定版本 droid-mcp SDK，当前提供 31 项手机工具，
 并与网易云连接共用原有权限和操作记录。接入范围与验证状态见
 [手机能力说明](../../docs/ANDROID_PHONE_CAPABILITIES.md)。
 
