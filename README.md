@@ -6,14 +6,19 @@
 **CompanionMemoryOS**提供可独立接入的 Python 记忆引擎，让称呼、偏好、共同经历和约定能够延续到后续对话。
 支持自定义角色与相处风格，可连接 DeepSeek 等兼容的模型 API。
 
+心隅免费提供；新增功能优先使用满足需求的免费、开源和本地方案，
+不把额外付费服务作为默认依赖。选型要求见 [开发规范](AGENTS.md#免费软件与依赖选型原则)。
+用户自行选择的第三方在线服务可能有独立费用，免费软件不等于第三方 API 免费。
+
 聊天、角色设置和记忆保存在当前设备的 SQLite 数据库中，Windows 与手机各自使用、各自保存。
 连接在线模型时，对话请求会发送到用户配置的服务商；默认离线模式用于功能演示，不包含本地大语言模型。
 
-[下载 Windows 0.2.26](https://github.com/tianhao8687/CompanionMemoryOS/releases/latest) · [客户端使用与构建](clients/xinyu_flutter/README.md) · [本版交付与验证](docs/XINYU_0226_DELIVERY.md) · [网页使用说明](docs/ROMANCE_AGENT.md) · [记忆引擎接入](docs/INTEGRATION_0.7.5.md)
+[下载 Windows 0.2.31](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.31) · [客户端使用与构建](clients/xinyu_flutter/README.md) · [本版交付与验证](docs/XINYU_0231_DELIVERY.md) · [网页使用说明](docs/ROMANCE_AGENT.md) · [记忆引擎接入](docs/INTEGRATION_0.7.5.md)
 
 ## 心隅能做什么
 
 - **日常聊天**：流式回复、图片与表情、引用、搜索、收藏、多选复制；切换会话保留草稿和阅读位置。
+- **免费本地语音输入（Windows 0.2.31；Android 已接入源码）**：首次下载约 190 MiB 资源后，使用开源识别引擎在设备上转写普通话与英语；无需额外语音账号，录音不上传。打开面板预加载、同面板复用，边说边出字、编辑确认后手动发送，见 [实现与测试范围](docs/LOCAL_SPEECH_INPUT.md)。
 - **自定义相处方式**：角色名字、头像、资料、性格和说话偏好；支持粘贴人设、导入 PNG / JSON 角色卡，再逐项修改，保留独立备注名与私人备注。
 - **让 AI 帮忙设置**：可以在聊天中提出导入人设、连接网易云或开启体验功能等需求，AI 通过固定应用操作执行；系统权限和首次账号登录仍由用户完成。
 - **延续记忆**：在授权范围内保存偏好、经历、关系和短期状态，支持查看来源、更正、遗忘和清理。
@@ -23,6 +28,8 @@
 - **后台点歌与音乐品味**：Windows 初始化本机控制通道后，点歌直接操作网易云内部队列，不唤起窗口。不同人设保留自己的音乐品味，可读取当前账号可访问的歌单取样作为选歌参考；用户表达疲惫、难过时，AI 可在开启的陪伴设置内有节制地放歌。
 - **让歌曲连接回忆**：陪听中明确分享的个人感受、往事与当时的歌曲关联，进入现有共同经历记忆；支持以后召回、更正、遗忘与来源限制。仅播放或引用歌词不会自动变成个人经历。
 - **陪我专注**：独立陪伴页、计时、休息与轻互动；用户主动写下的进展进入记忆，计时本身不推断任务完成。
+- **Android 手机联动（源码）**：复用 droid-mcp 的手机操作，结合明确授权的范围调整音量、亮度和勿扰；支持环境光/接近状态、可调冷却及回复触感，见 [手机陪伴](docs/PHONE_COMPANIONSHIP.md)。
+- **Android 悬浮陪聊（源码）**：可拖动、贴边、收起为小点，与原聊天和草稿同步；开启读屏后，点开时结合当前可见页面回应，见 [小窗与读屏](docs/ANDROID_FLOATING_CHAT.md)。以上手机功能不属于 Windows 包，本次未发布新 APK。
 - **回忆小窝**：温馨斜俯视像素房间，支持区域放大和物品近看。AI 自主挑选回忆、绘制 32×32 原创像素物件并布置小屋；可查看来源、收纳和回看历史。创作需开启并使用在线模型，实际 AI 画作质量仍待验收；见 [实现与验证记录](docs/MEMORY_NOOK_V1.md)。
 - **统一的界面与数据管理**：整理设置和应用连接入口，统一 Noto Sans SC 字体、字号、字重与间距；支持系统无障碍缩放、备份恢复和系统安全 Key 存储。
 
@@ -31,14 +38,14 @@ Windows 随包附带引擎进程，Android 使用嵌入式运行时，无需手�
 
 ## 下载与当前进展
 
-当前 Windows 版本为 **0.2.26（build 29）**，发布于 2026-10-17。源码以 `main` 为准。
+当前 Windows 版本为 **0.2.31（build 34）**，发布于 2026-10-19。源码以 `main` 为准。
 Android 当前公开下载仍为 **0.2.17 Preview**；本次更新包含安卓源码改进，但没有发布新的 APK。
 
 | 内容 | 状态与入口 |
 | --- | --- |
 | Windows 免安装包 | [下载 0.2.26 ZIP](https://github.com/tianhao8687/CompanionMemoryOS/releases/download/xinyu-v0.2.26/XinYu-Windows-0.2.26.zip)，完整解压后运行 `XinYu/xinyu_flutter.exe`，无需自行安装 Python |
 | Android 既有测试 APK | [下载 0.2.17 Preview APK](https://github.com/tianhao8687/CompanionMemoryOS/releases/download/xinyu-v0.2.17/XinYu-Android-0.2.17-Preview.apk)，Android 7.0+ / ARM64；不包含本次新增修复。应用名「心隅·测试」，与旧公开版独立安装、独立保存数据 |
-| 发布说明与校验 | [当前 Release](https://github.com/tianhao8687/CompanionMemoryOS/releases/latest) 提供安装说明、SHA-256 和交付清单；功能范围与验收结果见 [0.2.26 记录](docs/XINYU_0226_DELIVERY.md) |
+| 发布说明与校验 | [当前 Release](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.31) 提供安装说明、SHA-256 和交付清单；功能范围与验收结果见 [0.2.31 记录](docs/XINYU_0231_DELIVERY.md) |
 
 本版是公开测试版本。Windows 本地 Python 全量 1,887 项通过、1 项跳过，Flutter 分析及 150 项测试通过；
 发布前补做跨平台检查和音乐专项回归。Windows 随包引擎与实际账号歌单读取通过。

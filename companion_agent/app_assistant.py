@@ -18,6 +18,7 @@ from companion_agent.music_profile import (
     music_relevant,
     persona_key,
 )
+from companion_agent.phone_comfort import RESTORE_REQUEST, available_turn
 from companion_agent.romance import RomanceSettings, SettingsUpdate
 
 if TYPE_CHECKING:
@@ -60,6 +61,50 @@ PAGES = [
     "music_account",
 ]
 TOOLS = [
+    definition(
+        "app_reply_haptic",
+        "用户已开启随回复表达触感。只有你自己这次回复有自然、强烈的情感表达时，"
+        "可为其中一句准备一次短拍，例如特别开心、感动、想念、心疼或认真表达在乎。"
+        "根据整段对话判断，不因用户情绪强烈、出现抱抱等词或感叹号就调用，普通回复不调用。"
+        "不用于技术说明、引用台词、催促、争吵施压、恐吓或危机情境。"
+        "phrase 是你即将在最终回复中原样说出的情感句子，3 到 120 字，每轮最多一次。"
+        "本工具只准备触感，不立即震动；回复完成、该句确实出现且手机允许时才短拍两下。"
+        "不要在正文解释工具、追加震动说明或声称对方已感觉到；skipped 后正常聊天，不重试。"
+        "用户不想震动时尊重拒绝，不能改用普通震动工具绕过。",
+        {"phrase": {"type": "string", "minLength": 3, "maxLength": 120}},
+        ["phrase"],
+    ),
+    definition(
+        "app_comfort_phone",
+        "用户已开启聊天中的手机陪伴时，根据当前表达与上下文决定是否轻微调整手机环境。"
+        "rest=疲惫想歇息，overload=声音/通知令人烦躁，wind_down=准备休息。"
+        "选择真正相关的 media(仅降低正在播放的媒体音量)、screen(轻微调暗)、"
+        "interruptions(按已授权的系统优先勿扰规则)。最多两项，不必每轮执行。"
+        "evidence 必须是本轮用户直接表达的原文片段，不能来自历史、引用或假设。"
+        "先理解用户；等重要消息/来电、通话、开车、会议时不调用。只想被听见时不必做事。"
+        "由工具检查一次性授权、现状、冷却及结果；skipped 后继续聊天，不改参数绕过。"
+        "这不是打开应用或通用界面操作的授权。只描述 changes 中 verified=true 的结果。",
+        {
+            "scene": {"type": "string", "enum": ["rest", "overload", "wind_down"]},
+            "evidence": {"type": "string", "minLength": 3, "maxLength": 160},
+            "adjustments": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 2,
+                "uniqueItems": True,
+                "items": {"type": "string", "enum": ["media", "screen", "interruptions"]},
+            },
+        },
+        ["scene", "evidence", "adjustments"],
+    ),
+    definition(
+        "app_restore_phone",
+        "用户说已经缓过来、结束休息、准备恢复正常活动，或明确要求恢复时，"
+        "核对并恢复手机陪伴之前的设置，包括原来的自动亮度模式。"
+        "evidence 引用本轮用户原文。只恢复仍与本应用调整一致的项目，保留用户手动改过的值。"
+        "未核对成功时不能声称已经恢复，不连续重试。无后台定时恢复承诺。",
+        {"evidence": {"type": "string", "minLength": 3, "maxLength": 160}},
+    ),
     definition(
         "app_music_taste",
         "为当前自定义角色建立稳定的音乐品味：结合有效人设提炼曲风、编曲/歌词偏好和不偏爱的风格。"
@@ -190,6 +235,24 @@ class AppAssistant:
 
     def offered(self, name: str) -> bool:
         text = self._turn_text.get()
+        if name == "app_reply_haptic":
+            return bool(text) and self.host.reply_haptics.available()
+        if name == "app_comfort_phone":
+            return (
+                self.host.tools.config.phone_comfort.enabled
+                and not self.host.phone_comfort.paused()
+                and available_turn(text)
+                and self.host.tools.external_available()
+                and self.host.tools.config.loop.enabled
+            )
+        if name == "app_restore_phone":
+            return bool(self.host.phone_comfort.active()) and (
+                (
+                    self.host.tools.config.phone_comfort.enabled
+                    and not self.host.phone_comfort.paused()
+                )
+                or bool(RESTORE_REQUEST.search(text))
+            )
         if name == "app_comfort_music":
             return (
                 self.host.settings.comfort_music_enabled
@@ -234,6 +297,10 @@ class AppAssistant:
 
     def call(self, name: str, args: dict[str, Any], conversation: str) -> dict[str, Any]:
         host = self.host
+        if name == "app_reply_haptic":
+            return host.reply_haptics.prepare(args, conversation)
+        if name == "app_restore_phone":
+            return host.phone_comfort.restore(args, conversation)
         host.scope(conversation)
         if name == "app_music_taste":
             return self.define_taste(args["preferences"], conversation)
@@ -241,6 +308,8 @@ class AppAssistant:
             return host.music_library.call(args, conversation)
         if name == "app_comfort_music":
             return host.music_comfort.play(args, conversation)
+        if name == "app_comfort_phone":
+            return host.phone_comfort.adjust(args, conversation)
         if name == "app_open_music":
             if not self.music_launcher or not host.tools.external_available():
                 return {"status": "denied", "message": "当前运行环境不支持打开本机网易云。"}

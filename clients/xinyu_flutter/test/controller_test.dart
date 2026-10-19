@@ -14,6 +14,7 @@ class RetryRepository extends DemoRepository {
     String text, {
     List<String> imageIds = const [],
     String? quoteId,
+    Map<String, dynamic>? screenContext,
   }) async* {
     requests.add(request);
     attachments.add(List.of(imageIds));

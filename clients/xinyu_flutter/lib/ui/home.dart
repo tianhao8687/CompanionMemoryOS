@@ -20,6 +20,10 @@ import 'problem_dialog.dart';
 import 'persona_import_sheet.dart';
 import 'app_experience.dart';
 import 'connected_apps.dart';
+import '../state/floating_chat.dart';
+import 'floating_chat_sheet.dart';
+
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 
 class XinYuHome extends StatefulWidget {
   const XinYuHome({super.key, required this.controller, required this.probe});
@@ -34,10 +38,15 @@ class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
   late Widget _conversationView;
   bool _problemVisible = false;
   bool _problemScheduled = false;
+  late FloatingChat floatingChat;
   @override
   void initState() {
     super.initState();
     _conversationView = ConversationView(controller: widget.controller);
+    floatingChat = FloatingChat(widget.controller);
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      floatingChat.initialize();
+    }
     WidgetsBinding.instance.addObserver(this);
     widget.controller.focus.announcement.addListener(_focusNotice);
     widget.controller.problem.addListener(_problemChanged);
@@ -104,11 +113,17 @@ class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
           try {
             final connected = await const MethodChannel('xinyu/music')
                 .invokeMethod<bool>('connectAccount');
-            if (connected == true && pending != null && c.localConnection != null) {
-              final result = await c.localConnection!.resumeMusicLibrary(pending);
+            if (connected == true &&
+                pending != null &&
+                c.localConnection != null) {
+              final result = await c.localConnection!.resumeMusicLibrary(
+                pending,
+              );
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(result['message'] as String? ?? '账号已连接。')),
+                SnackBar(
+                  content: Text(result['message'] as String? ?? '账号已连接。'),
+                ),
               );
               await c.automation.refresh(silent: true);
             }
@@ -157,6 +172,11 @@ class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
   void didUpdateWidget(covariant XinYuHome oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
+      floatingChat.dispose();
+      floatingChat = FloatingChat(widget.controller);
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        floatingChat.initialize();
+      }
       _conversationView = ConversationView(controller: widget.controller);
       oldWidget.controller.focus.announcement.removeListener(_focusNotice);
       widget.controller.focus.announcement.addListener(_focusNotice);
@@ -170,6 +190,7 @@ class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    floatingChat.dispose();
     WidgetsBinding.instance.removeObserver(this);
     widget.controller.focus.announcement.removeListener(_focusNotice);
     widget.controller.problem.removeListener(_problemChanged);
@@ -416,6 +437,13 @@ class _XinYuHomeState extends State<XinYuHome> with WidgetsBindingObserver {
           onPressed: _settings,
           icon: const Icon(Icons.more_vert_rounded),
         ),
+        if (defaultTargetPlatform == TargetPlatform.android)
+          IconButton(
+            key: const Key('open-floating-chat'),
+            tooltip: '悬浮陪聊',
+            onPressed: () => showFloatingChat(context, floatingChat),
+            icon: const Icon(Icons.picture_in_picture_alt_rounded),
+          ),
       ],
     ),
   );

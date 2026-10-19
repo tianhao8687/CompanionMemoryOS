@@ -7,8 +7,32 @@ from pathlib import Path
 
 import pytest
 
+from companion_agent.testing import default_test_root
 from companion_agent.testing.control import TestControl as DiagnosticControl
 from companion_agent.testing.driver import Client, DriverError, ManagedInstance
+
+
+def test_configured_root_keeps_driver_link_checks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    physical = tmp_path / "physical"
+    physical.mkdir()
+    link = tmp_path / "linked"
+    try:
+        link.symlink_to(physical, target_is_directory=True)
+    except OSError:
+        pytest.skip("host does not permit symlink creation")
+    monkeypatch.setenv("COMPANION_TEST_ROOT", str(link))
+    with pytest.raises(ValueError, match="cannot contain links"):
+        ManagedInstance(default_test_root())
+    assert not list(physical.iterdir())
+    link.unlink()
+    monkeypatch.setenv("COMPANION_TEST_ROOT", str(physical))
+    instance = ManagedInstance(default_test_root())
+    try:
+        assert instance.directory.parent == physical
+    finally:
+        instance.cleanup()
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows transient file sharing locks")
@@ -117,6 +141,47 @@ def test_call_budget_survives_restart_and_does_not_fallback(tmp_path: Path) -> N
         settings["model_mode"] = "api"
         with pytest.raises(DriverError, match="HTTP 403"):
             client.request("PUT", "/api/settings", {"settings": settings})
+    finally:
+        instance.stop()
+
+
+def test_screen_stream_uses_actual_evidence_and_preserves_original_retry(tmp_path: Path) -> None:
+    instance = ManagedInstance(tmp_path, max_calls=3, max_turns=4)
+    try:
+        client = instance.start()
+        conversation = client.new_session()
+        context = {"package_name": "synthetic.chat", "text": "朋友：下次见。SCREEN_HTTP_482"}
+        first = client.send_message(
+            conversation,
+            "陪我看看当前屏幕。",
+            stream=True,
+            request_id="screen-same-request",
+            screen_context=context,
+        )
+        calls = first["trace"]["calls"]
+        assert len(calls) == 1
+        assert "SCREEN_HTTP_482" in json.dumps(calls[0]["request"], ensure_ascii=False)
+        assert not calls[0]["request"].get("tools")
+        assert first["execution"]["tool_calls"] == 0
+        second = client.send_message(
+            conversation,
+            "陪我看看当前屏幕。",
+            stream=True,
+            request_id="screen-same-request",
+            screen_context=context,
+        )
+        assert second["reused"] and second["assistant"]["id"] == first["assistant"]["id"]
+        with pytest.raises(DriverError, match="stream did not complete") as rejected:
+            client.send_message(
+                conversation,
+                "陪我看看当前屏幕。",
+                stream=True,
+                request_id="screen-same-request",
+                screen_context={**context, "text": "另一个页面"},
+            )
+        assert any(e["type"] == "error" for e in rejected.value.evidence["stream_events"])
+        assert client.connect()["accounting"]["calls"] == 1
+        assert len(client.read_history(conversation)) == 2
     finally:
         instance.stop()
 

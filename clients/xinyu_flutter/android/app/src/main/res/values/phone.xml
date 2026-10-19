@@ -1,0 +1,4 @@
+<resources>
+    <bool name="phone_capabilities_supported">false</bool>
+    <string name="phone_accessibility_description">允许心隅在你点开陪聊小点时读取当前页面文字；支持识图时也可读取画面。页面内容会交给当前对话模型。开启界面操作后也可按你的要求点击、输入和滚动。可在心隅关闭点开读屏，或随时在此撤销授权。</string>
+</resources>

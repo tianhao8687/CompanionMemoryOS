@@ -15,6 +15,7 @@ import pytest
 
 from companion_agent.deepseek import DeepSeekConfig
 from companion_agent.romance import RomanceSettings
+from companion_agent.testing import default_test_root
 from companion_agent.testing.driver import ManagedInstance
 from tests.test_memory_nook import pixels, visual_brief
 from tests.test_nook_drawing import material_drawing
@@ -82,7 +83,7 @@ def test_nook_real_process_and_optional_browser(
     settings.cognition.model_extraction = False
     channel = os.environ.get("COMPANION_TEST_BROWSER_CHANNEL")
     instance = ManagedInstance(
-        Path(".agent-tests"),
+        default_test_root(),
         allow_live=True,
         max_turns=4,
         max_calls=8,

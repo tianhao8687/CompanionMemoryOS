@@ -24,6 +24,7 @@ class SettingsToolRepository extends DemoRepository {
     String text, {
     List<String> imageIds = const [],
     String? quoteId,
+    Map<String, dynamic>? screenContext,
   }) async* {
     await for (final event in super.send(
       conversation,

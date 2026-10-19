@@ -100,10 +100,16 @@ def _persist(
     exact_scope = " AND ".join(f"{column} IS ?" for column in SCOPE_COLUMNS)
     with service.store.database.atomic() as connection:
         previous = connection.execute(
-            f"SELECT occurred_at FROM conversation_turns WHERE user_id = ? AND {exact_scope} "
+            "SELECT occurred_at, metadata_json FROM conversation_turns "
+            f"WHERE user_id = ? AND {exact_scope} "
             "AND idempotency_key = ?",
             (request.user_id, *scope_values(request.scope), request.idempotency_key),
         ).fetchone()
+        if previous is not None and (
+            json.loads(previous["metadata_json"]).get("input_origin", "user")
+            != request.input_origin
+        ):
+            raise ValueError("process turn input origin changed")
         occurred_at = request.occurred_at or (
             previous["occurred_at"] if previous is not None else utc_now()
         )
@@ -133,7 +139,14 @@ def _persist(
                 speech_spans=spans,
                 idempotency_key=request.idempotency_key,
                 source_ref="conversation:process",
-                metadata={"process_reality_layer": request.reality_layer.value},
+                metadata={
+                    "process_reality_layer": request.reality_layer.value,
+                    **(
+                        {"input_origin": "application"}
+                        if request.input_origin == "application"
+                        else {}
+                    ),
+                },
             )
         )
 
@@ -145,6 +158,10 @@ def _interpret(
 ) -> None:
     turn = result.storage.turn
     assert turn is not None
+    if turn.metadata.get("input_origin") == "application":
+        result.interpretation_status = "rules_only"
+        result.reasons.append("application_invitation_has_no_user_memory")
+        return
     previous = service.get_turn_interpretation(turn.id, turn.user_id)
     if previous is not None:
         result.interpretation_status = "cached"

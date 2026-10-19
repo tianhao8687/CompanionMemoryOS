@@ -140,6 +140,7 @@ class DemoRepository extends CompanionRepository {
     String text, {
     List<String> imageIds = const [],
     String? quoteId,
+    Map<String, dynamic>? screenContext,
   }) async* {
     final history = _history[conversation]!;
     final user = ChatLine(

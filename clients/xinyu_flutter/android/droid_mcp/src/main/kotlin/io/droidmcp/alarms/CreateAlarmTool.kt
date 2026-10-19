@@ -1,0 +1,98 @@
+package io.droidmcp.alarms
+
+import android.content.Context
+import android.content.Intent
+import android.provider.AlarmClock
+import io.droidmcp.core.McpTool
+import io.droidmcp.core.ParameterType
+import io.droidmcp.core.ToolAnnotations
+import io.droidmcp.core.ToolParameter
+import io.droidmcp.core.ToolResult
+import io.droidmcp.core.support.ActivityLaunch
+
+/**
+ * Creates a clock alarm by firing an [AlarmClock.ACTION_SET_ALARM] intent at the system clock app
+ * (with `EXTRA_SKIP_UI`, so no UI is shown). Optional `message` label and `days` (comma-separated
+ * `mon`..`sun`) for a repeating alarm; omit `days` for a one-time alarm.
+ *
+ * On Android 10+ the intent can only be delivered while the host app is in the foreground or
+ * holds `SYSTEM_ALERT_WINDOW`; otherwise the platform silently blocks the launch, so the tool
+ * returns an error up front (see [ActivityLaunch.canStartActivity]).
+ *
+ * Requires the `com.android.alarm.permission.SET_ALARM` permission (declared in the manifest;
+ * a normal install-time permission). Listing existing alarms is not possible via any standard API;
+ * [GetNextAlarmTool] reports only the next one.
+ *
+ * Result keys: `success`, `hour`, `minute`, `message`, `days`.
+ */
+class CreateAlarmTool(private val context: Context) : McpTool {
+
+    override val name = "create_alarm"
+    override val description = "Create an alarm at the specified time. Note: Listing existing alarms is not supported by a standard Android API — each clock app stores them differently; get_next_alarm reports the next one."
+    override val parameters = listOf(
+        ToolParameter("hour", "Hour of the alarm (0-23)", ParameterType.INTEGER, required = true, minimum = 0.0, maximum = 23.0),
+        ToolParameter("minute", "Minute of the alarm (0-59)", ParameterType.INTEGER, required = true, minimum = 0.0, maximum = 59.0),
+        ToolParameter("message", "Label/message for the alarm", ParameterType.STRING),
+        ToolParameter("days", "Comma-separated days to repeat (e.g. mon,tue,wed). Leave empty for one-time alarm.", ParameterType.STRING),
+    )
+    override val annotations = ToolAnnotations(destructiveHint = true)
+
+    private val dayMap = mapOf(
+        "mon" to java.util.Calendar.MONDAY,
+        "tue" to java.util.Calendar.TUESDAY,
+        "wed" to java.util.Calendar.WEDNESDAY,
+        "thu" to java.util.Calendar.THURSDAY,
+        "fri" to java.util.Calendar.FRIDAY,
+        "sat" to java.util.Calendar.SATURDAY,
+        "sun" to java.util.Calendar.SUNDAY,
+    )
+
+    override suspend fun execute(params: Map<String, Any>): ToolResult {
+        val hour = (params["hour"] as? Number)?.toInt()
+            ?: return ToolResult.error("hour is required")
+        val minute = (params["minute"] as? Number)?.toInt()
+            ?: return ToolResult.error("minute is required")
+
+        if (hour !in 0..23) return ToolResult.error("hour must be 0-23")
+        if (minute !in 0..59) return ToolResult.error("minute must be 0-59")
+
+        val message = params["message"]?.toString()
+        val daysStr = params["days"]?.toString()
+
+        val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra(AlarmClock.EXTRA_HOUR, hour)
+            putExtra(AlarmClock.EXTRA_MINUTES, minute)
+            putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+            if (message != null) putExtra(AlarmClock.EXTRA_MESSAGE, message)
+            if (!daysStr.isNullOrBlank()) {
+                val days = daysStr.split(",")
+                    .map { it.trim().lowercase() }
+                    .mapNotNull { dayMap[it] }
+                    .toIntArray()
+                if (days.isNotEmpty()) {
+                    putExtra(AlarmClock.EXTRA_DAYS, ArrayList(days.toList()))
+                }
+            }
+        }
+
+        // On API 29+ a background startActivity is silently dropped — fail loudly instead of
+        // reporting success for an alarm that was never set.
+        if (!ActivityLaunch.canStartActivity(context)) {
+            return ToolResult.error(AlarmsUtils.BACKGROUND_LAUNCH_ERROR)
+        }
+
+        return try {
+            context.startActivity(intent)
+            ToolResult.success(mapOf(
+                "success" to true,
+                "hour" to hour,
+                "minute" to minute,
+                "message" to (message ?: ""),
+                "days" to (daysStr ?: ""),
+            ))
+        } catch (e: Exception) {
+            ToolResult.error("Failed to create alarm: ${e.message}")
+        }
+    }
+}

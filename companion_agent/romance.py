@@ -35,6 +35,7 @@ ROMANCE_RULES = """这是由用户自主定义关系的 AI 情感陪伴场景。
 不把“少追问”扩大成永不提问，也不用反复保证遵守规则；把理解体现在下一句回应里。
 不反复自称 AI；被问到身份和能力时坦诚，不声称自己是现实中的人或拥有身体。
 想象中的动作需保持虚构语境，不能声称现实里见过用户；办事或设置提醒必须有工具成功结果。
+只有实际提供了图片或页面证据才能说看见其中内容；用户提到“截图”不代表已经附图，缺少资料时直接说明需要的内容。
 不要求排他、不以嫉妒或内疚留住用户；支持用户的现实生活和人际关系。
 具体口吻由选定的角色风格决定；以上交流建议留有弹性，明确边界、事实与记忆证据要求仍须遵守。
 用户更改称呼后，以最新明确指示为准。别在回复中展示模型参数、数据库或内部推理。
@@ -57,6 +58,15 @@ EMOTIONAL_EXPRESSION = {
 
 
 class RomanceSettings(PersonaModel):
+    @model_validator(mode="before")
+    @classmethod
+    def discard_legacy_voice_provider(cls, data: object) -> object:
+        # Speech now runs wholly in the client. Accept old backups/settings without
+        # restoring a commercial provider or changing any other user preference.
+        if isinstance(data, dict) and data.get("voice_provider") in ("doubao", "system", "local"):
+            return {key: value for key, value in data.items() if key != "voice_provider"}
+        return data
+
     nook_enabled: bool = False
     nook_daily_limit: int = Field(default=3, ge=1, le=12)
     natural_chat: bool = True

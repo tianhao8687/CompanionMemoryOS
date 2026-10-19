@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from companion_agent.testing import default_test_root
 from companion_agent.testing.driver import Client, ManagedInstance, cleanup_run, run_scenario
 
 
@@ -14,7 +15,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Isolated real-process companion testing")
     parser.add_argument("command", choices=["serve", "run", "shell", "connect", "cleanup"])
     parser.add_argument("--scenario", type=Path)
-    parser.add_argument("--root", type=Path, default=Path(".agent-tests"))
+    parser.add_argument("--root", type=Path, default=default_test_root())
     parser.add_argument("--run-dir", type=Path)
     parser.add_argument("--port", type=int)
     parser.add_argument("--url")

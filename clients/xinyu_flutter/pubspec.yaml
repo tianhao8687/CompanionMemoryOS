@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 0.2.26+29
+version: 0.2.31+34
 
 environment:
   sdk: ^3.13.4
@@ -35,6 +35,17 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   flutter_localizations:
     sdk: flutter
+  record: 7.1.2
+  # Keep the Dart bindings and every native library at the same tested version.
+  # The 1.13.8 Windows package requested ORT API 28 but bundled ORT 1.17.1.
+  sherpa_onnx: 1.12.14
+  sherpa_onnx_android: 1.12.14
+  sherpa_onnx_windows: 1.12.14
+  sherpa_onnx_linux: 1.12.14
+  sherpa_onnx_macos: 1.12.14
+  sherpa_onnx_ios: 1.12.14
+  path_provider: ^2.1.5
+  crypto: ^3.0.6
 
 dev_dependencies:
   integration_test:
@@ -65,6 +76,8 @@ flutter:
     - assets/nook/
     - assets/focus/
     - assets/fonts/OFL.txt
+    - assets/licenses/droid-mcp.txt
+    - assets/licenses/zipformer.txt
 
   fonts:
     - family: Noto Sans SC

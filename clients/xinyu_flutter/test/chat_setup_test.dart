@@ -59,6 +59,7 @@ class SetupRepository extends DemoRepository {
     String text, {
     List<String> imageIds = const [],
     String? quoteId,
+    Map<String, dynamic>? screenContext,
   }) {
     sends++;
     if (sendFailure != null) {

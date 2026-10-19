@@ -34,6 +34,7 @@ class PresenceRepository extends FocusRepository {
     String text, {
     List<String> imageIds = const [],
     String? quoteId,
+    Map<String, dynamic>? screenContext,
   }) async* {
     sent.add({
       'conversation': conversation,

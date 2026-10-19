@@ -2,3 +2,4 @@
 # R8 cannot see those references in the bundled Python bytecode.
 -keep class com.xinyu.xinyu_flutter.DeviceCredentials { *; }
 -keep class com.xinyu.xinyu_flutter.MusicBridge { *; }
+-keep class com.xinyu.xinyu_flutter.PhoneBridge { *; }

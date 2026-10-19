@@ -38,8 +38,9 @@ class LocalRepository extends CompanionRepository {
   Future<Map<String, dynamic>> openMusic(Map<String, dynamic> request) =>
       _json('POST', '/api/music/open', request);
 
-  Future<Map<String, dynamic>> resumeMusicLibrary(Map<String, dynamic> request) =>
-      _json('POST', '/api/music/library/resume', request);
+  Future<Map<String, dynamic>> resumeMusicLibrary(
+    Map<String, dynamic> request,
+  ) => _json('POST', '/api/music/library/resume', request);
 
   Future<Map<String, dynamic>> appOutcome(
     String conversation,
@@ -164,14 +165,20 @@ class LocalRepository extends CompanionRepository {
     String text, {
     List<String> imageIds = const [],
     String? quoteId,
+    Map<String, dynamic>? screenContext,
   }) async* {
-    final response = await _request('POST', '/api/chat/stream', {
-      'conversation_id': conversation,
-      'request_id': request,
-      'content': text,
-      'image_ids': imageIds,
-      'quote_id': quoteId,
-    });
+    final response = await _request(
+      'POST',
+      screenContext == null ? '/api/chat/stream' : '/api/chat/screen/stream',
+      {
+        'conversation_id': conversation,
+        'request_id': request,
+        'content': text,
+        'image_ids': imageIds,
+        'quote_id': quoteId,
+        'screen_context': ?screenContext,
+      },
+    );
     var complete = false;
     await for (final line
         in response
@@ -397,6 +404,21 @@ class LocalRepository extends CompanionRepository {
       _json('POST', '/api/music/pick', request);
   Future<Map<String, dynamic>> neteaseTemplate() =>
       _json('GET', '/api/automation/netease-template');
+  Future<Map<String, dynamic>> phoneTemplate() =>
+      _json('GET', '/api/automation/droid-template');
+  Future<Map<String, dynamic>> restorePhoneComfort() =>
+      _json('POST', '/api/automation/phone-comfort/restore', {});
+  Future<Map<String, dynamic>> controlPhoneComfort(
+    String action, {
+    List<String> actionIds = const [],
+  }) => _json('POST', '/api/automation/phone-comfort/control', {
+    'action': action,
+    'action_ids': actionIds,
+  });
+  Future<void> connectPhone() async {
+    await _json('POST', '/api/automation/servers/droid/connect', {});
+  }
+
   Future<void> saveAutomation(Map<String, dynamic> config) async {
     await _json('PUT', '/api/automation/config', config);
   }

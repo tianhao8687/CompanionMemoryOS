@@ -1,12 +1,15 @@
 package com.xinyu.xinyu_flutter
 
 import android.content.Intent
+import android.content.Context
 import android.util.Log
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    override fun provideFlutterEngine(context: Context): FlutterEngine? = FloatingChatBridge.retainedEngine()
+    override fun shouldDestroyEngineWithHost(): Boolean = !FloatingChatBridge.retaining
     private val worker = EngineBridge.worker
     private val localFiles = LocalFiles(this, worker)
     private var notifications: MethodChannel? = null
@@ -14,6 +17,22 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        FloatingChatBridge.install(this, flutterEngine)
+        // A retained Flutter controller does not rerun bootstrap after Activity recreation.
+        if (FloatingChatBridge.retaining) worker.execute { EngineBridge.attach(this) }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "xinyu/phone")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "openPermissionSettings") {
+                    result.notImplemented()
+                } else {
+                    try {
+                        PhoneBridge.openPermissionSettings(this, call.argument<String>("permission") ?: "")
+                        result.success(null)
+                    } catch (_: Exception) {
+                        result.error("phone_permission", "无法打开系统权限设置，请在手机设置中为心隅授权。", null)
+                    }
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "xinyu/music")
             .setMethodCallHandler { call, result ->
                 if (call.method == "openPermissionSettings") {
@@ -92,9 +111,11 @@ class MainActivity : FlutterActivity() {
             try { EngineBridge.detach(this) } catch (_: Exception) { }
         }
         super.onDestroy()
+        FloatingChatBridge.hostDestroyed(this)
     }
 
     override fun onPause() {
+        PhoneBridge.setForeground(false)
         MusicBridge.paused(this)
         ChatNotifications.visibleConversation = null
         super.onPause()
@@ -102,6 +123,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onResume() {
         super.onResume()
+        PhoneBridge.setForeground(true)
         MusicBridge.resumed(this)
     }
 

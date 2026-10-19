@@ -1,12 +1,17 @@
 # 心隅 · Windows / Android 本地客户端
 
+Android 9 及以上新增内置「手机能力」，复用固定版本 droid-mcp SDK，支持 24 项手机操作，
+并与网易云连接共用原有权限和操作记录。接入范围与验证状态见
+[手机能力说明](../../docs/ANDROID_PHONE_CAPABILITIES.md)。
+
 Flutter 玻璃界面 + 原有 Python 记忆引擎。电脑和手机各自保存聊天与记忆，
 不互通，不依赖电脑给手机提供服务，也不需要租服务器。当前源码和实际产物状态见
 [本地版交付记录](../../docs/LOCAL_APP_DELIVERY.md)；源码接入不等于安装包已经验收。
 
-当前 Windows 版本：[心隅 0.2.26](https://github.com/tianhao8687/CompanionMemoryOS/releases/latest)。
-源码版本为 `0.2.26+29`，新增 Windows 后台点歌、当前账号歌单参考、不同人设的音乐品味，
-修复旧歌单接口失效及歌曲资料不完整；还包含角色卡导入、AI 固定应用操作和移动界面优化。
+当前 Windows 版本：[心隅 0.2.31](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.31)。
+源码版本为 `0.2.31+34`，Windows 新增免费的本地语音输入、模型预加载和同面板复用。
+Android 手机联动、环境感知、回复触感、悬浮小点和点开读屏也已同步源码，本轮不生成新 APK。
+保留 Windows 后台点歌、当前账号歌单参考、不同人设的音乐品味、角色卡导入、AI 固定应用操作和移动界面优化。
 保留一起听、歌词滚动、共同经历记忆、陪伴专注、回忆小窝、心隅图标与统一字体。
 Windows 提供免安装 ZIP；Android 当前公开下载仍为 [0.2.17 Preview](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.17)，不包含本次修复。
 该 ARM64 APK 应用名「心隅·测试」，包名 `com.xinyu.xinyu_flutter.preview`。
@@ -14,8 +19,10 @@ Windows 提供免安装 ZIP；Android 当前公开下载仍为 [0.2.17 Preview](
 请通过现有备份功能迁移需要的内容，安装时不要为解决签名问题直接卸载有数据的旧版。
 
 Windows 随包引擎、账号歌单读取及当前网易云构建的后台播放已经实测；
-本次未重新生成 Android APK，真实模型的点歌和回忆表达仍需体验验收。
-当前交付、校验与限制见 [0.2.26 交付记录](../../docs/XINYU_0226_DELIVERY.md)。
+已另行交付 [Android 0.2.27 本地测试包](../../docs/ANDROID_0227_DELIVERY.md)，包含手机能力与网易云更新；
+真实手机及模型的点歌和回忆表达仍需体验验收。后续本地构建可使用 `build_local.ps1 -Target android -Preview`
+并传入已校验的 `-AndroidWheels` 目录，测试版的包名和版本会在交付前自动核对。
+当前交付、校验与限制见 [0.2.31 交付记录](../../docs/XINYU_0231_DELIVERY.md)。
 下面保留历史改动说明，不作为当前安装包的验收结论。
 
 2026-09-29 的新前端已按确认的 Android / Windows 原型完成，当时源码版本为 `0.2.10+13`：
@@ -148,8 +155,22 @@ python clients/xinyu_flutter/tool/build_android_wheels.py --output /absolute/pat
 
 ## 开发与验收
 
+Android 新增「悬浮陪聊」入口，与原对话共享草稿、发送和流式回复，支持拖动贴边、展开与收起。
+实现范围、无需 APK 的原生检查命令及设备验证边界见
+[悬浮陪聊测试记录](../../docs/ANDROID_FLOATING_CHAT.md)。本次源码更新尚未打包。
+
 Flutter 测试使用合成数据与本地 HTTP 替身。实际进程测试规则见
 [聊天验收说明](../../docs/CHAT_QUALITY_TESTING.md)。不要用日常数据库进行测试。
+
+Windows 本机可用独立 Android 模拟器自动测试实际 APK，包含 UI 操作、系统授权往返
+和原生 MCP 调用；环境、重跑命令与证据范围见
+[本机 Android 自动化测试](../../docs/ANDROID_LOCAL_AUTOMATION.md)。
+0.2.28 的长按、滑动扩展及真实网易云测试见
+[0.2.28 自动化记录](../../docs/ANDROID_0228_AUTOMATION.md)，其中单列音乐测试路径及模拟器限制。
+0.2.29 新增 [聊天中的手机陪伴](../../docs/PHONE_COMPANIONSHIP.md)：根据聊天语境选择
+轻微调整媒体音量、亮度或优先勿扰，提供一次性范围设置和恢复入口。
+0.2.30 复用 droid-mcp 环境光与接近传感器，只在低光、未疑似遮挡且手动亮度时调暗，
+保留系统自动亮度。见 [0.2.30 交付记录](../../docs/ANDROID_0230_DELIVERY.md)。
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/test_local_runtime.py
@@ -163,3 +184,30 @@ Flutter 测试使用合成数据与本地 HTTP 替身。实际进程测试规则
 
 原型阶段的截图与性能记录保留在 [旧验证记录](../../docs/FLUTTER_PROTOTYPE_VALIDATION.md)，
 它们不能用来证明当前本地软件已经通过 Windows/Android 验收。本次范围是 Windows 和 Android。
+
+## 免费本地语音输入（2026-10-19，源码已接入，未打包）
+
+语音输入已由豆包商业 ASR 改为 **sherpa-onnx + 中英双语流式 Zipformer**，
+框架和所选模型均声明 Apache-2.0。无需额外语音账号、API Key、充值或服务器。
+首次在「说给我听」中点击下载约 **190 MiB** 资源，此后在设备本地识别，录音不上传、不保存。
+
+普通话与英语边说边显示，停止后可以编辑、继续补充；点「放进输入框」才插入原聊天草稿，
+仍需手动发送。保留原草稿和会话变化保护、后台中断、取消以及每段一分钟的限制。
+首次资源下载有进度、校验、取消和重试；不会自动下载，也不会退回收费服务。
+界面已移除豆包 Key 配置，后端商业语音接口和系统识别备选也已移除。
+
+打开面板预加载模型，同一面板内继续说话复用模型；首次模型加载期间即可收音并保留开头。
+已校验且未变化的模型资源复用私有校验记录，避免每次读取约 190 MiB 权重。
+关闭面板、切后台或内存压力时释放模型，不在后台常驻预热。
+
+最新 Flutter 全量 214 项通过。20 段公开真人日常/情绪中文样例的字符错误率：电脑 2.8%，
+Android 模拟器原生库 3.1%；优化前后电脑转写逐段一致。另测模拟低音量、噪声、静音及合成语音。
+电脑完整软件流程（真实模型、模拟麦克风）点击至首字从约 3.99 秒降至 2.16 秒，
+同一面板内再次录音约 0.44 秒。Android 首次原生加载仍需约 3.5 秒，后续复用无需再次加载；
+不把原生识别流创建时间当成手机完整启动时间，也不把小样本结果当成普遍准确率或真机验收。
+
+完整选型、许可证、版本兼容问题、实测内存/时延、Python 回归结果和复现命令见
+[免费本地语音输入](../../docs/LOCAL_SPEECH_INPUT.md)与
+[启动优化和中文语音测试](../../docs/LOCAL_SPEECH_STARTUP_TESTING.md)。最新证据保存在
+`E:/XinYu-Dev/project-tests/local-voice-fast-20261019/`，没有生成 APK。
+前一轮商业方案的替身测试留作历史记录，不能代替当前本地模型验收。

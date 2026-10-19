@@ -57,7 +57,8 @@ class ConnectedAppAction extends StatelessWidget {
                 ),
               if (pending) ...[
                 const SizedBox(height: 12),
-                if (arguments['action'] == null)
+                if (arguments['action'] == null ||
+                    controller.state?.phoneDescription(action) != null)
                   Text(
                     _description(arguments),
                     style: XinYuLayout.body(context),
@@ -128,6 +129,8 @@ class ConnectedAppAction extends StatelessWidget {
   }
 
   String _description(Map<String, dynamic> args) {
+    final phone = controller.state?.phoneDescription(action);
+    if (phone != null) return phone;
     if (args['query'] is String) {
       return '在网易云搜索「${args['query']}」，显示 ${args['limit'] ?? 5} 个结果。';
     }

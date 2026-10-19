@@ -1,12 +1,19 @@
 # Windows / Android 本地版交付记录
 
-2026-10-15 当前主版本为 **0.2.17（客户端 0.2.17+20）**，包含网易云 MCP、一起听与歌词点歌、
-陪听共同经历记忆、陪伴专注和统一设置界面。提供 Windows 免安装 ZIP 与 Android Preview APK。
-[当前下载](https://github.com/tianhao8687/CompanionMemoryOS/releases/latest) · [本版交付与验收](XINYU_0217_DELIVERY.md)。
-Windows 随包引擎及 Android 包结构检查通过；Android 真机运行和真实模型表达仍待验收。
-旧 Release 和安装附件由本版替代。以下保留旧版当时的记录，不作为当前版本验收结论。
+2026-10-19 当前 Windows 版本为 **0.2.31（客户端 0.2.31+34）**，提供完整免安装 ZIP，
+新增免费本地语音输入及启动优化，并保留 Windows 网易云后台点歌与既有陪伴功能。
+[Windows 下载](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.31) ·
+[本版交付与验收](XINYU_0231_DELIVERY.md)。
+Android 本轮仅同步源码，公开 APK 仍为 0.2.17 Preview；手机联动、小窗和语音的源码状态
+与 Windows 包分开说明，不将新源码视作已交付 APK。
 
 ## 历史交付记录
+
+2026-10-15 发布 **0.2.17（客户端 0.2.17+20）**，包含网易云 MCP、一起听与歌词点歌、
+陪听共同经历记忆、陪伴专注和统一设置界面。提供 Windows 免安装 ZIP 与 Android Preview APK。
+[当时下载](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.17) · [该版交付与验收](XINYU_0217_DELIVERY.md)。
+Windows 随包引擎及 Android 包结构检查通过；Android 真机运行和真实模型表达仍待验收。
+旧 Release 和安装附件由本版替代。以下保留旧版当时的记录，不作为当前版本验收结论。
 
 2026-10-06 已发布 **0.2.11（客户端 0.2.11+14）测试版**：源码合入 main，更新 Windows
 安装版、免安装版及 Android APK，包含回忆小窝、新 Logo、字体、情感浓度和记忆修复。

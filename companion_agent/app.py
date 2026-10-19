@@ -28,8 +28,14 @@ from companion_agent import chat_search
 from companion_agent.automation.bundled_music import refresh_lyrics_catalog
 from companion_agent.automation.hub import ToolHub
 from companion_agent.automation.loop import AgentLoop, RunContext
-from companion_agent.automation.mcp_client import MCPClient
-from companion_agent.automation.models import AutomationConfig, MCPServerConfig, ScheduleInput
+from companion_agent.automation.mcp_client import MCPClient, MCPFailure
+from companion_agent.automation.models import (
+    AutomationConfig,
+    MCPServerConfig,
+    PhoneComfortControlInput,
+    ScheduleInput,
+)
+from companion_agent.automation.native_client import NativeClients
 from companion_agent.channels import ChannelConfig, Channels, IncomingMessage
 from companion_agent.chat_experience import ChatExperience
 from companion_agent.chat_experience import install_routes as install_chat_experience_routes
@@ -46,6 +52,7 @@ from companion_agent.focus_companion import (
     FocusProgressInput,
 )
 from companion_agent.images import MAX_IMAGE_BYTES, ImageAwareModel, ImagePurpose, ImageStore
+from companion_agent.integrations.droid_android import AndroidPhoneClient
 from companion_agent.journal import Journal, JournalError
 from companion_agent.journal import install_routes as install_journal_routes
 from companion_agent.llm import ContextBudgetError, MainLLM, MainLLMError
@@ -60,7 +67,9 @@ from companion_agent.nook import install_routes as install_nook_routes
 from companion_agent.offline import OfflineModel
 from companion_agent.outreach import Outreach
 from companion_agent.persona.models import PersonaModel
+from companion_agent.phone_comfort import PhoneComfort
 from companion_agent.relationship import RelationshipKey
+from companion_agent.reply_haptics import ReplyHaptics
 from companion_agent.romance import (
     RomanceSettings,
     SettingsUpdate,
@@ -69,6 +78,13 @@ from companion_agent.romance import (
     romantic_rules,
 )
 from companion_agent.runtime import CompanionAgent
+from companion_agent.screen_context import (
+    SCREEN_INVITATION,
+    ScreenContext,
+    ScreenContextModel,
+    screen_followup_rules,
+    screen_turn,
+)
 from companion_agent.semantics import RelationshipIdentityType
 from companion_agent.stickers import MAX_STICKER_BYTES, StickerModel, StickerStore
 from companion_memoryos.config import load_config
@@ -124,6 +140,7 @@ class ChatInput(PersonaModel):
     request_id: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
     content: str = Field(default="", max_length=6000)
     quote_id: str | None = Field(default=None, min_length=1, max_length=240)
+    screen_context: ScreenContext | None = None
     image_ids: list[Annotated[str, Field(pattern=r"^[a-f0-9]{32}$")]] = Field(
         default_factory=list, max_length=4
     )
@@ -277,6 +294,8 @@ class RomanceHost:
         self.outreach = Outreach(self)
         self.music = MusicCompanion(self)
         self.music_comfort = MusicComfort(self)
+        self.phone_comfort = PhoneComfort(self)
+        self.reply_haptics = ReplyHaptics(self)
         self.music_library = MusicLibrary(self)
         self.music_requests = MusicRequests(self)
         self.memory.listening_context = self.music.memory_context
@@ -338,10 +357,12 @@ class RomanceHost:
         return CompanionAgent(
             self.memory,
             romantic_persona(settings),
-            StickerModel(
-                ImageAwareModel(self.loop, self.images, settings.vision_ready),
-                self.stickers,
-                settings.stickers_enabled,
+            ScreenContextModel(
+                StickerModel(
+                    ImageAwareModel(self.loop, self.images, settings.vision_ready),
+                    self.stickers,
+                    settings.stickers_enabled,
+                )
             ),
             application_rules=romantic_rules(settings, include_presentation=False),
             presentation_rules=chat_presentation_rules(settings),
@@ -543,6 +564,30 @@ class RomanceHost:
             + self.music_library.context()
         )
 
+    @contextmanager
+    def screen_evidence(self, item: ChatInput) -> Iterator[None]:
+        followup = item.screen_context is None and bool(
+            screen_followup_rules(self.database, LOCAL_USER, item.conversation_id)
+        )
+        with screen_turn(item.screen_context, followup=followup):
+            try:
+                yield
+            finally:
+                if item.screen_context:
+                    # Persist only a digest for retry identity, never the captured page.
+                    with self.database.connection() as db:
+                        db.execute(
+                            "UPDATE conversation_turns SET metadata_json=json_set(metadata_json, "
+                            "'$.screen_context_digest', ?) WHERE user_id=? AND conversation_id=? "
+                            "AND idempotency_key=? AND role='user'",
+                            (
+                                item.screen_context.digest(),
+                                LOCAL_USER,
+                                item.conversation_id,
+                                item.request_id,
+                            ),
+                        )
+
     def chat(self, item: ChatInput) -> dict[str, Any]:
         if self.testing:
             with self.testing.turn(item) as trace:
@@ -559,6 +604,16 @@ class RomanceHost:
                 raise problem(422, "empty_message", "请输入消息。")
             if not self.settings.storage_consent or not self.settings.model_consent:
                 raise problem(403, "consent_required", "请先在设置中确认本地保存与模型调用授权。")
+            if item.screen_context and (
+                item.content != SCREEN_INVITATION or item.image_ids or item.quote_id
+            ):
+                raise problem(422, "screen_context_invalid", "读屏陪伴需使用独立的当前页面请求。")
+            if (
+                item.screen_context
+                and item.screen_context.image_base64
+                and not self.settings.vision_ready
+            ):
+                raise problem(422, "vision_unavailable", "当前对话模型不支持识图，请使用页面文字。")
             self.music.observe(item)
             focus_reply = self.focus_companion.chat(item)
             if focus_reply is not None:
@@ -569,12 +624,23 @@ class RomanceHost:
                 self.journal.require_turn(item.quote_id, item.conversation_id, for_model=True)
             with self.database.connection() as db:
                 previous = db.execute(
-                    "SELECT reply_to_turn_id FROM conversation_turns WHERE user_id=? "
+                    "SELECT reply_to_turn_id, metadata_json FROM conversation_turns "
+                    "WHERE user_id=? "
                     "AND conversation_id=? AND idempotency_key=? AND role='user'",
                     (LOCAL_USER, item.conversation_id, item.request_id),
                 ).fetchone()
                 if previous is not None and previous[0] != item.quote_id:
                     raise problem(409, "quote_changed", "重试时引用的消息必须与原消息一致。")
+                digest = item.screen_context.digest() if item.screen_context else None
+                if (
+                    previous is not None
+                    and json.loads(previous[1]).get("screen_context_digest") != digest
+                ):
+                    raise problem(
+                        409,
+                        "screen_context_changed",
+                        "重试需使用原来的页面；新页面请重新点开小点。",
+                    )
             if item.image_ids and not self.settings.vision_ready:
                 raise problem(
                     422,
@@ -585,11 +651,14 @@ class RomanceHost:
             item = item.model_copy(update={"content": item.content.strip() or "[图片]"})
             if previous is None:
                 self.music_comfort.observe(item)
+                self.phone_comfort.observe(item)
+                self.reply_haptics.observe(item)
             self.agent.application_rules = (
-                romantic_rules(self.settings)
+                romantic_rules(self.settings, include_presentation=False)
                 + self.focus.context()
                 + self.music.context(item.conversation_id)
                 + self.chat_music_context(item.content)
+                + self.phone_comfort.context()
             )
             with self.database.connection() as db:
                 checkpoint = db.execute(
@@ -600,6 +669,7 @@ class RomanceHost:
                     (LOCAL_USER, item.conversation_id, item.request_id),
                 ).fetchone()
             with (
+                self.screen_evidence(item),
                 self.app_assistant.turn(item.content),
                 self.music.memory_scope(item.conversation_id),
                 self.loop.run(
@@ -613,6 +683,7 @@ class RomanceHost:
                         user_id=LOCAL_USER,
                         scope=scope,
                         content=item.content,
+                        input_origin="application" if item.screen_context else "user",
                         reply_to_turn_id=item.quote_id,
                         idempotency_key=item.request_id,
                         consent=ConsentState.GRANTED,
@@ -636,6 +707,8 @@ class RomanceHost:
                 )
             if not result.reused:
                 self.nook.start(item.conversation_id)
+                if run.status == "completed" and not run.cancelled.is_set():
+                    self.reply_haptics.deliver(item, result.turn.content)
             return {
                 "user": self.public_turn(source),
                 "assistant": self.public_turn(result.turn),
@@ -863,6 +936,7 @@ def create_app(
     background_services: bool = True,
     interactive_tools: bool | None = None,
     native_music: MCPClient | None = None,
+    native_phone: AndroidPhoneClient | None = None,
 ) -> FastAPI:
     if testing and Path(data_dir).resolve() != testing.directory / "data":
         raise ValueError("testing requires the owned run's isolated data directory")
@@ -873,13 +947,30 @@ def create_app(
     scheduling_enabled = testing is None and background_services
     host.tools.external_available = lambda: tools_enabled
     host.tools.scheduling_available = lambda: scheduling_enabled
-    if native_music is not None:
-        host.tools.client = native_music
-        host.tools.server_available = lambda server: (
-            server.transport == "native" and server.id == "netease"
+    if native_music is not None or native_phone is not None:
+        providers: dict[str, MCPClient] = {}
+        if native_music is not None:
+            providers["netease"] = native_music
+        if native_phone is not None:
+            providers["droid"] = native_phone
+        native_clients = NativeClients(providers)
+        # Preserve the existing music-only client and its injected catalog.
+        # A phone-enabled runtime dispatches both providers through the router.
+        host.tools.client = (
+            native_music if native_phone is None and native_music else native_clients
         )
+        host.tools.server_available = native_clients.accepts
     if tools_enabled:
         refresh_lyrics_catalog(host.tools, sys.executable)
+        if native_phone is not None and any(
+            server.id == "droid" and server.enabled for server in host.tools.config.servers
+        ):
+            try:
+                # A trusted bundled upgrade can add preconditions to old tools.
+                # Refresh schemas while preserving every saved permission rule.
+                host.tools.discover("droid")
+            except (ValueError, MCPFailure):
+                logging.getLogger(__name__).warning("phone_catalog_refresh_unavailable")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -953,6 +1044,8 @@ def create_app(
             limit = MAX_BODY_BYTES
             if request.url.path == "/api/settings":
                 limit = 131_072
+            if request.url.path == "/api/chat/screen/stream":
+                limit = 768_000
             if request.url.path == "/api/images":
                 limit = MAX_IMAGE_BYTES
             if request.url.path == "/api/stickers":
@@ -1213,6 +1306,7 @@ def create_app(
         return host.chat(item)
 
     @app.post("/api/chat/stream", dependencies=[Depends(authorized)])
+    @app.post("/api/chat/screen/stream", dependencies=[Depends(authorized)])
     async def chat_stream(item: ChatInput) -> Response:
         import asyncio
         from queue import SimpleQueue
@@ -1556,12 +1650,47 @@ def create_app(
     def automation() -> dict[str, Any]:
         return {
             **host.tools.public_state(),
+            "phone_comfort": host.phone_comfort.public_state(),
+            "phone": (
+                native_phone.state() if tools_enabled and native_phone else {"supported": False}
+            ),
             "capabilities": {
                 "interactive_tools": tools_enabled,
                 "scheduling": scheduling_enabled,
                 "netease": tools_enabled and (sys.platform == "win32" or native_music is not None),
             },
         }
+
+    @app.post("/api/automation/phone-comfort/restore", dependencies=[Depends(authorized)])
+    def restore_phone_comfort() -> dict[str, Any]:
+        if not tools_enabled or native_phone is None:
+            raise problem(403, "phone_unavailable", "当前设备不支持手机能力。")
+        changes = host.phone_comfort.active()
+        if not changes:
+            return {"status": "succeeded", "verified": True, "message": "当前没有待恢复调整。"}
+        with host.phone_comfort.from_button():
+            return host.tools.invoke(
+                "app_restore_phone",
+                {},
+                changes[0]["conversation_id"],
+                "phone_restore_ui:" + str(uuid4()),
+            )
+
+    @app.post("/api/automation/phone-comfort/control", dependencies=[Depends(authorized)])
+    def control_phone_comfort(item: PhoneComfortControlInput) -> dict[str, Any]:
+        if not tools_enabled or native_phone is None:
+            raise problem(403, "phone_unavailable", "当前设备不支持手机能力。")
+        with host.exclusive():
+            try:
+                return host.phone_comfort.control(item.action, item.action_ids)
+            except ValueError as error:
+                raise problem(409, "phone_comfort_changed", str(error)) from None
+
+    @app.get("/api/automation/droid-template", dependencies=[Depends(authorized)])
+    def droid_template() -> dict[str, Any]:
+        if not tools_enabled or native_phone is None or not native_phone.state().get("supported"):
+            raise problem(403, "phone_unavailable", "手机能力需要心隅 Android 9 及以上客户端。")
+        return native_phone.template().model_dump(mode="json")
 
     @app.get("/api/automation/netease-template", dependencies=[Depends(authorized)])
     def netease_template() -> dict[str, Any]:
@@ -1613,10 +1742,12 @@ def create_app(
 
     @app.put("/api/automation/config", dependencies=[Depends(authorized)])
     def automation_config(config: AutomationConfig) -> dict[str, bool]:
-        if native_music is not None and any(
+        if (native_music is not None or native_phone is not None) and any(
             server.enabled and not host.tools.server_available(server) for server in config.servers
         ):
-            raise problem(422, "native_connections_only", "安卓当前仅支持内置网易云音乐连接。")
+            raise problem(
+                422, "native_connections_only", "安卓支持已接入的内置网易云与手机能力连接。"
+            )
         with host.exclusive():
             host.tools.configure(config)
         return {"saved": True}
@@ -1648,7 +1779,7 @@ def create_app(
         if item.tool_name:
             if not item.tool_name.startswith("mcp_"):
                 raise problem(422, "invalid_tool", "定时操作需选择已连接的 MCP 工具。")
-            host.tools.inspect(item.tool_name, item.arguments)
+            host.tools.inspect_scheduled(item.tool_name, item.arguments)
         return host.tools.scheduler.create(item, str(uuid4()))
 
     @app.post("/api/automation/schedules/{job_id}/{status}", dependencies=[Depends(authorized)])

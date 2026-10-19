@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'state/companion_controller.dart';
@@ -13,6 +14,14 @@ import 'ui/typography.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      'droid-mcp v0.11.0 · https://github.com/stixez/droid-mcp',
+    ], await rootBundle.loadString('assets/licenses/droid-mcp.txt'));
+    yield LicenseEntryWithLineBreaks([
+      'sherpa-onnx / Zipformer 中英文流式识别',
+    ], await rootBundle.loadString('assets/licenses/zipformer.txt'));
+  });
   runApp(const XinYuApp(local: true));
 }
 

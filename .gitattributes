@@ -1,0 +1,4 @@
+# Keep pinned upstream blobs byte-identical across Windows/Linux checkouts.
+clients/xinyu_flutter/android/droid_mcp/src/main/kotlin/** text eol=lf
+clients/xinyu_flutter/android/droid_mcp/LICENSE text eol=lf
+clients/xinyu_flutter/assets/licenses/droid-mcp.txt text eol=lf

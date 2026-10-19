@@ -17,6 +17,8 @@ import '../data/models.dart';
 import '../data/chat_notifications.dart';
 import '../data/user_problem.dart';
 import '../data/focus_interaction.dart';
+import '../data/speech_input.dart';
+import 'voice_input.dart';
 
 part 'focus_interactions.dart';
 
@@ -31,12 +33,16 @@ enum ChatSetupIssue {
 }
 
 class CompanionController extends ChangeNotifier {
-  CompanionController({CompanionRepository? repository})
-    : _repository = repository ?? DemoRepository() {
+  CompanionController({
+    CompanionRepository? repository,
+    SpeechInput? speechInput,
+  }) : _repository = repository ?? DemoRepository() {
+    voice = VoiceInput(input: speechInput);
     automation.addListener(_emit);
     music.addListener(_emit);
   }
   CompanionRepository _repository;
+  late final VoiceInput voice;
   late final focus = FocusController(() => localConnection, () => active);
   late final automation = AutomationController(
     () => localConnection,
@@ -103,6 +109,7 @@ class CompanionController extends ChangeNotifier {
   bool get naturalChat => settings['natural_chat'] != false;
   String composerText = '';
   int composerRevision = 0;
+  final composerUpdates = ValueNotifier<int>(0);
   final _viewStates = <String, Map<String, dynamic>>{};
   Timer? _stateTimer, _collectTimer;
   Future<void> _stateWrite = Future.value();
@@ -122,6 +129,7 @@ class CompanionController extends ChangeNotifier {
   }
 
   void updateComposer(String value) {
+    final changed = composerText != value;
     composerText = value;
     music.updateComposing();
     if (collecting && _collected.length + value.length + 2 > 6000) {
@@ -130,6 +138,13 @@ class CompanionController extends ChangeNotifier {
     }
     _rememberComposer();
     if (collecting) _scheduleCollected();
+    if (changed) composerUpdates.value++;
+  }
+
+  void updateExternalComposer(String value) {
+    updateComposer(value);
+    composerRevision++;
+    _emit();
   }
 
   bool composeKeepsakeChat(String title) {
@@ -347,7 +362,8 @@ class CompanionController extends ChangeNotifier {
     'COMPANION_URL',
     defaultValue: 'http://127.0.0.1:8766',
   );
-  (String, String, List<String>, QuotedMessage?)? _failed;
+  (String, String, List<String>, QuotedMessage?, Map<String, dynamic>?)?
+  _failed;
   QuotedMessage? pendingQuote;
   bool get hasJournal =>
       capabilities['journal_features'] == true && localConnection != null;
@@ -923,6 +939,7 @@ class CompanionController extends ChangeNotifier {
     bool followLatest = true,
     bool useComposerAttachments = true,
     int? focusTicket,
+    Map<String, dynamic>? screenContext,
   }) async {
     final content = text.trim();
     final hasImages = useComposerAttachments && pendingImages.isNotEmpty;
@@ -959,7 +976,7 @@ class CompanionController extends ChangeNotifier {
         quote: quoted,
       ),
     ];
-    await _send(content, request, images, quoted);
+    await _send(content, request, images, quoted, screenContext);
   }
 
   Future<void> retry() async {
@@ -967,7 +984,7 @@ class CompanionController extends ChangeNotifier {
     if (failed != null && !busy) {
       if (!checkChatSetup(withImages: failed.$3.isNotEmpty)) return;
       outgoingRevision++;
-      await _send(failed.$1, failed.$2, failed.$3, failed.$4);
+      await _send(failed.$1, failed.$2, failed.$3, failed.$4, failed.$5);
     }
   }
 
@@ -976,6 +993,7 @@ class CompanionController extends ChangeNotifier {
     String request,
     List<String> images,
     QuotedMessage? quote,
+    Map<String, dynamic>? screenContext,
   ) async {
     _activeRequest = request;
     sending = true;
@@ -999,6 +1017,7 @@ class CompanionController extends ChangeNotifier {
         text,
         imageIds: images,
         quoteId: quote?.id,
+        screenContext: screenContext,
       )) {
         if (_disposed) break;
         switch (event['type']) {
@@ -1030,7 +1049,9 @@ class CompanionController extends ChangeNotifier {
             final actions = result['app_actions'];
             if (actions is List) {
               for (final action in actions.whereType<Map>()) {
-                if (action['page'] is String) pageToOpen = action['page'] as String;
+                if (action['page'] is String) {
+                  pageToOpen = action['page'] as String;
+                }
               }
               if (pageToOpen == 'music_account') {
                 pendingMusicLibrary = {
@@ -1078,7 +1099,7 @@ class CompanionController extends ChangeNotifier {
     } catch (e) {
       if (!completed) {
         error = _error(e);
-        _failed = (text, request, images, quote);
+        _failed = (text, request, images, quote, screenContext);
         _receiveFocusReply(request, failure: error);
       }
     } finally {
@@ -1139,6 +1160,8 @@ class CompanionController extends ChangeNotifier {
   String _error(Object e) => userProblemMessage(e);
   @override
   void dispose() {
+    voice.dispose();
+    composerUpdates.dispose();
     requestedPage.dispose();
     _disposed = true;
     _paintTimer?.cancel();

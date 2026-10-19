@@ -9,11 +9,11 @@ from __future__ import annotations
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 from threading import Barrier
 from typing import Any
 from uuid import uuid4
 
+from companion_agent.testing import default_test_root
 from companion_agent.testing.driver import Client, DriverError, ManagedInstance
 from companion_agent.testing.memory_load import latency
 from companion_agent.testing.retrieval_benchmark import write_json
@@ -36,7 +36,7 @@ def final_evidence(result: dict[str, Any]) -> str:
 
 def main() -> int:
     instance = ManagedInstance(
-        Path(".agent-tests"),
+        default_test_root(),
         allow_live=False,
         max_turns=100,
         max_calls=200,

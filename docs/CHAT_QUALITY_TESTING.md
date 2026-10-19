@@ -46,6 +46,14 @@ Hit@1、Hit@6、证据 Recall@6 和全部证据齐全率，并将运行失败计
 
 Python 3.12+，先安装 `pip install -e ".[dev]"`。Windows 示例：
 
+2026-10-19，本机将 `.agent-tests` 迁到 `E:/XinYu-Dev/project-tests`，原路径保留目录链接。
+在本机运行下列真实进程命令时需追加 `--root E:/XinYu-Dev/project-tests`；Python 接口也传
+这个物理路径，不能关闭测试驱动的链接拒绝检查。也可在测试前于同一 PowerShell 会话执行
+`. ./.agent-tests/use-e-test-env.ps1`，它将 `COMPANION_TEST_ROOT` 与临时目录指向 E 盘；
+CLI、网页测试和真实进程负载入口会使用该默认根目录，显式 `--root` 仍可覆盖。
+历史运行的报告与 marker 原样保留，
+仅用于查看证据，不通过改写 marker 将旧运行冒充为新运行。
+
 ```powershell
 .\.venv\Scripts\python.exe -m companion_agent.testing run --scenario tests/scenarios/chat_quality.json
 .\.venv\Scripts\python.exe -m companion_agent.testing run --scenario tests/scenarios/chat_quality_holdout.json

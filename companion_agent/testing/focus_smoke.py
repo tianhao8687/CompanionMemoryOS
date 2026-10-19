@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from companion_agent.testing import default_test_root
 from companion_agent.testing.driver import ManagedInstance
 
 
@@ -188,7 +189,7 @@ def smoke(instance: ManagedInstance, *, channel: str | None) -> dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, default=Path(".agent-tests"))
+    parser.add_argument("--root", type=Path, default=default_test_root())
     parser.add_argument("--channel", default=None)
     args = parser.parse_args()
     instance = ManagedInstance(args.root, timeout=360)

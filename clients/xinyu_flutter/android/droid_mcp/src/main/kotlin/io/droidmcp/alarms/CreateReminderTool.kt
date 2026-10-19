@@ -1,0 +1,90 @@
+package io.droidmcp.alarms
+
+import android.Manifest
+import android.content.ContentValues
+import android.content.Context
+import android.content.pm.PackageManager
+import android.provider.CalendarContract
+import io.droidmcp.core.McpTool
+import io.droidmcp.core.ParameterType
+import io.droidmcp.core.ToolAnnotations
+import io.droidmcp.core.ToolParameter
+import io.droidmcp.core.ToolResult
+import io.droidmcp.core.support.CalendarSupport
+import io.droidmcp.core.support.StrictDates
+import java.util.*
+
+/**
+ * Creates a reminder as a 30-minute calendar event with an alert, inserted into the device's primary
+ * calendar (else the first visible calendar with contributor access, see
+ * [CalendarSupport.findWritableCalendarId]) via [CalendarContract]. Takes a `title`, a strictly-parsed
+ * `datetime` (`yyyy-MM-dd HH:mm`, device timezone), and optional
+ * `minutes_before` (default 10) for the alert lead time.
+ *
+ * Requires both [Manifest.permission.READ_CALENDAR] and [Manifest.permission.WRITE_CALENDAR]
+ * (checked at runtime; returns an error if either is missing). Fails if no writable calendar exists on the device.
+ *
+ * Result keys: `success`, `event_id`, `title`, `datetime`, `minutes_before`.
+ */
+class CreateReminderTool(private val context: Context) : McpTool {
+
+    override val name = "create_reminder"
+    override val description = "Create a reminder as a calendar event with an alert. Requires READ_CALENDAR and WRITE_CALENDAR permissions."
+    override val parameters = listOf(
+        ToolParameter("title", "Title of the reminder", ParameterType.STRING, required = true),
+        ToolParameter("datetime", "Date and time in YYYY-MM-DD HH:mm format", ParameterType.STRING, required = true),
+        ToolParameter("minutes_before", "Minutes before the event to trigger the alert (default: 10)", ParameterType.INTEGER, minimum = 0.0),
+    )
+    override val annotations = ToolAnnotations(destructiveHint = true)
+
+    override suspend fun execute(params: Map<String, Any>): ToolResult {
+        val readGranted = context.checkSelfPermission(Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED
+        val writeGranted = context.checkSelfPermission(Manifest.permission.WRITE_CALENDAR) == PackageManager.PERMISSION_GRANTED
+        if (!readGranted || !writeGranted) {
+            return ToolResult.error("READ_CALENDAR and WRITE_CALENDAR permissions are required to create reminders")
+        }
+
+        val title = params["title"]?.toString()
+            ?: return ToolResult.error("title is required")
+        val datetimeStr = params["datetime"]?.toString()
+            ?: return ToolResult.error("datetime is required")
+        val minutesBefore = (params["minutes_before"] as? Number)?.toInt()?.coerceAtLeast(0) ?: 10
+
+        val startMillis = StrictDates.parse("yyyy-MM-dd HH:mm", datetimeStr)?.time
+            ?: return ToolResult.error("Invalid datetime '$datetimeStr'. Use format: YYYY-MM-DD HH:mm")
+
+        val calendarId = CalendarSupport.findWritableCalendarId(context)
+            ?: return ToolResult.error("No writable calendar found on device")
+
+        val eventValues = ContentValues().apply {
+            put(CalendarContract.Events.CALENDAR_ID, calendarId)
+            put(CalendarContract.Events.TITLE, title)
+            put(CalendarContract.Events.DTSTART, startMillis)
+            put(CalendarContract.Events.DTEND, startMillis + 30 * 60 * 1000L) // 30 min event
+            put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+            put(CalendarContract.Events.HAS_ALARM, 1)
+        }
+
+        val eventUri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, eventValues)
+            ?: return ToolResult.error("Failed to create reminder event")
+
+        val eventId = eventUri.lastPathSegment?.toLongOrNull()
+            ?: return ToolResult.error("Failed to get event ID")
+
+        val reminderValues = ContentValues().apply {
+            put(CalendarContract.Reminders.EVENT_ID, eventId)
+            put(CalendarContract.Reminders.MINUTES, minutesBefore)
+            put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+        }
+        context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
+            ?: return ToolResult.error("Event created (id=$eventId) but failed to attach the reminder alert")
+
+        return ToolResult.success(mapOf(
+            "success" to true,
+            "event_id" to eventId,
+            "title" to title,
+            "datetime" to datetimeStr,
+            "minutes_before" to minutesBefore,
+        ))
+    }
+}

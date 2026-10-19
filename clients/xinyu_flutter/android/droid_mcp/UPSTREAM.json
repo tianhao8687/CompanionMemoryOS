@@ -1,0 +1,347 @@
+{
+  "repository": "https://github.com/stixez/droid-mcp",
+  "version": "v0.11.0",
+  "revision": "38723823a05852d3b2a655f48d817fc4bd3b406c",
+  "files": [
+    {
+      "source": "LICENSE",
+      "path": "LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "source": "droid-mcp-core/src/main/kotlin/io/droidmcp/core/McpTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/core/McpTool.kt",
+      "sha256": "7c2852bbf204c3f719d035541a29d0cc60f1ec8622a027953c50e87d3c961ac7"
+    },
+    {
+      "source": "droid-mcp-core/src/main/kotlin/io/droidmcp/core/ToolParameter.kt",
+      "path": "src/main/kotlin/io/droidmcp/core/ToolParameter.kt",
+      "sha256": "7ba8d3d9b569d59e72da3c0c84db4fd517ef94facc66359d59b56a9392dfd499"
+    },
+    {
+      "source": "droid-mcp-core/src/main/kotlin/io/droidmcp/core/ToolResult.kt",
+      "path": "src/main/kotlin/io/droidmcp/core/ToolResult.kt",
+      "sha256": "d3974bd0d95834277e98f3c511475196893aa750393e17d0eb9a491e8c3780f8"
+    },
+    {
+      "source": "droid-mcp-core/src/main/kotlin/io/droidmcp/core/ToolImage.kt",
+      "path": "src/main/kotlin/io/droidmcp/core/ToolImage.kt",
+      "sha256": "eb605f5a665651f73e9cc088bb6c7c67c36fbf9df9fbbd2bafe264af776db40d"
+    },
+    {
+      "source": "droid-mcp-core/src/main/kotlin/io/droidmcp/core/ToolRegistry.kt",
+      "path": "src/main/kotlin/io/droidmcp/core/ToolRegistry.kt",
+      "sha256": "beabed281985fffa623c2b5689d6393b38a522f3aaef2d071924056f1d7e0347"
+    },
+    {
+      "source": "droid-mcp-core/src/main/kotlin/io/droidmcp/core/ToolCallContext.kt",
+      "path": "src/main/kotlin/io/droidmcp/core/ToolCallContext.kt",
+      "sha256": "f5111527c516336992f3fd950d30174f28d9584a884cfe77f03c4966a5542c8a"
+    },
+    {
+      "source": "droid-mcp-core/src/main/kotlin/io/droidmcp/core/ToolCallConfirmer.kt",
+      "path": "src/main/kotlin/io/droidmcp/core/ToolCallConfirmer.kt",
+      "sha256": "748f59ae806850210f04db4a0e3be9ed5d74debf8d15a0dcfd437bd01fd2e9e2"
+    },
+    {
+      "source": "droid-mcp-core/src/main/kotlin/io/droidmcp/core/PermissionHelper.kt",
+      "path": "src/main/kotlin/io/droidmcp/core/PermissionHelper.kt",
+      "sha256": "6495afa100bf517d4aa834ff3406b95142d729f0bfb6bb08d38c462045714410"
+    },
+    {
+      "source": "droid-mcp-core/src/main/kotlin/io/droidmcp/core/PermissionStatus.kt",
+      "path": "src/main/kotlin/io/droidmcp/core/PermissionStatus.kt",
+      "sha256": "bab91905dd236b7568c70ffe36f346207faa08589eb324f0501d21b23255f89e"
+    },
+    {
+      "source": "droid-mcp-core/src/main/kotlin/io/droidmcp/core/support/ModuleSupport.kt",
+      "path": "src/main/kotlin/io/droidmcp/core/support/ModuleSupport.kt",
+      "sha256": "e417b822769dd088e9b4309e6d629d00516ac04927c2ff896987a9fd4c5627a7"
+    },
+    {
+      "source": "droid-mcp-core/src/main/kotlin/io/droidmcp/core/protocol/ToolSchemas.kt",
+      "path": "src/main/kotlin/io/droidmcp/core/protocol/ToolSchemas.kt",
+      "sha256": "8ae2740f4859e5e471ade171f9d4972739e846e439f16046e2f445af3ae3d672"
+    },
+    {
+      "source": "droid-mcp-core/src/main/kotlin/io/droidmcp/core/transport/InProcessTransport.kt",
+      "path": "src/main/kotlin/io/droidmcp/core/transport/InProcessTransport.kt",
+      "sha256": "2c2dc135270a74b9864e8b3d5969ea90f8f1757302b2f00cde07480e8c7b0441"
+    },
+    {
+      "source": "droid-mcp-device/src/main/kotlin/io/droidmcp/device/DeviceTools.kt",
+      "path": "src/main/kotlin/io/droidmcp/device/DeviceTools.kt",
+      "sha256": "32806b73ebcfec32026ed6179f2deebb01a1aa96f30cd355198917045b9ecd2e"
+    },
+    {
+      "source": "droid-mcp-device/src/main/kotlin/io/droidmcp/device/GetBatteryInfoTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/device/GetBatteryInfoTool.kt",
+      "sha256": "c9ae477fa993532a512cd777bb1c769511893c73e69c3d8bf56b1072e9c3dbd8"
+    },
+    {
+      "source": "droid-mcp-device/src/main/kotlin/io/droidmcp/device/GetConnectivityTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/device/GetConnectivityTool.kt",
+      "sha256": "e9e942a01f3ce0702af96bc2a3ac6907cd1117d63cfc652325c11437f5490b77"
+    },
+    {
+      "source": "droid-mcp-device/src/main/kotlin/io/droidmcp/device/GetDeviceInfoTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/device/GetDeviceInfoTool.kt",
+      "sha256": "f4921bf445587f938d462d6ee92e3a1854bc3b09769932edf929f8b1a53f49d1"
+    },
+    {
+      "source": "droid-mcp-device/src/main/kotlin/io/droidmcp/device/GetStorageInfoTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/device/GetStorageInfoTool.kt",
+      "sha256": "c48866d91dae475d7f5ddd44d985985233ff795f9a44d17019c47686877b6127"
+    },
+    {
+      "source": "droid-mcp-screen/src/main/kotlin/io/droidmcp/screen/GetDisplayInfoTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/screen/GetDisplayInfoTool.kt",
+      "sha256": "cda610095ffb715824261f0b723a7943d6ee03d9eac592ea1e401a1d4a31995d"
+    },
+    {
+      "source": "droid-mcp-screen/src/main/kotlin/io/droidmcp/screen/GetScreenStateTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/screen/GetScreenStateTool.kt",
+      "sha256": "13158fc63bd1a57833fe07a7e3355e581116451c6a3b3d4711ce4966cc4a6d0a"
+    },
+    {
+      "source": "droid-mcp-screen/src/main/kotlin/io/droidmcp/screen/ScreenTools.kt",
+      "path": "src/main/kotlin/io/droidmcp/screen/ScreenTools.kt",
+      "sha256": "a372a1863f923478787b5eec52b4415b3047a8600f82f13afdc46cc87157655d"
+    },
+    {
+      "source": "droid-mcp-settings/src/main/kotlin/io/droidmcp/settings/ActivityLaunchGuard.kt",
+      "path": "src/main/kotlin/io/droidmcp/settings/ActivityLaunchGuard.kt",
+      "sha256": "55fe369a3805f4254071c79250434291d4d1406f9e8efa245f21b77c5dd292e0"
+    },
+    {
+      "source": "droid-mcp-settings/src/main/kotlin/io/droidmcp/settings/GetSettingsTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/settings/GetSettingsTool.kt",
+      "sha256": "09914f3a785fee2114b8eb39ea78a0d0c294a05470f4e1c3bc4ab83a4465c47f"
+    },
+    {
+      "source": "droid-mcp-settings/src/main/kotlin/io/droidmcp/settings/SetBrightnessTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/settings/SetBrightnessTool.kt",
+      "sha256": "895c757f49e6eeacdcb9d20bff4ca1436ed3a7e98628e6073336f4159d116ad2"
+    },
+    {
+      "source": "droid-mcp-settings/src/main/kotlin/io/droidmcp/settings/SettingsTools.kt",
+      "path": "src/main/kotlin/io/droidmcp/settings/SettingsTools.kt",
+      "sha256": "eb2921aac3d7503ef4a2c9b1401c8f7edf6ab0048c583eaebc34a8438ef2785b"
+    },
+    {
+      "source": "droid-mcp-settings/src/main/kotlin/io/droidmcp/settings/SetVolumeTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/settings/SetVolumeTool.kt",
+      "sha256": "08fdea3774b73b4b535dc8f0518e905ee63f4a97c3627da45cbde3c723fab129"
+    },
+    {
+      "source": "droid-mcp-settings/src/main/kotlin/io/droidmcp/settings/ToggleWifiTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/settings/ToggleWifiTool.kt",
+      "sha256": "b07151868de0204145278293a25ae8138da01aa7fdc400864d2ca41fd4757a3d"
+    },
+    {
+      "source": "droid-mcp-apps/src/main/kotlin/io/droidmcp/apps/AppsTools.kt",
+      "path": "src/main/kotlin/io/droidmcp/apps/AppsTools.kt",
+      "sha256": "14d9cb74194afe4952c2990bd0ad86057d71dd419d72a0749fe4111f8ac86482"
+    },
+    {
+      "source": "droid-mcp-apps/src/main/kotlin/io/droidmcp/apps/GetAppInfoTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/apps/GetAppInfoTool.kt",
+      "sha256": "c0ac50c670f0537e4037977d7c6b11b6e3c63eee829bd0b65cfe2e7983eeb7a7"
+    },
+    {
+      "source": "droid-mcp-apps/src/main/kotlin/io/droidmcp/apps/LaunchAppTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/apps/LaunchAppTool.kt",
+      "sha256": "601ed2877ce21d0696b0646502d8b772689c1c8fe0a7f910934cf106092509be"
+    },
+    {
+      "source": "droid-mcp-apps/src/main/kotlin/io/droidmcp/apps/ListInstalledAppsTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/apps/ListInstalledAppsTool.kt",
+      "sha256": "b10793e8a697edb3acdb3573c42aaed5d80bb3c5b2d301704ed5b2a532a91683"
+    },
+    {
+      "source": "droid-mcp-alarms/src/main/kotlin/io/droidmcp/alarms/AlarmsTools.kt",
+      "path": "src/main/kotlin/io/droidmcp/alarms/AlarmsTools.kt",
+      "sha256": "a450bc924fbee01404244890128f627582ba3b928084a1de99d7907a98ead073"
+    },
+    {
+      "source": "droid-mcp-alarms/src/main/kotlin/io/droidmcp/alarms/AlarmsUtils.kt",
+      "path": "src/main/kotlin/io/droidmcp/alarms/AlarmsUtils.kt",
+      "sha256": "65986b597ca969fec7c66af51306c8517c448ec936561785a80ffdb942d8ae42"
+    },
+    {
+      "source": "droid-mcp-alarms/src/main/kotlin/io/droidmcp/alarms/CreateAlarmTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/alarms/CreateAlarmTool.kt",
+      "sha256": "9785c47925ba58609489f4da862a6584c4505b0232c427a84d6c82747b32af2c"
+    },
+    {
+      "source": "droid-mcp-alarms/src/main/kotlin/io/droidmcp/alarms/CreateReminderTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/alarms/CreateReminderTool.kt",
+      "sha256": "81036a33c024a023b0a27e2ce66d263b9ae792dd44b491e10660ca6c8e908613"
+    },
+    {
+      "source": "droid-mcp-alarms/src/main/kotlin/io/droidmcp/alarms/CreateTimerTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/alarms/CreateTimerTool.kt",
+      "sha256": "734fff679a7ba1b1ed57da5aeadabf8c36bffb2af64c301b1ea199226417c8d6"
+    },
+    {
+      "source": "droid-mcp-alarms/src/main/kotlin/io/droidmcp/alarms/GetNextAlarmTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/alarms/GetNextAlarmTool.kt",
+      "sha256": "fa961ab474bce55f554446c98657df8ed0beb8f9452357c6fbdf199920dbede2"
+    },
+    {
+      "source": "droid-mcp-dnd/src/main/kotlin/io/droidmcp/dnd/DndTools.kt",
+      "path": "src/main/kotlin/io/droidmcp/dnd/DndTools.kt",
+      "sha256": "46613918151e79f16e809707a13be80cc44fe77511312c589eaf3498ff52bbd0"
+    },
+    {
+      "source": "droid-mcp-dnd/src/main/kotlin/io/droidmcp/dnd/GetDndStatusTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/dnd/GetDndStatusTool.kt",
+      "sha256": "db0733e5558a53c10a1390f49a4e9ee98f3bf90135ca07a4e325587bf8f133d1"
+    },
+    {
+      "source": "droid-mcp-dnd/src/main/kotlin/io/droidmcp/dnd/SetDndModeTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/dnd/SetDndModeTool.kt",
+      "sha256": "32b8cfc8b70b1dc0ea781fa0acd4e9f96b088eb0f814c5c4e461dc88185d3227"
+    },
+    {
+      "source": "droid-mcp-vibration/src/main/kotlin/io/droidmcp/vibration/CancelVibrationTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/vibration/CancelVibrationTool.kt",
+      "sha256": "960c3c7944ebbdb6afff1ecb77c2e59713edec797d724d0f16fcdabe267134ea"
+    },
+    {
+      "source": "droid-mcp-vibration/src/main/kotlin/io/droidmcp/vibration/VibratePatternTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/vibration/VibratePatternTool.kt",
+      "sha256": "daaf9c9fbb1e58ad500adca488a1a9e5d2ba016e8a6165915cb9ff93d1f4c710"
+    },
+    {
+      "source": "droid-mcp-vibration/src/main/kotlin/io/droidmcp/vibration/VibrateTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/vibration/VibrateTool.kt",
+      "sha256": "5c2b598f62354eddcf20bd1fed52f324816a40c3d6b43dace185ec9cb0484da9"
+    },
+    {
+      "source": "droid-mcp-vibration/src/main/kotlin/io/droidmcp/vibration/VibrationTools.kt",
+      "path": "src/main/kotlin/io/droidmcp/vibration/VibrationTools.kt",
+      "sha256": "3748920107550006f35a6854d462dc6458a33fb49ed40766c9f31739237c5dce"
+    },
+    {
+      "source": "droid-mcp-vibration/src/main/kotlin/io/droidmcp/vibration/VibratorSupport.kt",
+      "path": "src/main/kotlin/io/droidmcp/vibration/VibratorSupport.kt",
+      "sha256": "e29d8802994266fb7e0b78090170380ca4d898ed623cacfdb4e759608df73aad"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/AccessibilityServiceHolder.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/AccessibilityServiceHolder.kt",
+      "sha256": "75455c5ee7a255bcbf38336b4b1fd6551d5e01ca06f4c0244ab143c342418f53"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/AccessibilityTools.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/AccessibilityTools.kt",
+      "sha256": "5c82ba0ab9bc3488b73cd5ae00f44205c9890adee6a835d6e8b0aa60de946a0c"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/DroidMcpAccessibilityService.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/DroidMcpAccessibilityService.kt",
+      "sha256": "78096bd627e4b506972e1d192f8668f3b0d2dbe6bd013d8e4b30a9d9f6db003a"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/FindAndTapTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/FindAndTapTool.kt",
+      "sha256": "2c71555b835cb884a939838ccfd822fd98493cb8049b86dfba77e54bd3c06319"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/FindNodeTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/FindNodeTool.kt",
+      "sha256": "4659af2f4c8e86168c6fe3e7665957c0d727fa47a2885ed890c22d2ed0cba189"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/GestureDispatch.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/GestureDispatch.kt",
+      "sha256": "9257a3d44fc2e99deb2fd9fea49e91826656fd7b7d5b426f56090e22c1551d88"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/GestureTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/GestureTool.kt",
+      "sha256": "1d5f13b078a3e8127f7d91db2d052f1a8fbf799ab34424fc792ce02910230d85"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/GetActiveWindowInfoTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/GetActiveWindowInfoTool.kt",
+      "sha256": "dea87f6ecb65c9f2acb2c02616c01205ab1cbd69648a1890bf2416d5cdbb1677"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/GlobalActionTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/GlobalActionTool.kt",
+      "sha256": "483bf87ed914fafacf4957b89bb35c5b371fc7586c7e2c0b4c5d0cb7311ca2fa"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/LongPressTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/LongPressTool.kt",
+      "sha256": "132965cc178bb07ddc6394ca973756adac77382507fdd86e844b62b908a6b57f"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/NodeActionTools.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/NodeActionTools.kt",
+      "sha256": "68ac26d8435bc0b485bfae732d3b95069c627ad21e090fb62110e14fd206e58e"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/NodeQuery.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/NodeQuery.kt",
+      "sha256": "84a0abea86af3eb2ea059b56ebb794d7bdb7313dbb87f5c381ca96c6c30da3f1"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/QueryScreenTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/QueryScreenTool.kt",
+      "sha256": "7bd268bfba00275dd78b12bff351e912c2b03f5e7a80d09175b4c2136354de37"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/ScrollToFindTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/ScrollToFindTool.kt",
+      "sha256": "dd9ea9d6a00bba5a3c936685b61b96d8eef3f0891ff52095c23c085f5631f88a"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/TakeScreenshotViaA11yTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/TakeScreenshotViaA11yTool.kt",
+      "sha256": "81ef79535b5b1062a7c272eec95477159d08c42cb8f873c97589a8f4146f17aa"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/TapTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/TapTool.kt",
+      "sha256": "9ceca7fe727f49d8e20863d09b03556bad5a74b3419dd4c62bddc772950351d1"
+    },
+    {
+      "source": "droid-mcp-accessibility/src/main/kotlin/io/droidmcp/accessibility/WaitForTextTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/accessibility/WaitForTextTool.kt",
+      "sha256": "df0d547f6153f5dd25253680c714fc13a3ea9e867dc7e3b72ce72c36d2d3c99c"
+    },
+    {
+      "source": "droid-mcp-sensors/src/main/kotlin/io/droidmcp/sensors/GetAccelerometerTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/sensors/GetAccelerometerTool.kt",
+      "sha256": "72c0092665dcd42fc07c007d02c0a1e586fe376d3fd75aff57814f880c11aaba"
+    },
+    {
+      "source": "droid-mcp-sensors/src/main/kotlin/io/droidmcp/sensors/GetGyroscopeTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/sensors/GetGyroscopeTool.kt",
+      "sha256": "5cf962f80c813b95f5138da4848e2b61652f2b1c22da1dc31c38338e01efbbde"
+    },
+    {
+      "source": "droid-mcp-sensors/src/main/kotlin/io/droidmcp/sensors/GetLightLevelTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/sensors/GetLightLevelTool.kt",
+      "sha256": "f6a9f6763ff2c57818f66aff4c43220cbc0109767e2cd32c8dcb1ab36b03add5"
+    },
+    {
+      "source": "droid-mcp-sensors/src/main/kotlin/io/droidmcp/sensors/GetProximityTool.kt",
+      "path": "src/main/kotlin/io/droidmcp/sensors/GetProximityTool.kt",
+      "sha256": "8ab2fe6adb8caf9cd43f15d84c5f8db619068ae52ba86ea29e7593b816fdfabd"
+    },
+    {
+      "source": "droid-mcp-sensors/src/main/kotlin/io/droidmcp/sensors/SensorHelper.kt",
+      "path": "src/main/kotlin/io/droidmcp/sensors/SensorHelper.kt",
+      "sha256": "e6b24d5f6b28bde07552d0ce7007e5c164a60c64a8605a1664365a965bf57f63"
+    },
+    {
+      "source": "droid-mcp-sensors/src/main/kotlin/io/droidmcp/sensors/SensorTools.kt",
+      "path": "src/main/kotlin/io/droidmcp/sensors/SensorTools.kt",
+      "sha256": "791e3c562dd602959d17be3a078296cf814c48487b4b54405d0ea66f8ff936e9"
+    }
+  ]
+}

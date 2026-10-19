@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import '../state/companion_controller.dart';
 import 'connected_app_actions.dart';
 import 'connected_netease.dart';
+import 'connected_phone.dart';
 import 'ui_standard.dart';
 
 Future<void> showConnectedApps(
@@ -22,13 +24,28 @@ class ConnectedAppsSheet extends StatefulWidget {
   State<ConnectedAppsSheet> createState() => _ConnectedAppsSheetState();
 }
 
-class _ConnectedAppsSheetState extends State<ConnectedAppsSheet> {
+class _ConnectedAppsSheetState extends State<ConnectedAppsSheet>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(widget.controller.automation.refresh());
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(widget.controller.automation.refresh(silent: true));
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override
@@ -95,6 +112,13 @@ class ConnectedAppsPanel extends StatelessWidget {
             controller: automation,
             disabled: disabled || controller.isDemo,
           ),
+          if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) ...[
+            const SizedBox(height: 16),
+            PhoneConnectionCard(
+              controller: automation,
+              disabled: disabled || controller.isDemo,
+            ),
+          ],
           if (state != null && state.pending.isNotEmpty) ...[
             const SizedBox(height: 24),
             const Text('等待你确认', style: XinYuLayout.section),

@@ -28,6 +28,7 @@ class ProcessTurnRequest(StrictModel):
     idempotency_key: str = Field(min_length=1, max_length=500)
     actor_id: str | None = Field(default=None, min_length=1, max_length=240)
     role: ConversationRole = ConversationRole.USER
+    input_origin: Literal["user", "application"] = "user"
     occurred_at: datetime | None = None
     consent: ConsentState = ConsentState.UNKNOWN
     sensitivity: Sensitivity = Sensitivity.NORMAL

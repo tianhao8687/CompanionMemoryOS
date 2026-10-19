@@ -49,12 +49,14 @@ class ManagedRepository extends CompanionRepository {
     String text, {
     List<String> imageIds = const [],
     String? quoteId,
+    Map<String, dynamic>? screenContext,
   }) => connection.send(
     conversation,
     request,
     text,
     imageIds: imageIds,
     quoteId: quoteId,
+    screenContext: screenContext,
   );
   @override
   Future<Map<String, dynamic>> saveSettings(

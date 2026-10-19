@@ -10,9 +10,9 @@ import argparse
 import hashlib
 import json
 import time
-from pathlib import Path
 from typing import Any
 
+from companion_agent.testing import default_test_root
 from companion_agent.testing.adaptive_context_benchmark import evidence_from_messages
 from companion_agent.testing.control import is_local_embedding_url
 from companion_agent.testing.driver import DriverError, ManagedInstance
@@ -70,7 +70,7 @@ def main() -> int:
         parser.error("local-embedding-url requires embedding-mode local-api")
     plan = corpus(args.turns, args.seed, args.long_chars)
     instance = ManagedInstance(
-        Path(".agent-tests"),
+        default_test_root(),
         allow_live=False,
         max_turns=args.turns + 100,
         max_calls=args.turns * 6 + 200 if local_api else args.turns + 150,

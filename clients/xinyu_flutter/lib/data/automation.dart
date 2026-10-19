@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'phone_actions.dart';
+
 Map<String, dynamic> automationMap(Object? value) =>
     value is Map ? Map<String, dynamic>.from(value) : {};
 
@@ -10,12 +12,56 @@ class AutomationState {
   AutomationState(Map<String, dynamic> value)
     : config = automationMap(value['config']),
       capabilities = automationMap(value['capabilities']),
+      phone = automationMap(value['phone']),
+      phoneComfort = automationMap(value['phone_comfort']),
       catalog = automationMap(value['catalog']),
       tools = automationList(value['tools']),
       actions = automationList(value['actions']);
 
-  final Map<String, dynamic> config, capabilities, catalog;
+  final Map<String, dynamic> config, capabilities, catalog, phone, phoneComfort;
+  Map<String, dynamic> get phoneComfortConfig =>
+      automationMap(config['phone_comfort']);
+  Map<String, dynamic>? get phoneServer =>
+      automationList(config['servers'])
+          .where((server) => server['id'] == 'droid')
+          .firstOrNull;
+  List<Map<String, dynamic>> get phoneTools => automationList(catalog['droid']);
+  String phonePermission(String name) {
+    final explicit = automationMap(
+      automationMap(phoneServer?['tools'])[name],
+    )['mode'];
+    if (explicit is String) {
+      return name == 'read_chat_notifications' && explicit == 'allow'
+          ? 'ask'
+          : explicit;
+    }
+    final optInGroups = automationList(phone['groups']).where(
+      (group) => {
+        'accessibility',
+        'haptics',
+        'chat_notifications',
+      }.contains(group['id']),
+    );
+    return optInGroups.any(
+          (group) => (group['tools'] as List?)?.contains(name) == true,
+        )
+        ? 'off'
+        : 'ask';
+  }
+
   final List<Map<String, dynamic>> tools, actions;
+  String? phoneDescription(Map<String, dynamic> action) {
+    final binding = tools
+        .where((tool) => tool['name'] == action['tool_name'])
+        .firstOrNull;
+    return binding?['server_id'] == 'droid'
+        ? phoneActionDescription(
+            binding!['remote_name'] as String,
+            automationMap(action['arguments']),
+          )
+        : null;
+  }
+
   Map<String, dynamic>? get netease =>
       automationList(config['servers'])
           .where((server) => server['id'] == 'netease')
@@ -56,6 +102,9 @@ class AutomationState {
       'app_connect_music': '连接网易云音乐',
       'app_open_music': '打开网易云音乐',
       'app_comfort_music': '音乐陪伴',
+      'app_comfort_phone': '聊天中的手机陪伴',
+      'app_reply_haptic': '为回复准备触感',
+      'app_restore_phone': '恢复陪伴前的手机设置',
       'app_music_taste': '角色的音乐品味',
       'app_music_library': '了解音乐喜好',
       'app_undo_settings': '恢复此前的设置',
@@ -65,6 +114,12 @@ class AutomationState {
         .where((tool) => tool['name'] == action['tool_name'])
         .firstOrNull;
     final remoteName = binding?['remote_name'] as String?;
+    if (binding?['server_id'] == 'droid') {
+      final tool = phoneTools
+          .where((tool) => tool['name'] == remoteName)
+          .firstOrNull;
+      return (tool?['description'] as String?)?.split('。').first ?? '手机操作';
+    }
     if (remoteName == 'netease_control') {
       return switch (automationMap(action['arguments'])['action']) {
         'play' => '继续播放网易云音乐',
@@ -77,6 +132,8 @@ class AutomationState {
     return remoteName == null
         ? ((action['tool_name'] as String? ?? '').startsWith('mcp_netease_')
               ? '网易云音乐操作'
+              : (action['tool_name'] as String? ?? '').startsWith('mcp_droid_')
+              ? '手机操作'
               : (action['tool_name'] as String? ?? '应用操作'))
         : musicToolTitle(remoteName);
   }
@@ -116,7 +173,7 @@ String automationStatus(String? value) => switch (value) {
   'running' => '正在执行',
   'succeeded' => '已完成',
   'failed' => '未完成',
-  'uncertain' => '结果待核对，请先查看网易云',
+  'uncertain' => '结果待核对，请先查看目标应用或设备',
   'denied' => '已拒绝',
   _ => value ?? '等待更新',
 };

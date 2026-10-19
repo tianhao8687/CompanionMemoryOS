@@ -48,10 +48,10 @@ class MCPServerConfig(PersonaModel):
             if name and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
                 raise ValueError("use environment variable names for credentials")
         if self.transport == "native":
-            if self.id != "netease" or any(
+            if self.id not in {"netease", "droid"} or any(
                 [self.command, self.args, self.url, self.env, self.bearer_env]
             ):
-                raise ValueError("native transport only accepts the bundled music provider")
+                raise ValueError("native transport only accepts bundled providers")
         elif self.transport == "stdio":
             if not self.command.strip() or self.url or self.bearer_env:
                 raise ValueError("stdio requires a command, not a URL")
@@ -77,8 +77,31 @@ class MCPServerConfig(PersonaModel):
         return self
 
 
+class PhoneComfortConfig(PersonaModel):
+    enabled: bool = False
+    media: bool = True
+    screen: bool = False
+    interruptions: bool = False
+    cooldown_minutes: int = Field(default=3, ge=1, le=5, strict=True)
+    paused_until: datetime | None = None
+
+    @field_validator("paused_until")
+    @classmethod
+    def pause_has_timezone(cls, value: datetime | None) -> datetime | None:
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise ValueError("pause time requires a UTC offset")
+        return value
+
+
+class PhoneComfortControlInput(PersonaModel):
+    action: Literal["pause", "resume", "keep"]
+    action_ids: list[str] = Field(default_factory=list, max_length=3)
+
+
 class AutomationConfig(PersonaModel):
     loop: LoopConfig = Field(default_factory=LoopConfig)
+    phone_comfort: PhoneComfortConfig = Field(default_factory=PhoneComfortConfig)
+    reply_haptics_enabled: bool = False
     servers: list[MCPServerConfig] = Field(default_factory=list, max_length=12)
 
     @model_validator(mode="after")

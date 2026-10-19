@@ -96,6 +96,7 @@ def bridge_methods(data: bytes, descriptor: str = BRIDGE) -> set[str] | None:
 def inspect_apk(apk: Path) -> dict[str, object]:
     found: set[str] | None = None
     music: set[str] | None = None
+    phone: set[str] | None = None
     python_files: set[str] = set()
     with ZipFile(apk) as archive:
         for name in archive.namelist():
@@ -103,6 +104,8 @@ def inspect_apk(apk: Path) -> dict[str, object]:
                 data = archive.read(name)
                 found = found or bridge_methods(data)
                 music = music or bridge_methods(data, "Lcom/xinyu/xinyu_flutter/MusicBridge;")
+                phone = phone or bridge_methods(data, "Lcom/xinyu/xinyu_flutter/PhoneBridge;")
+        phone_license = "assets/flutter_assets/assets/licenses/droid-mcp.txt" in archive.namelist()
         sqlite = archive.read("lib/arm64-v8a/libsqlite3_python.so")
         sqlite_fts5 = b"ENABLE_FTS5\0" in sqlite and b"fts5\0" in sqlite
         for name in archive.namelist():
@@ -127,6 +130,18 @@ def inspect_apk(apk: Path) -> dict[str, object]:
         any(f"companion_agent/{module}.{suffix}" in python_files for suffix in ("py", "pyc"))
         for module in ("music", "integrations/netease_android")
     )
+    phone_ready = (
+        "exchange(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;I)Ljava/lang/String;"
+        in (phone or set())
+    )
+    phone_python = all(
+        any(f"companion_agent/{module}.{suffix}" in python_files for suffix in ("py", "pyc"))
+        for module in (
+            "integrations/droid_android",
+            "integrations/droid_catalog",
+            "automation/native_client",
+        )
+    )
     lyric_python = all(
         any(f"companion_agent/{module}.{suffix}" in python_files for suffix in ("py", "pyc"))
         for module in ("music_lyrics", "integrations/netease_lyrics")
@@ -142,6 +157,9 @@ def inspect_apk(apk: Path) -> dict[str, object]:
         "pillow_native_core": pillow_core,
         "music_bridge_present": music_ready,
         "music_python_present": music_python,
+        "phone_bridge_present": phone_ready,
+        "phone_python_present": phone_python,
+        "phone_license_present": phone_license,
         "lyric_python_present": lyric_python,
         "status": "passed"
         if found is not None
@@ -151,6 +169,9 @@ def inspect_apk(apk: Path) -> dict[str, object]:
         and pillow_core
         and music_ready
         and music_python
+        and phone_ready
+        and phone_python
+        and phone_license
         and lyric_python
         else "failed",
         "android_runtime": "not_run",

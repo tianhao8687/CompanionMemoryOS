@@ -89,7 +89,7 @@ class Client:
             raise DriverError(f"HTTP {error.code}: {path}") from None
         if path == "/":
             return None
-        if path == "/api/chat/stream":
+        if path in {"/api/chat/stream", "/api/chat/screen/stream"}:
             events = [json.loads(line) for line in raw.decode("utf-8").splitlines() if line]
             results = [e["result"] for e in events if e.get("type") == "result"]
             if (
@@ -129,13 +129,24 @@ class Client:
         *,
         stream: bool = False,
         request_id: str | None = None,
+        screen_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         request_id = request_id or str(uuid4())
+        payload: dict[str, Any] = {
+            "conversation_id": conversation,
+            "content": content,
+            "request_id": request_id,
+        }
+        if screen_context is not None:
+            payload["screen_context"] = screen_context
+        path = "/api/chat"
+        if stream:
+            path += "/screen/stream" if screen_context is not None else "/stream"
         try:
             result: dict[str, Any] = self.request(
                 "POST",
-                "/api/chat/stream" if stream else "/api/chat",
-                {"conversation_id": conversation, "content": content, "request_id": request_id},
+                path,
+                payload,
             )
         except DriverError as error:
             evidence = error.evidence or {}

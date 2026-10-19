@@ -265,7 +265,10 @@ class ApplicationMemory(CompanionMemoryService):
         if turn.role is ConversationRole.USER and self.on_user_turn:
             self.on_user_turn(turn)
         actions: dict[str, int] = {}
-        if turn.role is ConversationRole.USER:
+        if (
+            turn.role is ConversationRole.USER
+            and turn.metadata.get("input_origin") != "application"
+        ):
             with self.store.database.atomic() as db:
                 prior = db.execute("SELECT id FROM agent_learned_turns WHERE id=?", (turn.id,))
                 if prior.fetchone() is None:

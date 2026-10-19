@@ -59,8 +59,6 @@ def main() -> None:
         "tzdata",
         "--copy-metadata",
         "jsonschema",
-        "--add-data",
-        f"{source / 'companion_agent' / 'assets'};companion_agent/assets",
         str(Path(__file__).with_name("engine_entry.py")),
     ]
     subprocess.run(command, check=True)

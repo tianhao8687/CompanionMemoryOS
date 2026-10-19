@@ -7,10 +7,12 @@ param(
     [string]$AndroidWheels = $env:XINYU_ANDROID_WHEELS,
     [string]$JavaTempDirectory,
     [switch]$PortableOnly,
+    [switch]$Preview,
     [string]$InstallerCompiler = (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),
-    [string]$BuildRoot = (Join-Path $env:LOCALAPPDATA 'XinYuBuild\releases')
+    [string]$BuildRoot = $env:XINYU_BUILD_ROOT
 )
 $ErrorActionPreference = 'Stop'
+if (-not $BuildRoot) { $BuildRoot = Join-Path $env:LOCALAPPDATA 'XinYuBuild\releases' }
 $clientSource = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $repository = [IO.Path]::GetFullPath((Join-Path $clientSource '..\..'))
 $python = Join-Path $repository '.venv\Scripts\python.exe'
@@ -30,7 +32,7 @@ $run = [IO.Path]::GetFullPath((Join-Path $BuildRoot $runId))
 if ($run -match '[^\x00-\x7F]') { throw 'BuildRoot must be an ASCII path for Flutter and Gradle.' }
 $client = Join-Path $run 'client'
 New-Item -ItemType Directory -Path $client -Force | Out-Null
-& robocopy $clientSource $client /E /XD .git .dart_tool build ephemeral __pycache__ python wheels /XF local.properties .flutter-plugins-dependencies GeneratedPluginRegistrant.java generated_plugin_registrant.cc generated_plugin_registrant.h generated_plugins.cmake /NFL /NDL /NJH /NJS
+& robocopy $clientSource $client /E /XD .git .gradle .kotlin .dart_tool build ephemeral __pycache__ python wheels /XF local.properties .flutter-plugins-dependencies GeneratedPluginRegistrant.java generated_plugin_registrant.cc generated_plugin_registrant.h generated_plugins.cmake /R:2 /W:1 /NFL /NDL /NJH /NJS
 if ($LASTEXITCODE -gt 7) { throw 'Client source copy failed.' }
 if ($AndroidSdk) { $env:ANDROID_HOME = $AndroidSdk }
 if ($JavaDirectory) { $env:JAVA_HOME = $JavaDirectory }
@@ -100,7 +102,9 @@ try {
         & $python (Join-Path $PSScriptRoot 'prepare_android_sqlite.py') --output (Join-Path $run 'android-sqlite')
         if ($LASTEXITCODE) { throw 'SQLite source verification failed.' }
         $env:XINYU_SQLITE_SOURCE = Join-Path $run 'android-sqlite\sqlite3.c'
-        & $flutter build apk --release --target-platform android-arm64 -Pdisable-abi-filtering=true
+        $androidArguments = @('build', 'apk', '--release', '--target-platform', 'android-arm64', '-Pdisable-abi-filtering=true')
+        if ($Preview) { $androidArguments += '-PxinyuPreview=true' }
+        & $flutter @androidArguments
         if ($LASTEXITCODE) { throw 'Android build failed. No independent APK has been delivered.' }
         $apk = Join-Path $client 'build\app\outputs\flutter-apk\app-release.apk'
         $sdkTools = Get-ChildItem -LiteralPath (Join-Path $env:ANDROID_HOME 'build-tools') -Directory |
@@ -111,6 +115,13 @@ try {
         if ($LASTEXITCODE) { throw 'APK 16 KB ZIP alignment verification failed.' }
         & (Join-Path $sdkTools.FullName 'apksigner.bat') verify --verbose $apk
         if ($LASTEXITCODE) { throw 'APK signature verification failed.' }
+        $badging = & (Join-Path $sdkTools.FullName 'aapt2.exe') dump badging $apk
+        if ($LASTEXITCODE) { throw 'Cannot inspect the APK package identity.' }
+        $packageLine = $badging | Where-Object { $_.StartsWith('package: ') } | Select-Object -First 1
+        $expectedPackage = if ($Preview) { 'com.xinyu.xinyu_flutter.preview' } else { 'com.xinyu.xinyu_flutter' }
+        if (-not $packageLine -or -not $packageLine.Contains("name='$expectedPackage'") -or -not $packageLine.Contains("versionName='$appVersion'")) {
+            throw 'APK package or version does not match the requested build.'
+        }
         & $python (Join-Path $PSScriptRoot 'verify_android_apk.py') --apk $apk --output (Join-Path $delivery 'android-bridge-check.json')
         if ($LASTEXITCODE) { throw 'The release APK is missing its Python bridge, drawing runtime or SQLite FTS5.' }
         Copy-Item -LiteralPath $apk -Destination (Join-Path $delivery 'XinYu-Android-arm64.apk')

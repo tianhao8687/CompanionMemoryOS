@@ -114,3 +114,7 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    implementation(project(":phone_bridge"))
+}

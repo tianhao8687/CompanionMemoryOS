@@ -20,6 +20,7 @@ import 'message_context.dart';
 import 'character_home.dart';
 import 'typography.dart';
 import 'persona_import_sheet.dart';
+import 'voice_input_sheet.dart';
 export 'chat_reader.dart' show ConversationView;
 
 class MessageBubble extends StatelessWidget {
@@ -499,6 +500,38 @@ class _ComposerState extends State<Composer> {
     focus.requestFocus();
   }
 
+  Future<void> _voice() async {
+    final c = widget.controller;
+    final original = text.value;
+    final conversationId = c.active;
+    focus.unfocus();
+    await showVoiceInput(
+      context,
+      c.voice,
+      insert: (words) {
+        if (!mounted ||
+            c.active != conversationId ||
+            c.composerText != original.text) {
+          return '对话或草稿已经变化，暂未放入。你可以复制上面的文字，关闭后选择要继续的对话。';
+        }
+        final start = original.selection.isValid
+            ? original.selection.start
+            : original.text.length;
+        final end = original.selection.isValid
+            ? original.selection.end
+            : original.text.length;
+        final merged = original.text.replaceRange(start, end, words);
+        if (merged.length > 6000) return '合并后的消息超过 6000 字，请先精简识别文字。';
+        text.value = TextEditingValue(
+          text: merged,
+          selection: TextSelection.collapsed(offset: start + words.length),
+        );
+        return null;
+      },
+    );
+    if (mounted) focus.requestFocus();
+  }
+
   @override
   void dispose() {
     widget.controller.removeListener(_updated);
@@ -817,6 +850,12 @@ class _ComposerState extends State<Composer> {
                   ),
                 const SizedBox(width: 4),
                 if (compact) Expanded(child: _field(true)),
+                _toolButton(
+                  key: const Key('voice-input'),
+                  label: '语音输入',
+                  onPressed: c.loading ? null : _voice,
+                  icon: Icons.mic_none_rounded,
+                ),
                 _toolButton(
                   key: const Key('insert-emoji'),
                   label: '表情',

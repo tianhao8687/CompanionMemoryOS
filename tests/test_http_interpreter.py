@@ -9,6 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from companion_memoryos.config import InterpreterConfig, load_config
+from companion_memoryos.diagnostics import sink
 from companion_memoryos.interpreter import (
     InterpreterError,
     OpenAICompatibleInterpreter,
@@ -122,6 +123,42 @@ def test_gateway_legacy_parameter_and_json_mode_are_explicit_not_automatic_fallb
     body = state["calls"][0]["body"]
     assert "max_tokens" in body and "max_completion_tokens" not in body
     assert "response_format" not in body and body["messages"][0]["role"] == "developer"
+    assert len(state["calls"]) == 1
+
+
+@pytest.mark.parametrize(
+    "content,issue",
+    [
+        ('{"topics": "SECRET"}', "collection_type:topics"),
+        ('{"SECRET": []}', "unknown_envelope_fields"),
+        ("```SECRET```", "invalid_json"),
+    ],
+)
+def test_bad_format_diagnostic_has_only_fixed_schema_paths(fake_provider, content, issue):
+    class Observer:
+        def __init__(self):
+            self.events = []
+
+        def begin_call(self, *args):
+            return {}
+
+        def finish_call(self, call):
+            pass
+
+        def event(self, name, value):
+            self.events.append((name, value))
+
+    observer = Observer()
+    state, endpoint = fake_provider
+    state["response"]["choices"][0]["message"]["content"] = content
+    token = sink.set(observer)
+    try:
+        with pytest.raises(InterpreterError, match=r"^interpreter_invalid_output$"):
+            adapter(endpoint).interpret(context())
+    finally:
+        sink.reset(token)
+    assert observer.events == [("interpretation_validation", {"issue": issue})]
+    assert "SECRET" not in repr(observer.events)
     assert len(state["calls"]) == 1
 
 

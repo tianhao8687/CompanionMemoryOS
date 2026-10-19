@@ -24,6 +24,7 @@ import uvicorn
 from companion_agent.app import create_app
 from companion_agent.automation.mcp_client import MCPClient
 from companion_agent.credentials import CredentialStore
+from companion_agent.integrations.droid_android import AndroidPhoneClient
 
 
 class InstanceLease:
@@ -60,6 +61,7 @@ class LocalRuntime:
         *,
         credentials: CredentialStore | None = None,
         native_music: MCPClient | None = None,
+        native_phone: AndroidPhoneClient | None = None,
     ) -> None:
         self.directory = directory.expanduser().resolve()
         self.lease = InstanceLease(self.directory)
@@ -79,8 +81,11 @@ class LocalRuntime:
                 client_token=self.token,
                 credentials=credentials,
                 background_services=False,
-                interactive_tools=sys.platform == "win32" or native_music is not None,
+                interactive_tools=(
+                    sys.platform == "win32" or native_music is not None or native_phone is not None
+                ),
                 native_music=native_music,
+                native_phone=native_phone,
             )
             self.server = uvicorn.Server(
                 uvicorn.Config(
@@ -143,13 +148,18 @@ def start_embedded(directory: str, android_context: Any = None) -> str:
         if _embedded is None:
             credentials = None
             music = None
+            phone = None
             if android_context is not None:
                 from companion_agent.android_credentials import AndroidCredentialStore
+                from companion_agent.integrations.droid_android import android_phone_client
                 from companion_agent.integrations.netease_android import android_client
 
                 credentials = AndroidCredentialStore(Path(directory), android_context)
                 music = android_client(android_context)
-            runtime = LocalRuntime(Path(directory), credentials=credentials, native_music=music)
+                phone = android_phone_client(android_context)
+            runtime = LocalRuntime(
+                Path(directory), credentials=credentials, native_music=music, native_phone=phone
+            )
             try:
                 result = runtime.start()
             except BaseException:

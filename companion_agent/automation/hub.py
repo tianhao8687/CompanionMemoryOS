@@ -246,7 +246,23 @@ class ToolHub:
                         if is_bundled_music(server, sys.executable) and tool["name"] in MUSIC_TOOLS
                         else ToolRule()
                     )
+                    if server.id == "droid" and server.transport == "native":
+                        from companion_agent.integrations.droid_catalog import UPGRADE_OPT_IN_TOOLS
+
+                        if tool["name"] in UPGRADE_OPT_IN_TOOLS:
+                            # Newly added UI and haptic tools stay off for existing
+                            # connections until the user explicitly enables them.
+                            default = ToolRule(mode="off")
                     rule = server.tools.get(tool["name"], default)
+                    if (
+                        server.id == "droid"
+                        and server.transport == "native"
+                        and tool["name"] == "read_chat_notifications"
+                        and rule.mode == "allow"
+                    ):
+                        # Notification previews always require a concrete per-read approval,
+                        # including older/hand-edited configuration that says allow.
+                        rule = rule.model_copy(update={"mode": "ask"})
                     if rule.mode != "off":
                         name = f"mcp_{server.id}_{digest(tool['name'])[:12]}"
                         result[name] = (server, tool, rule)
@@ -331,6 +347,47 @@ class ToolHub:
             except ValueError as error:
                 return {"status": "denied", "message": str(error)}
             identity: list[Any] = [conversation, request_id, name, arguments]
+            if name.startswith("mcp_droid_"):
+                from companion_agent.integrations.droid_catalog import (
+                    READ_TOOLS,
+                    TOOL_NAMES,
+                    UI_TOOLS,
+                )
+
+                # Reobserve the phone after a state-changing call. Otherwise the
+                # per-request idempotency ledger would reuse the pre-click screen.
+                reads = {f"mcp_droid_{digest(t)[:12]}" for t in READ_TOOLS}
+                writes = {f"mcp_droid_{digest(t)[:12]}" for t in TOOL_NAMES - READ_TOOLS}
+                ui_writes = {f"mcp_droid_{digest(t)[:12]}" for t in UI_TOOLS - READ_TOOLS}
+                with self.store.database.connection() as db:
+                    rows = db.execute(
+                        "SELECT id, tool_name, arguments, status FROM agent_actions "
+                        "WHERE conversation_id=? AND request_id=? "
+                        "AND status IN ('succeeded', 'uncertain') ORDER BY rowid DESC",
+                        (conversation, request_id),
+                    ).fetchall()
+                if name in reads:
+                    changed = next((row["id"] for row in rows if row["tool_name"] in writes), None)
+                    if changed:
+                        identity.append(changed)
+                elif name in ui_writes:
+                    observations = {f"mcp_droid_{digest(t)[:12]}" for t in UI_TOOLS & READ_TOOLS}
+                    observed = next(
+                        (
+                            row["id"]
+                            for row in rows
+                            if row["tool_name"] in observations
+                            and row["status"] == "succeeded"
+                            and json.loads(row["arguments"]).get("expected_package")
+                            == arguments.get("expected_package")
+                        ),
+                        None,
+                    )
+                    if observed is None:
+                        return {"status": "denied", "message": "请先读取目标应用的当前界面。"}
+                    # Retried writes reuse their receipt. A fresh observation
+                    # permits an intentional next click or scroll with the same args.
+                    identity.append(observed)
             if name == f"mcp_netease_{digest('netease_playback_state')[:12]}":
                 # A preflight read cannot stand in for the observation after
                 # opening a song. Reuse remains scoped to that same handoff.
@@ -504,12 +561,19 @@ class ToolHub:
             if item.tool_name:
                 if not item.tool_name.startswith("mcp_"):
                     raise ValueError("只能定时调用已连接的 MCP 工具。")
-                self.inspect(item.tool_name, item.arguments)
+                self.inspect_scheduled(item.tool_name, item.arguments)
             return self.scheduler.create(item, key)
         raise ValueError("未知工具。")
 
+    def inspect_scheduled(self, name: str, arguments: dict[str, Any]) -> tuple[str, str]:
+        if name == f"mcp_droid_{digest('read_chat_notifications')[:12]}":
+            raise ValueError("陪我看消息仅支持当前对话中确认读取，不能设置定时读取。")
+        return self.inspect(name, arguments)
+
     def dispatch_job(self, row: dict[str, Any], key: str) -> dict[str, Any]:
         item = ScheduleInput.model_validate_json(row["data"])
+        if item.tool_name == f"mcp_droid_{digest('read_chat_notifications')[:12]}":
+            return {"status": "denied", "message": "陪我看消息不支持定时读取。"}
         return self.invoke(item.tool_name or "", item.arguments, item.conversation_id, key)
 
     def public_state(self) -> dict[str, Any]:

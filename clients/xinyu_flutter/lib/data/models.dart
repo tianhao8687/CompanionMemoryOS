@@ -152,6 +152,7 @@ abstract class CompanionRepository {
     String text, {
     List<String> imageIds = const [],
     String? quoteId,
+    Map<String, dynamic>? screenContext,
   });
   Future<Map<String, dynamic>> saveSettings(
     Map<String, dynamic> settings, {

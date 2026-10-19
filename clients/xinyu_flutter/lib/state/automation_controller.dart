@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../data/automation.dart';
 import '../data/local_repository.dart';
@@ -104,6 +105,207 @@ class AutomationController extends ChangeNotifier {
 
   Future<AutomationState> _fresh(LocalRepository repository) async =>
       AutomationState(await repository.automation());
+
+  Future<void> connectPhone() => _mutate((repository) async {
+    final latest = await _fresh(repository);
+    if (latest.phone['supported'] != true) {
+      throw const CompanionException('手机能力需要 Android 9 或更高版本。');
+    }
+    final config = latest.copyConfig();
+    final servers = automationList(config['servers']);
+    var server = servers.where((item) => item['id'] == 'droid').firstOrNull;
+    if (server == null) {
+      server = await repository.phoneTemplate();
+      servers.add(server);
+    }
+    server['enabled'] = true;
+    config['servers'] = servers;
+    await repository.saveAutomation(config);
+    await repository.connectPhone();
+    notice = '手机能力已连接。基础操作默认先确认，界面操作需单独开启。';
+  });
+
+  Future<void> disablePhone() => _mutate((repository) async {
+    final config = (await _fresh(repository)).copyConfig();
+    final servers = automationList(config['servers']);
+    final server = servers.where((item) => item['id'] == 'droid').firstOrNull;
+    if (server == null) return;
+    server['enabled'] = false;
+    config['servers'] = servers;
+    await repository.saveAutomation(config);
+    notice = '已停用手机能力，已保存的权限保留。';
+  });
+
+  Future<void> setPhoneGroupPermission(String groupId, String mode) => _mutate((
+    repository,
+  ) async {
+    if (!{'ask', 'allow', 'off'}.contains(mode)) return;
+    if (groupId == 'chat_notifications' && mode == 'allow') mode = 'ask';
+    final latest = await _fresh(repository);
+    final group = automationList(latest.phone['groups'])
+        .where((item) => item['id'] == groupId)
+        .firstOrNull;
+    final config = latest.copyConfig();
+    final servers = automationList(config['servers']);
+    final server = servers.where((item) => item['id'] == 'droid').firstOrNull;
+    if (server == null || group == null || latest.phoneTools.isEmpty) {
+      throw const CompanionException('请先连接手机能力。');
+    }
+    final available = latest.phoneTools.map((tool) => tool['name']).toSet();
+    final rules = automationMap(server['tools']);
+    for (final name in (group['tools'] as List).whereType<String>().where(
+      available.contains,
+    )) {
+      rules[name] = {...automationMap(rules[name]), 'mode': mode};
+    }
+    server['tools'] = rules;
+    config['servers'] = servers;
+    if (groupId == 'haptics' && mode != 'allow') {
+      config['reply_haptics_enabled'] = false;
+    }
+    await repository.saveAutomation(config);
+    notice = '手机能力权限已保存。';
+  });
+
+  Future<void> setReplyHaptics(bool enabled) => _mutate((repository) async {
+    final latest = await _fresh(repository);
+    final config = latest.copyConfig();
+    if (enabled) {
+      final servers = automationList(config['servers']);
+      final server = servers.where((item) => item['id'] == 'droid').firstOrNull;
+      final available = latest.phoneTools.map((tool) => tool['name']).toSet();
+      if (server == null ||
+          server['enabled'] != true ||
+          !available.containsAll(['vibrate_pattern', 'cancel_vibration'])) {
+        throw const CompanionException('请先连接支持触感的手机能力。');
+      }
+      final rules = automationMap(server['tools']);
+      for (final name in ['vibrate_pattern', 'cancel_vibration']) {
+        rules[name] = {...automationMap(rules[name]), 'mode': 'allow'};
+      }
+      server['tools'] = rules;
+      config['servers'] = servers;
+      config['loop'] = {...automationMap(config['loop']), 'enabled': true};
+    }
+    config['reply_haptics_enabled'] = enabled;
+    await repository.saveAutomation(config);
+    notice = enabled ? '已开启。TA 会在情感浓烈的回复里偶尔用短拍表达，不需要逐次确认。' : '已关闭随回复触感。';
+  });
+
+  Future<void> openPhonePermission(String permission) async {
+    if (!{
+      'accessibility',
+      'dnd',
+      'write_settings',
+      'overlay',
+      'chat_notifications',
+    }.contains(permission)) {
+      return;
+    }
+    try {
+      await const MethodChannel('xinyu/phone').invokeMethod<void>(
+        'openPermissionSettings',
+        {'permission': permission},
+      );
+    } catch (_) {
+      error = '无法打开系统权限页面，请在手机设置中为心隅授权。';
+      _emit();
+    }
+  }
+
+  Future<void> setPhoneComfort(String field, bool value) => _mutate((
+    repository,
+  ) async {
+    if (!{'enabled', 'media', 'screen', 'interruptions'}.contains(field)) {
+      return;
+    }
+    final latest = await _fresh(repository);
+    final config = latest.copyConfig();
+    final servers = automationList(config['servers']);
+    final server = servers.where((item) => item['id'] == 'droid').firstOrNull;
+    if (server == null ||
+        server['enabled'] != true ||
+        latest.phoneTools.isEmpty) {
+      throw const CompanionException('请先连接手机能力。');
+    }
+    final comfort = <String, dynamic>{
+      'enabled': false,
+      'media': true,
+      'screen': false,
+      'interruptions': false,
+      ...automationMap(config['phone_comfort']),
+      field: value,
+    };
+    if (field == 'enabled' && value) comfort['paused_until'] = null;
+    const channelTools = {
+      'media': ['get_settings', 'set_volume'],
+      'screen': [
+        'get_settings',
+        'set_brightness',
+        'get_light_level',
+        'get_proximity',
+      ],
+      'interruptions': ['get_dnd_status', 'set_dnd_mode'],
+    };
+    if (value && comfort['enabled'] == true) {
+      final rules = automationMap(server['tools']);
+      final available = latest.phoneTools.map((tool) => tool['name']).toSet();
+      for (final entry in channelTools.entries) {
+        if (comfort[entry.key] != true ||
+            (field != 'enabled' && field != entry.key)) {
+          continue;
+        }
+        for (final name in entry.value) {
+          if (!available.contains(name)) {
+            throw const CompanionException('手机能力已更新，请重新连接。');
+          }
+          rules[name] = {...automationMap(rules[name]), 'mode': 'allow'};
+        }
+      }
+      server['tools'] = rules;
+      config['loop'] = {...automationMap(config['loop']), 'enabled': true};
+    }
+    config['servers'] = servers;
+    config['phone_comfort'] = comfort;
+    await repository.saveAutomation(config);
+    notice = comfort['enabled'] == true
+        ? '已保存陪伴范围。TA 会结合聊天判断，不会每次表达情绪都操作。'
+        : '已停止主动调整。已有调整可用下方按钮恢复。';
+  });
+
+  Future<void> restorePhoneComfort() => _mutate((repository) async {
+    final result = await repository.restorePhoneComfort();
+    notice = result['verified'] == true
+        ? '已核对恢复；你手动改过的设置保持现状。'
+        : '仍有设置未确认恢复，请检查手机权限和操作记录。';
+  });
+
+  Future<void> setPhoneComfortCooldown(int minutes) =>
+      _mutate((repository) async {
+        if (![1, 3, 5].contains(minutes)) return;
+        final config = (await _fresh(repository)).copyConfig();
+        config['phone_comfort'] = {
+          ...automationMap(config['phone_comfort']),
+          'cooldown_minutes': minutes,
+        };
+        await repository.saveAutomation(config);
+        notice = '联动至少间隔 $minutes 分钟；到点不会自动操作。';
+      });
+
+  Future<void> controlPhoneComfort(String action) => _mutate((
+    repository,
+  ) async {
+    if (!{'pause', 'resume', 'keep'}.contains(action)) return;
+    final ids = action == 'keep'
+        ? automationList(state?.phoneComfort['active'])
+              .map((row) => row['action_id'])
+              .whereType<String>()
+              .toSet()
+              .toList()
+        : <String>[];
+    final result = await repository.controlPhoneComfort(action, actionIds: ids);
+    notice = result['message'] as String?;
+  });
 
   Future<void> connectNetease() => _mutate((repository) async {
     final latest = await _fresh(repository);

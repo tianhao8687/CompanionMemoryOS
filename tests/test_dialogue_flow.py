@@ -45,8 +45,9 @@ def test_voice_references_save_clear_restart_and_never_become_memories(tmp_path:
     # No response rewriting or substitution is used to disguise repeated model output.
     assert response.json()["assistant"]["content"] == "我在，慢慢说。"
     system = model.inputs[-1][0].content
-    voice = json.loads(
-        system.split("[USER AUTHORED VOICE REFERENCES]\n")[1].split("\n", 1)[1].split("\n\n", 1)[0]
+    # Read the JSON object itself; adjacent prompt sections need not have blank lines.
+    voice, _ = json.JSONDecoder().raw_decode(
+        system.split("[USER AUTHORED VOICE REFERENCES]\n", 1)[1].split("\n", 1)[1].lstrip()
     )
     assert voice == {"preferred_examples": preferred, "expressions_to_avoid": avoided}
     host: RomanceHost = client.app.state.host

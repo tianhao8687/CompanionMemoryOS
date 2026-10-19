@@ -1,0 +1,47 @@
+package io.droidmcp.sensors
+
+import android.content.Context
+import android.hardware.Sensor
+import io.droidmcp.core.McpTool
+import io.droidmcp.core.ParameterType
+import io.droidmcp.core.ToolAnnotations
+import io.droidmcp.core.ToolParameter
+import io.droidmcp.core.ToolResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+/**
+ * Reads the `TYPE_LIGHT` ambient-light sensor (illuminance in lux). No permissions. With
+ * `duration_ms` (1-5000) it collects a series of samples; otherwise a single reading. See
+ * [sampleSensor]. Output: latest `lux`, `accuracy`, `timestamp`, plus a `readings` list of
+ * `{lux,timestamp}`. Returns [ToolResult.error] (with distinct messages) if no reading arrives in time or when the device has no light sensor.
+ */
+class GetLightLevelTool(private val context: Context) : McpTool {
+
+    override val name = "get_light_level"
+    override val description = "Read ambient light level in lux"
+    override val parameters = listOf(
+        ToolParameter("duration_ms", "Duration to collect readings in ms (1-5000, null for single reading)", ParameterType.INTEGER, required = false, minimum = 1.0, maximum = 5000.0),
+    )
+    override val annotations = ToolAnnotations(readOnlyHint = true, idempotentHint = true)
+
+    override suspend fun execute(params: Map<String, Any>): ToolResult = withContext(Dispatchers.IO) {
+        val durationMs = (params["duration_ms"] as? Number)?.toInt()?.coerceIn(1, 5000)
+
+        val result = sampleSensor(context, Sensor.TYPE_LIGHT, durationMs)
+        result.toErrorOrNull("Light sensor")?.let { return@withContext it }
+        val readings = (result as SensorSampleResult.Readings).readings
+
+        val latest = readings.lastOrNull()
+
+        ToolResult.success(mapOf(
+            "lux" to (latest?.values?.get(0) ?: 0f),
+            "accuracy" to (latest?.accuracy ?: 0),
+            "timestamp" to (latest?.timestamp ?: System.currentTimeMillis()),
+            "readings" to readings.map { mapOf(
+                "lux" to it.values[0],
+                "timestamp" to it.timestamp,
+            )}
+        ))
+    }
+}
