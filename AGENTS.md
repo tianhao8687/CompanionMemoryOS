@@ -32,8 +32,8 @@ Read `docs/CHAT_QUALITY_TESTING.md` before application acceptance work.
 选型、许可证、测试结果和限制见 `docs/LOCAL_SPEECH_INPUT.md`。
 启动优化与固定中文样例结果见 `docs/LOCAL_SPEECH_STARTUP_TESTING.md`。
 公开录音与模拟器库测试只说明所选样例表现，不能外推为普遍中文准确率或真机麦克风验收。
-2026-10-19 用户授权上传 GitHub 并更新 Windows 版。本轮发布 Windows 0.2.31，
-Android 仅同步源码，不构建新的 APK；后续安装包继续保持手动构建与明确授权。
+2026-10-19 用户授权上传 GitHub 并更新 Windows 版；2026-10-20 继续明确授权构建、
+打包 Android。当前交付 Windows / Android 0.2.31；后续安装包继续保持手动构建与明确授权。
 
 ## Review before GitHub upload
 

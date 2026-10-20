@@ -1,6 +1,6 @@
-# 心隅 0.2.31 · Windows 本地语音与源码更新
+# 心隅 0.2.31 · Windows / Android 本地语音与手机陪伴
 
-2026-10-19。版本 `0.2.31+34`，发布标签 `xinyu-v0.2.31`，源码以 `main` 为准。
+2026-10-19 发布 Windows，2026-10-20 补充 Android。版本 `0.2.31+34`，发布标签 `xinyu-v0.2.31`。
 [下载本版](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.31)。
 
 ## Windows 更新
@@ -19,11 +19,13 @@
 语音启动对照、20 段公开真人录音及噪声样例结果见 [语音测试记录](LOCAL_SPEECH_STARTUP_TESTING.md)。
 这些小样本结果不是普遍中文准确率；实际麦克风、口音和环境噪声仍会影响效果。
 
-## Android 源码范围
+## Android 更新
 
 本轮将已实现的 droid-mcp 手机操作、情绪联动、环境光/接近传感器、可调冷却、回复触感、
 通知预览、悬浮小窗和点开读屏同步到 GitHub。各入口继续遵守系统权限与用户选择的范围。
-**本次只交付 Windows 包，没有构建或发布新的 Android APK**；这些手机功能不能用于 Windows。
+2026-10-20 补充 ARM64 Release APK `XinYu-Android-0.2.31-Preview.apk`，同时包含免费本地语音输入。
+这些手机联动功能仅用于 Android。签名、升级、原生依赖与最终 APK 运行结果见
+[Android 0.2.31 交付记录](ANDROID_0231_DELIVERY.md)。
 Android 的逐项能力和测试边界见 [手机能力](ANDROID_PHONE_CAPABILITIES.md)、
 [手机陪伴](PHONE_COMPANIONSHIP.md)、[悬浮陪聊](ANDROID_FLOATING_CHAT.md)。
 
@@ -64,7 +66,12 @@ Android 的逐项能力和测试边界见 [手机能力](ANDROID_PHONE_CAPABILIT
 
 ## 附件
 
-Release 提供 `XinYu-Windows-0.2.31.zip`、`INSTALL.md`、`SHA256SUMS.txt` 和 `delivery.json`。
+Release 原有 Windows ZIP、`INSTALL.md`、`SHA256SUMS.txt` 和 `delivery.json` 保持不变。
+Android 附件为 `XinYu-Android-0.2.31-Preview.apk`、`ANDROID_INSTALL.md`、
+`ANDROID_SHA256SUMS.txt` 与 `android-delivery.json`，两个平台分别记录验证范围和构建来源。
+Windows 来自 `15ff7af2ea8565e0291b6152fb79cd8a51feba55`；
+Android 来自补充原生库对齐修复的 `f77ee0880afcce88572db927cbfdf0a81b20e950`。
+已发布标签保持原指向，Android 的准确源码提交可从其交付清单定位。
 交付清单记录源码提交、文件大小、SHA-256 和验证范围，不上传测试对话与构建机私有数据。
 安装包构建仍为手动流程，普通源码推送只运行 CI。
 

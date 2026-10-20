@@ -1,11 +1,11 @@
 # Windows / Android 本地版交付记录
 
-2026-10-19 当前 Windows 版本为 **0.2.31（客户端 0.2.31+34）**，提供完整免安装 ZIP，
-新增免费本地语音输入及启动优化，并保留 Windows 网易云后台点歌与既有陪伴功能。
-[Windows 下载](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.31) ·
+2026-10-19 发布 Windows **0.2.31（客户端 0.2.31+34）**，2026-10-20 补充同版 Android Preview，
+提供 Windows 完整免安装 ZIP 与 ARM64 APK，新增免费本地语音输入及启动优化。
+Windows 保留网易云后台点歌；Android 包含手机联动、环境感知、触感、小点与读屏。
+[Windows / Android 下载](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.31) ·
 [本版交付与验收](XINYU_0231_DELIVERY.md)。
-Android 本轮仅同步源码，公开 APK 仍为 0.2.17 Preview；手机联动、小窗和语音的源码状态
-与 Windows 包分开说明，不将新源码视作已交付 APK。
+Android 安装、签名兼容性与成品测试单独记录在 [安卓交付记录](ANDROID_0231_DELIVERY.md)。
 
 ## 历史交付记录
 

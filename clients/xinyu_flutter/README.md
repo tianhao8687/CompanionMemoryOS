@@ -8,18 +8,19 @@ Flutter 玻璃界面 + 原有 Python 记忆引擎。电脑和手机各自保存�
 不互通，不依赖电脑给手机提供服务，也不需要租服务器。当前源码和实际产物状态见
 [本地版交付记录](../../docs/LOCAL_APP_DELIVERY.md)；源码接入不等于安装包已经验收。
 
-当前 Windows 版本：[心隅 0.2.31](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.31)。
-源码版本为 `0.2.31+34`，Windows 新增免费的本地语音输入、模型预加载和同面板复用。
-Android 手机联动、环境感知、回复触感、悬浮小点和点开读屏也已同步源码，本轮不生成新 APK。
+当前 Windows / Android 版本：[心隅 0.2.31](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.31)。
+源码版本为 `0.2.31+34`，两端新增免费的本地语音输入、模型预加载和同面板复用。
+Android 包含手机联动、环境感知、回复触感、悬浮小点和点开读屏。
 保留 Windows 后台点歌、当前账号歌单参考、不同人设的音乐品味、角色卡导入、AI 固定应用操作和移动界面优化。
 保留一起听、歌词滚动、共同经历记忆、陪伴专注、回忆小窝、心隅图标与统一字体。
-Windows 提供免安装 ZIP；Android 当前公开下载仍为 [0.2.17 Preview](https://github.com/tianhao8687/CompanionMemoryOS/releases/tag/xinyu-v0.2.17)，不包含本次修复。
+Windows 提供免安装 ZIP；Android 提供 `XinYu-Android-0.2.31-Preview.apk`。
 该 ARM64 APK 应用名「心隅·测试」，包名 `com.xinyu.xinyu_flutter.preview`。
-可更新之前同签名的测试包，与旧公开版数据各自独立。
+已核对 0.2.17 Preview、0.2.30 和本版的签名一致；可覆盖更新同签名、同包名的测试版。
+与包名不含 `.preview` 的旧正式包数据各自独立。
 请通过现有备份功能迁移需要的内容，安装时不要为解决签名问题直接卸载有数据的旧版。
 
 Windows 随包引擎、账号歌单读取及当前网易云构建的后台播放已经实测；
-已另行交付 [Android 0.2.27 本地测试包](../../docs/ANDROID_0227_DELIVERY.md)，包含手机能力与网易云更新；
+Android 的成品安装、升级与手机能力验证见 [0.2.31 安卓交付记录](../../docs/ANDROID_0231_DELIVERY.md)；
 真实手机及模型的点歌和回忆表达仍需体验验收。后续本地构建可使用 `build_local.ps1 -Target android -Preview`
 并传入已校验的 `-AndroidWheels` 目录，测试版的包名和版本会在交付前自动核对。
 当前交付、校验与限制见 [0.2.31 交付记录](../../docs/XINYU_0231_DELIVERY.md)。
