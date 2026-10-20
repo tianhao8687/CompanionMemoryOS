@@ -98,8 +98,11 @@ def inspect_apk(apk: Path) -> dict[str, object]:
     music: set[str] | None = None
     phone: set[str] | None = None
     python_files: set[str] = set()
+    native_libraries: dict[str, bool] = {}
     with ZipFile(apk) as archive:
         for name in archive.namelist():
+            if name.endswith(".so"):
+                native_libraries[name] = arm64_16kb_compatible(archive.read(name))
             if name.endswith(".dex"):
                 data = archive.read(name)
                 found = found or bridge_methods(data)
@@ -112,6 +115,11 @@ def inspect_apk(apk: Path) -> dict[str, object]:
             if name.startswith("assets/chaquopy/") and name.endswith(".imy"):
                 with ZipFile(io.BytesIO(archive.read(name))) as python_archive:
                     python_files.update(python_archive.namelist())
+                    for member in python_archive.namelist():
+                        if member.endswith(".so"):
+                            native_libraries[f"{name}:{member}"] = arm64_16kb_compatible(
+                                python_archive.read(member)
+                            )
     pillow_modules = all(
         f"PIL/{module}.py" in python_files or f"PIL/{module}.pyc" in python_files
         for module in ("Image", "ImageChops", "ImageDraw")
@@ -161,6 +169,10 @@ def inspect_apk(apk: Path) -> dict[str, object]:
         "phone_python_present": phone_python,
         "phone_license_present": phone_license,
         "lyric_python_present": lyric_python,
+        "native_libraries_checked": len(native_libraries),
+        "native_libraries_incompatible": [
+            name for name, compatible in native_libraries.items() if not compatible
+        ],
         "status": "passed"
         if found is not None
         and not missing
@@ -173,9 +185,38 @@ def inspect_apk(apk: Path) -> dict[str, object]:
         and phone_python
         and phone_license
         and lyric_python
+        and bool(native_libraries)
+        and all(native_libraries.values())
         else "failed",
         "android_runtime": "not_run",
     }
+
+
+def arm64_16kb_compatible(data: bytes) -> bool:
+    """Check ELF load segments too: APK ZIP alignment alone is insufficient."""
+    if len(data) < 64 or data[:6] != b"\x7fELF\x02\x01":
+        return False
+    if struct.unpack_from("<H", data, 18)[0] != 183:
+        return False
+    offset = struct.unpack_from("<Q", data, 32)[0]
+    size, count = struct.unpack_from("<HH", data, 54)
+    if size < 56 or not count or offset + size * count > len(data):
+        return False
+    loads = 0
+    for index in range(count):
+        start = offset + size * index
+        if struct.unpack_from("<I", data, start)[0] != 1:
+            continue
+        loads += 1
+        file_offset, address = struct.unpack_from("<QQ", data, start + 8)
+        alignment = struct.unpack_from("<Q", data, start + 48)[0]
+        if (
+            alignment < 16384
+            or alignment & (alignment - 1)
+            or file_offset % alignment != address % alignment
+        ):
+            return False
+    return loads > 0
 
 
 def main() -> int:

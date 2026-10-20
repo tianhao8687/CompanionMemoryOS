@@ -64,7 +64,7 @@ def denied(name, **args):
 
 
 def catalog_check():
-    require(len(catalog) == 30, f"Expected 30 tools, got {len(catalog)}")
+    require(len(catalog) == 31, f"Expected 31 tools, got {len(catalog)}")
     require(server.tools["query_screen"].mode == "off", "UI must default off")
     require(server.tools["set_volume"].mode == "ask", "Volume must require approval")
     return {"tools": len(catalog), "state": phone.state()}

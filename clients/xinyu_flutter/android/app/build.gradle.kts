@@ -62,6 +62,9 @@ android {
     packaging {
         jniLibs {
             keepDebugSymbols += "**/libsqlite3_python.so"
+            // Dart uses sherpa's C API. Its bundled, unused Java adapter is only
+            // 4 KB aligned; keep the C API and ONNX runtime for 16 KB devices.
+            excludes += "**/libonnxruntime4j_jni.so"
         }
     }
 }
